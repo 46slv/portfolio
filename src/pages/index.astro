@@ -45,16 +45,29 @@ const workScope = [
 
       <main class="flex-grow">
         <section class="mb-40">
-          <h1 class="text-4xl md:text-7xl font-bold tracking-tighter text-white mb-6">
-            {name} <span class="text-zinc-700 ml-4 font-light text-2xl md:text-4xl italic">{jpName}</span>
-          </h1>
-          <p class="text-sm md:text-lg tracking-[0.1em] text-zinc-400 font-light max-w-2xl leading-relaxed">
-            {roles}. Born in 2002. Currently based in Matsudo, Chiba.
-          </p>
-          
-          <div class="mt-12 flex flex-wrap gap-4 text-[11px] tracking-widest uppercase">
+          <div class="border-b border-zinc-900 pb-8 mb-12">
+            <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">
+              {name}
+              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">
+                ({jpName}, b.&nbsp;—)
+              </span>
+            </h1>
+            
+            <div class="space-y-6 text-sm md:text-base leading-relaxed text-zinc-400 max-w-3xl font-light">
+              <p>
+                <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer. 
+                He is primarily active as a director for music videos and commercial projects, known for his technical expertise in color science and post-production.
+              </p>
+              <p>
+                A member of the creative collective <span class="text-zinc-300">Core Creative</span> and the musical unit <span class="text-zinc-300">CDs</span>. 
+                Currently based in Matsudo, Chiba, he also serves as a support lecturer at a vocational school, contributing to the development of the next generation of visual creators.
+              </p>
+            </div>
+          </div>
+
+          <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-4 py-2 hover:bg-white hover:text-black transition-all">
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
                 {link.name}
               </a>
             ))}
