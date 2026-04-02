@@ -13,9 +13,21 @@ const snsLinks = [
 ];
 
 const logs = [
-  { date: "2025.09.01", content: "Core Creative / CDs 加入 / 名義追加" },
-  { date: "2025.08.22", content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！" },
-  { date: "2025.08.16", content: "【歌ってみた】空想フォレスト / 綿菓子かんろ" },
+  { 
+    date: "2025.09.01", 
+    content: "Core Creative / CDs 加入 / 名義追加",
+    url: "https://x.com/cumuloworks" // 飛ばしたいURLをここへ
+  },
+  { 
+    date: "2025.08.22", 
+    content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！",
+    url: "https://www.youtube.com/..." 
+  },
+  { 
+    date: "2025.08.16", 
+    content: "【歌ってみた】空想フォレスト / 綿菓子かんろ",
+    url: "https://www.youtube.com/..."
+  },
 ];
 
 const workScope = [
@@ -90,6 +102,14 @@ const workScope = [
                     <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
                     
                     <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
+                    <a 
+                     href={log.url} 
+                     target="_blank" 
+                     rel="noopener noreferrer"
+                     class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors underline-offset-8 decoration-zinc-800 hover:underline inline-block"
+                   >
+                     {log.content}
+                   </a>
                       {log.content}
                     </div>
                   </div>
