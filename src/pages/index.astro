@@ -61,21 +61,31 @@ const workScope = [
             <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">
               {name}
               <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">
-                ({jpName}, b.&nbsp;—)
+                {jpName}
               </span>
             </h1>
             
             <div class="space-y-6 text-sm md:text-base leading-relaxed text-zinc-400 max-w-3xl font-light">
-              <p>
-                <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer. 
-                He is primarily active as a director for music videos and commercial projects, known for his technical expertise in color science and post-production.
-              </p>
-              <p>
-                A member of the creative collective <span class="text-zinc-300">Core Creative</span> and the musical unit <span class="text-zinc-300">CDs</span>. 
-                Currently based in Matsudo, Chiba, he also serves as a support lecturer at a vocational school, contributing to the development of the next generation of visual creators.
-              </p>
+              <div>
+                <p class="text-zinc-400 mb-2">
+                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer. 
+                  He is primarily active as a director for music videos and commercial projects, known for his technical expertise in color science and post-production.
+                </p>
+                <p class="text-zinc-600 italic">
+                  {jpName}（ふじしろ・ししゅう）は、日本の映像作家、コンポジター、モーションデザイナー。主にミュージックビデオや広告のディレクションを手掛けており、色彩設計とポストプロダクションにおける技術的アプローチで知られている。
+                </p>
+              </div>
+
+              <div>
+                <p class="text-zinc-400 mb-2">
+                  A member of the creative collective <span class="text-zinc-300">Core Creative</span> and the musical unit <span class="text-zinc-300">CDs</span>. 
+                  Currently based in Matsudo, Chiba, he also serves as a support lecturer at a vocational school, contributing to the development of the next generation of visual creators.
+                </p>
+                <p class="text-zinc-600 italic">
+                  クリエイティブ・コレクティブ「Core Creative」および音楽ユニット「CDs」のメンバー。現在は千葉県松戸市を拠点に活動。専門学校での講師も務め、次世代のクリエイター育成にも携わっている。
+                </p>
+              </div>
             </div>
-          </div>
 
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
