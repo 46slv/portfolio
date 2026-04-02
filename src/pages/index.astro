@@ -1,0 +1,120 @@
+---
+import '../styles/global.css'; // これを一番上に追加！
+// SS_Portfolio Data
+const name = "Shishu Fujishiro";
+const jpName = "藤白 詩集";
+const roles = "Compositor / Colorist / Motion Designer / Cinematographer";
+const email = "info@corecreative.jp";
+
+const snsLinks = [
+  { name: "X (Twitter)", url: "https://x.com/cumuloworks" }, // ここに自分のURLを
+  { name: "YouTube", url: "#" },
+  { name: "GitHub", url: "#" },
+];
+
+const logs = [
+  { date: "2025.09.01", content: "Core Creative / CDs 加入 / 名義追加" },
+  { date: "2025.08.22", content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！" },
+  { date: "2025.08.16", content: "【歌ってみた】空想フォレスト / 綿菓子かんろ" },
+];
+
+const workScope = [
+  { title: "Music Video", desc: "Filmmaking / Editing / Motion Graphics" },
+  { title: "Film Instructor", desc: "Support Lecturer at Vocational School" },
+];
+---
+
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width" />
+    <title>SS_Portfolio | {name}</title>
+  </head>
+  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased">
+    
+    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col">
+      
+      <header class="flex justify-between items-baseline mb-32">
+        <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">
+          SS_Portfolio v2.0
+        </div>
+        <div class="text-[10px] tracking-widest uppercase font-mono">
+          Status: <span class="text-green-500">Loaded</span>
+        </div>
+      </header>
+
+      <main class="flex-grow">
+        <section class="mb-40">
+          <h1 class="text-4xl md:text-7xl font-bold tracking-tighter text-white mb-6">
+            {name} <span class="text-zinc-700 ml-4 font-light text-2xl md:text-4xl italic">{jpName}</span>
+          </h1>
+          <p class="text-sm md:text-lg tracking-[0.1em] text-zinc-400 font-light max-w-2xl leading-relaxed">
+            {roles}. Born in 2002. Currently based in Matsudo, Chiba.
+          </p>
+          
+          <div class="mt-12 flex flex-wrap gap-4 text-[11px] tracking-widest uppercase">
+            {snsLinks.map(link => (
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-4 py-2 hover:bg-white hover:text-black transition-all">
+                {link.name}
+              </a>
+            ))}
+          </div>
+        </section>
+
+        <div class="grid lg:grid-cols-2 gap-24">
+          
+          <section>
+            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Recent Logs</h2>
+            <div class="space-y-8">
+              {logs.map((log) => (
+                <div class="group">
+                  <div class="text-[10px] font-mono text-zinc-700 mb-1">{log.date}</div>
+                  <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
+                    {log.content}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          <section class="space-y-20">
+            <div>
+              <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Work Scope</h2>
+              <div class="space-y-6">
+                {workScope.map(work => (
+                  <div>
+                    <h3 class="text-sm font-bold text-zinc-200">{work.title}</h3>
+                    <p class="text-xs text-zinc-500 mt-1">{work.desc}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            <div>
+              <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
+              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">Click for more project details and showreel.</p>
+              </a>
+            </div>
+          </section>
+
+        </div>
+      </main>
+
+      <footer class="mt-40 pt-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div class="text-[10px] tracking-[0.4em] text-zinc-700">
+          AFFILIATION: CORE CREATIVE / CDs
+        </div>
+        <div class="text-[10px] tracking-widest font-mono text-zinc-500 italic">
+          {email}
+        </div>
+      </footer>
+
+    </div>
+
+  </body>
+</html>
