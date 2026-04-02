@@ -8,8 +8,8 @@ const email = "info@corecreative.jp";
 
 const snsLinks = [
   { name: "X (Twitter)", url: "https://x.com/cumuloworks" }, // ここに自分のURLを
-  { name: "YouTube", url: "#" },
-  { name: "GitHub", url: "#" },
+//  { name: "YouTube", url: "#" },
+//  { name: "GitHub", url: "#" },
 ];
 
 const logs = [
@@ -63,14 +63,22 @@ const workScope = [
 
         <div class="grid lg:grid-cols-2 gap-24">
           
-          <section>
-            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Recent Logs</h2>
+
+     a    <section>
+            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-10 border-b border-zinc-900 pb-2">Recent Logs</h2>
             <div class="space-y-8">
               {logs.map((log) => (
-                <div class="group">
-                  <div class="text-[10px] font-mono text-zinc-700 mb-1">{log.date}</div>
-                  <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
-                    {log.content}
+                <div class="group flex gap-4">
+                  <div class="mt-1.5 shrink-0">
+                    <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
+                  </div>
+                  
+                  <div>
+                    <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
+                    
+                    <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
+                      {log.content}
+                    </div>
                   </div>
                 </div>
               ))}
