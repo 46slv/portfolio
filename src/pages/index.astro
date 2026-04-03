@@ -1,5 +1,5 @@
 ---
-import '../styles/global.css';
+import '../styles/global.css'; // これを一番上に追加！
 // SS_Portfolio Data
 const name = "Shishu Fujishiro";
 const jpName = "藤白 詩集";
@@ -7,16 +7,60 @@ const roles = "Compositor / Colorist / Motion Designer / Cinematographer";
 const email = "info@corecreative.jp";
 
 const snsLinks = [
-  { name: "X (Twitter)", url: "https://x.com/cumuloworks" },
+  { name: "X (Twitter)", url: "https://x.com/cumuloworks" }, // ここに自分のURLを
+//  { name: "YouTube", url: "#" },
+//  { name: "GitHub", url: "#" },
 ];
 
 const logs = [
-  { date: "2025.12.21.", content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック", url: "https://x.com/shiro_works/status/2003103881790914873?s=20" },
-  { date: "2025.12.12.", content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" },
-  { date: "2025.09.01.", content: "Core Creative 加入 / CDs 加入 / 名義追加", url: "https://x.com/shiro_works/status/1962168505782186124?s=20" },
-  { date: "2025.08.22.", content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！", url: "https://x.com/Wata_kanro/status/1958875429101871257?s=20" },
-  { date: "2025.08.16.", content: "【歌ってみた】空想フォレスト / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1956371845164253453?s=20" },
-  { date: "2025.07.25.", content: "【歌ってみた】サンフェーデッド / 綿菓子かんろ", url: "https://x.com/shiro_works/status/1961069976883782057?s=20." },
+
+  { 
+    date: "2025.12.21.", 
+    content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック",
+    url: "https://x.com/shiro_works/status/2003103881790914873?s=20" 
+  },
+  { 
+    date: "2025.12.12.", 
+    content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" 
+  },
+  { 
+    date: "2025.09.01", 
+    content: "Core Creative 加入 / CDs 加入 / 名義追加",
+    url: "https://x.com/shiro_works/status/1962168505782186124?s=20" // 飛ばしたいURLをここへ
+  },
+  { 
+    date: "2025.08.22", 
+    content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！",
+    url: "https://x.com/Wata_kanro/status/1958875429101871257?s=20" 
+  },
+  { 
+    date: "2025.08.16", 
+    content: "【歌ってみた】空想フォレスト / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1956371845164253453?s=20"
+  },
+  { 
+    date: "2025.07.25", 
+    content: "【歌ってみた】サンフェーデッド / 綿菓子かんろ",
+    url: "https://x.com/shiro_works/status/1961069976883782057?s=20."
+  },
+  { 
+    date: "2025.05.28", 
+    content: "【歌ってみた】きゅびびびびびびびびびびびびびびびびびびびびびびびびずむ / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
+
+  },
+  { 
+    date: "2025.05.28", 
+    content: "【歌ってみた】きゅびびびびずむ / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
+  },
+  { 
+    date: "2025.03.06", 
+    content: "【歌ってみた】きゅびずむ / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1897624776644124810?s=20"
+  },
+
 ];
 
 const workScope = [
@@ -30,29 +74,17 @@ const workScope = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <title>SS_Portfolio | {name}</title>
-    <style is:global>
-      /* 侵食対象の基本設定 */
-      .decay-item {
-        transition: filter 0.8s ease-out;
-        will-change: filter;
-      }
-      canvas#erosion-layer {
-        mix-blend-mode: screen; /* 白をより発光させる */
-      }
-    </style>
   </head>
-  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased relative overflow-x-hidden">
+  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased">
     
-    <canvas id="erosion-layer" class="fixed top-0 left-0 w-full h-full z-50 pointer-events-none opacity-90"></canvas>
-
-    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col relative z-10">
+    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col">
       
-      <header class="flex justify-between items-start mb-32 decay-item">
+      <header class="flex justify-between items-start mb-32">
         <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">
-          SS_Portfolio v2.1
+          SS_Portfolio v2.0
         </div>
         <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
-          <div>Status: <span id="sys-status" class="text-green-500 animate-pulse">ONLINE</span></div>
+          <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
           <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
           <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
         </div>
@@ -61,28 +93,30 @@ const workScope = [
       <main class="flex-grow">
         <section class="mb-20">
           <div class="border-b border-zinc-900 pb-8 mb-12">
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 decay-item">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default">
               {name}
-              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal inline-block">
-                藤<span id="origin-white">白</span> 詩集
+              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
+                {jpName}
               </span>
             </h1>
 
-            <div class="space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light decay-item">
+            <div class="space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light">
               <div>
                 <p class="text-zinc-400 mb-3">
-                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist...
+                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
+                  He is primarily active as a director for music videos, focusing on illustration-based visual works.
+                  A member of the creative collective <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">Core Creative</a> and the musical unit <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">CDs</a>.
                 </p>
                 <p class="text-zinc-600 italic">
-                  藤白 詩集（ふじしろ・ししゅう...）
+                  藤白 詩集（ふじしろ・ししゅう、生年不明）は、日本の映像作家、コンポジター、モーションデザイナー。
+                  主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">CDs</a>」のメンバー
                 </p>
               </div>
-            </div>
-          </div>
+            </div> </div>
 
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-white hover:text-black transition-all duration-300 decay-item">
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
                 {link.name}
               </a>
             ))}
@@ -90,22 +124,36 @@ const workScope = [
         </section>
 
         <div class="grid lg:grid-cols-2 gap-24">
-          <section class="decay-item">
+          
+          <section>
             <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-10 border-b border-zinc-900 pb-2">Recent Logs</h2>
             <div class="space-y-8">
               {logs.map((log) => (
                 <div class="group flex gap-4">
-                  <div class="mt-1.5 shrink-0 h-1.5 w-1.5 rounded-full bg-zinc-800"></div>
+                  <div class="mt-1.5 shrink-0">
+                    <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
+                  </div>
+                  
                   <div>
-                    <div class="text-[10px] font-mono text-zinc-500 mb-1">{log.date}</div>
-                    <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 hover:text-white transition-colors">{log.content}</a>
+                    <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
+                    
+                    <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
+                    <a 
+                     href={log.url} 
+                     target="_blank" 
+                     rel="noopener noreferrer"
+                     class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors underline-offset-8 decoration-zinc-800 hover:underline inline-block"
+                   >
+                     {log.content}
+                   </a>
+                    </div>
                   </div>
                 </div>
               ))}
             </div>
           </section>
 
-          <section class="space-y-20 decay-item">
+          <section class="space-y-20">
             <div>
               <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Work Scope</h2>
               <div class="space-y-6">
@@ -117,94 +165,56 @@ const workScope = [
                 ))}
               </div>
             </div>
+
+            <div>
+              <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
+              
+              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all mb-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">Click for more project details and showreel.</p>
+              </a>
+
+              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Core Creative Profile</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">View professional works and creative collective details.</p>
+              </a>
+            </div>
           </section>
+
         </div>
       </main>
 
-      <footer class="mt-40 pt-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6 decay-item">
-        <div class="text-[10px] tracking-[0.4em] text-zinc-700 uppercase">Affiliation: Core Creative / CDs</div>
-        <div class="text-[10px] tracking-widest font-mono text-zinc-500 italic">{email}</div>
+      <footer class="mt-40 pt-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
+        <div class="text-[10px] tracking-[0.4em] text-zinc-700">
+          AFFILIATION: CORE CREATIVE / CDs
+        </div>
+        <div class="text-[10px] tracking-widest font-mono text-zinc-500 italic">
+          {email}
+        </div>
       </footer>
+
     </div>
 
     <script>
-      // --- 1. Focus Decay (接触による風化) ---
-      const decayItems = document.querySelectorAll('.decay-item');
-      decayItems.forEach(item => {
-        let blurVal = 0;
-        item.addEventListener('mouseenter', () => {
-          blurVal += 0.4; // 触れるたびに0.4pxずつボケが蓄積
-          (item as HTMLElement).style.filter = `blur(${blurVal}px)`;
-        });
-      });
-
-      // --- 2. Erosion Canvas (白シミ侵食) ---
-      const canvas = document.getElementById('erosion-layer') as HTMLCanvasElement;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-
-      const resize = () => {
-        canvas.width = window.innerWidth;
-        canvas.height = window.innerHeight;
-      };
-      window.addEventListener('resize', resize);
-      resize();
-
-      const startTime = performance.now();
-      
-      const drawStain = (x: number, y: number, size: number, alpha: number) => {
-        const grad = ctx.createRadialGradient(x, y, 0, x, y, size);
-        grad.addColorStop(0, `rgba(255, 255, 255, ${alpha})`);
-        grad.addColorStop(0.6, `rgba(255, 255, 255, ${alpha * 0.4})`);
-        grad.addColorStop(1, 'rgba(255, 255, 255, 0)');
-        ctx.fillStyle = grad;
-        ctx.beginPath();
-        ctx.arc(x, y, size, 0, Math.PI * 2);
-        ctx.fill();
-      };
-
-      // クリックによる白シミ (Active Seed)
-      window.addEventListener('click', (e) => {
-        drawStain(e.clientX, e.clientY, 150, 0.3);
-      });
-
-      // 5分間のメインループ
-      const loop = () => {
-        const elapsed = (performance.now() - startTime) / 1000; // 秒
-        const progress = Math.min(elapsed / 300, 1); // 5分(300s)で1.0
-        
-        // 「白」の文字を起点にする
-        const whiteChar = document.getElementById('origin-white');
-        if (whiteChar && elapsed > 5) { // 5秒後から開始
-          const rect = whiteChar.getBoundingClientRect();
-          drawStain(rect.left + rect.width/2, rect.top + rect.height/2, 50 * progress, 0.01);
-        }
-
-        // 時間経過によるランダムな侵食
-        if (Math.random() < 0.1 + progress) {
-          const rx = Math.random() * canvas.width;
-          const ry = Math.random() * canvas.height;
-          drawStain(rx, ry, 100 * progress, 0.005 + (progress * 0.02));
-        }
-
-        // ステータスの破壊演出
-        if (progress > 0.8) {
-          const status = document.getElementById('sys-status');
-          if (status) status.innerText = Math.random() > 0.5 ? "ERROR" : "VOID";
-        }
-
-        if (progress < 1) requestAnimationFrame(loop);
-      };
-      loop();
-
-      // ロード時間と現在時刻
+      // ページ読み込み時間の計測
       window.addEventListener('load', () => {
-        const lt = document.getElementById('load-time');
-        if (lt) lt.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+        const loadTime = Math.round(performance.now());
+        const loadEl = document.getElementById('load-time');
+        if(loadEl) loadEl.innerText = `LOAD: ${loadTime}ms`;
       });
+
+      // 現在時刻のリアルタイム更新
+      const timeEl = document.getElementById('sys-time');
       setInterval(() => {
-        const t = document.getElementById('sys-time');
-        if (t) t.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', {hour12:false})} JST`;
+        const d = new Date();
+        const timeStr = d.toLocaleTimeString('ja-JP', { hour12: false });
+        if(timeEl) timeEl.innerText = `TIME: ${timeStr} JST`;
       }, 1000);
     </script>
   </body>
