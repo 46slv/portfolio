@@ -32,14 +32,12 @@ const workScope = [
     <meta name="viewport" content="width=device-width" />
     <title>SS_Portfolio | {name}</title>
     <style is:global>
-      /* ロータリーコンテナの基本設定 */
       .rotary-viewport {
-        height: 320px; /* 表示領域の高さ */
+        height: 320px;
         overflow-y: auto;
         scroll-snap-type: y mandatory;
-        scrollbar-width: none; /* Firefox */
-        -ms-overflow-style: none; /* IE/Edge */
-        /* 上下をグラデーションで消す（マスク効果） */
+        scrollbar-width: none;
+        -ms-overflow-style: none;
         mask-image: linear-gradient(
           to bottom,
           transparent,
@@ -49,10 +47,10 @@ const workScope = [
         );
       }
       .rotary-viewport::-webkit-scrollbar {
-        display: none; /* Chrome/Safari */
+        display: none;
       }
       .rotary-item {
-        height: 80px; /* 1項目の高さ */
+        height: 80px;
         display: flex;
         align-items: center;
         scroll-snap-align: center;
@@ -76,19 +74,33 @@ const workScope = [
       <main class="flex-grow">
         <section class="mb-20">
           <div class="border-b border-zinc-900 pb-8 mb-12">
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default">
               {name}
-              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">{jpName}</span>
+              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
+                {jpName}
+              </span>
             </h1>
+
             <div class="space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light">
-              <p class="text-zinc-400">
-                <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist...
-              </p>
-            </div>
+              <div>
+                <p class="text-zinc-400 mb-3">
+                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
+                  He is primarily active as a director for music videos, focusing on illustration-based visual works.
+                  A member of the creative collective <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">Core Creative</a> and the musical unit <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">CDs</a>.
+                </p>
+                <p class="text-zinc-600 italic">
+                  藤白 詩集（ふじしろ・ししゅう、生年不明）は、日本の映像作家、コンポジター、モーションデザイナー。
+                  主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">CDs</a>」のメンバー
+                </p>
+              </div>
+            </div> 
           </div>
+
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-white hover:text-black transition-all duration-300">{link.name}</a>
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
+                {link.name}
+              </a>
             ))}
           </div>
         </section>
@@ -101,10 +113,10 @@ const workScope = [
                 {logs.map((log) => (
                   <div class="rotary-item group">
                     <div class="flex gap-4 items-center">
-                      <div class="h-1 w-1 rounded-full bg-[#d0e2f8] opacity-50"></div>
+                      <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
                       <div>
-                        <div class="text-[10px] font-mono text-zinc-500">{log.date}</div>
-                        <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors">{log.content}</a>
+                        <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
+                        <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors">{log.content}</a>
                       </div>
                     </div>
                   </div>
@@ -129,9 +141,9 @@ const workScope = [
         </div>
       </main>
 
-      <footer class="mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500">
+      <footer class="mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500 italic">
         <div>AFFILIATION: CORE CREATIVE / CDs</div>
-        <div class="italic">{email}</div>
+        <div>{email}</div>
       </footer>
     </div>
 
@@ -141,11 +153,9 @@ const workScope = [
       const items = Array.from(list.children);
       const itemHeight = 80;
 
-      // 無限ループ用のクローン作成
-      items.forEach(item => list.appendChild(item.cloneNode(true))); // 後ろにコピー
-      items.forEach(item => list.insertBefore(item.cloneNode(true), list.firstChild)); // 前にコピー
+      items.forEach(item => list.appendChild(item.cloneNode(true)));
+      items.forEach(item => list.insertBefore(item.cloneNode(true), list.firstChild));
 
-      // 初期位置を中央（コピーした真ん中のセット）に設定
       rotary.scrollTop = items.length * itemHeight;
 
       let isInteracting = false;
@@ -163,24 +173,19 @@ const workScope = [
         const currentScroll = rotary.scrollTop;
         const totalHeight = items.length * itemHeight;
 
-        // 無限ループの座標リセット
         if (currentScroll <= 0) {
           rotary.scrollTop = totalHeight;
         } else if (currentScroll >= totalHeight * 2) {
           rotary.scrollTop = totalHeight;
         }
 
-        // 自動微動回転 (ユーザーが触っていない時のみ)
         if (!isInteracting) {
-          rotary.scrollTop += 0.4; // 回転速度
+          rotary.scrollTop += 0.4;
         }
-
         requestAnimationFrame(updateRotary);
       }
-
       updateRotary();
 
-      // ロード時間と時刻（前回維持）
       window.addEventListener('load', () => {
         const loadEl = document.getElementById('load-time');
         if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
