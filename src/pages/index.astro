@@ -61,8 +61,6 @@ const logs = [
     url: "https://x.com/Wata_kanro/status/1897624776644124810?s=20"
   },
 
-
-
 ];
 
 const workScope = [
@@ -81,21 +79,23 @@ const workScope = [
     
     <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col">
       
-      <header class="flex justify-between items-baseline mb-32">
+      <header class="flex justify-between items-start mb-32">
         <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">
           SS_Portfolio v2.0
         </div>
-        <div class="text-[10px] tracking-widest uppercase font-mono">
-          Status: <span class="text-green-500">Loaded</span>
+        <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
+          <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
+          <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
+          <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
         </div>
       </header>
 
       <main class="flex-grow">
         <section class="mb-20">
           <div class="border-b border-zinc-900 pb-8 mb-12">
-            <h1 class="text-4xl md:text-6xl font-bold tracking-tight text-white mb-4">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default">
               {name}
-              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">
+              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
                 {jpName}
               </span>
             </h1>
@@ -112,7 +112,7 @@ const workScope = [
                   主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">CDs</a>」のメンバー
                 </p>
               </div>
-
+            </div> </div>
 
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
@@ -201,5 +201,21 @@ const workScope = [
 
     </div>
 
+    <script>
+      // ページ読み込み時間の計測
+      window.addEventListener('load', () => {
+        const loadTime = Math.round(performance.now());
+        const loadEl = document.getElementById('load-time');
+        if(loadEl) loadEl.innerText = `LOAD: ${loadTime}ms`;
+      });
+
+      // 現在時刻のリアルタイム更新
+      const timeEl = document.getElementById('sys-time');
+      setInterval(() => {
+        const d = new Date();
+        const timeStr = d.toLocaleTimeString('ja-JP', { hour12: false });
+        if(timeEl) timeEl.innerText = `TIME: ${timeStr} JST`;
+      }, 1000);
+    </script>
   </body>
 </html>
