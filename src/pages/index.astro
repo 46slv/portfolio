@@ -74,10 +74,41 @@ const workScope = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <title>SS_Portfolio | {name}</title>
+    <style is:global>
+      /* 粒子化ターゲットの基本スタイル */
+      .burn-out-target {
+        position: relative;
+        overflow: hidden;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+      /* ホバー時の粒子化アニメーション */
+      .burn-out-target:hover {
+        opacity: 0;
+        transform: scale(1.05); /* 少し拡大しながら */
+        /* SVGマスク（粒子パターン）とアニメーションの組み合わせ */
+        mask-image: url('data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="10" height="10" viewBox="0 0 10 10"><circle cx="2" cy="2" r="1.5" fill="black"/><circle cx="8" cy="8" r="1.5" fill="black"/><circle cx="5" cy="5" r="1" fill="black"/><circle cx="2" cy="8" r="1" fill="black"/><circle cx="8" cy="2" r="1" fill="black"/></svg>');
+        mask-size: 10px 10px;
+        mask-repeat: repeat;
+        animation: burnOutParticles 1s ease-out forwards;
+      }
+      @keyframes burnOutParticles {
+        0% { mask-position: 0 0; }
+        100% { mask-position: 50px -100px; /* 粒子が飛び散る */ }
+      }
+
+      /* リンクやログのホバーエフェクトを粒子化に変更 */
+      .burn-out-target a:hover,
+      .recent-log-item:hover .burn-out-target {
+        color: #d0e2f8 !important; /* リンク色を維持しつつ */
+        text-decoration: underline;
+      }
+    </style>
   </head>
-  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased">
+  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased relative">
     
-    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col">
+    <canvas id="ruin-canvas" class="fixed top-0 left-0 w-full h-full z-50 pointer-events-none opacity-80"></canvas>
+
+    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col relative z-10">
       
       <header class="flex justify-between items-start mb-32">
         <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">
@@ -93,7 +124,7 @@ const workScope = [
       <main class="flex-grow">
         <section class="mb-20">
           <div class="border-b border-zinc-900 pb-8 mb-12">
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default burn-out-target inline-block">
               {name}
               <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
                 {jpName}
@@ -101,7 +132,7 @@ const workScope = [
             </h1>
 
             <div class="space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light">
-              <div>
+              <div class="burn-out-target">
                 <p class="text-zinc-400 mb-3">
                   <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
                   He is primarily active as a director for music videos, focusing on illustration-based visual works.
@@ -116,7 +147,7 @@ const workScope = [
 
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300 burn-out-target">
                 {link.name}
               </a>
             ))}
@@ -129,23 +160,23 @@ const workScope = [
             <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-10 border-b border-zinc-900 pb-2">Recent Logs</h2>
             <div class="space-y-8">
               {logs.map((log) => (
-                <div class="group flex gap-4">
+                <div class="group flex gap-4 recent-log-item">
                   <div class="mt-1.5 shrink-0">
                     <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
                   </div>
                   
-                  <div>
+                  <div class="burn-out-target flex-grow">
                     <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
                     
-                    <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
-                    <a 
-                     href={log.url} 
-                     target="_blank" 
-                     rel="noopener noreferrer"
-                     class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors underline-offset-8 decoration-zinc-800 hover:underline inline-block"
-                   >
-                     {log.content}
-                   </a>
+                    <div class="text-sm tracking-wider text-zinc-300 transition-colors">
+                      <a 
+                       href={log.url} 
+                       target="_blank" 
+                       rel="noopener noreferrer"
+                       class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors underline-offset-8 decoration-zinc-800 hover:underline inline-block"
+                      >
+                       {log.content}
+                      </a>
                     </div>
                   </div>
                 </div>
@@ -154,7 +185,7 @@ const workScope = [
           </section>
 
           <section class="space-y-20">
-            <div>
+            <div class="burn-out-target">
               <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Work Scope</h2>
               <div class="space-y-6">
                 {workScope.map(work => (
@@ -169,7 +200,7 @@ const workScope = [
             <div>
               <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
               
-              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all mb-4">
+              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all mb-4 burn-out-target">
                 <div class="flex justify-between items-center">
                   <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
                   <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
@@ -177,7 +208,7 @@ const workScope = [
                 <p class="text-[10px] text-zinc-500 mt-2">Click for more project details and showreel.</p>
               </a>
 
-              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all">
+              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all burn-out-target">
                 <div class="flex justify-between items-center">
                   <span class="text-sm text-white font-bold tracking-widest uppercase">Core Creative Profile</span>
                   <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
@@ -190,7 +221,7 @@ const workScope = [
         </div>
       </main>
 
-      <footer class="mt-40 pt-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
+      <footer class="mt-40 pt-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6 relative z-10">
         <div class="text-[10px] tracking-[0.4em] text-zinc-700">
           AFFILIATION: CORE CREATIVE / CDs
         </div>
@@ -202,20 +233,77 @@ const workScope = [
     </div>
 
     <script>
-      // ページ読み込み時間の計測
+      // 1. ページ読み込み時間の計測（前回から維持）
       window.addEventListener('load', () => {
         const loadTime = Math.round(performance.now());
         const loadEl = document.getElementById('load-time');
         if(loadEl) loadEl.innerText = `LOAD: ${loadTime}ms`;
       });
 
-      // 現在時刻のリアルタイム更新
+      // 2. 現在時刻のリアルタイム更新（前回から維持）
       const timeEl = document.getElementById('sys-time');
       setInterval(() => {
         const d = new Date();
         const timeStr = d.toLocaleTimeString('ja-JP', { hour12: false });
         if(timeEl) timeEl.innerText = `TIME: ${timeStr} JST`;
       }, 1000);
+
+      // 3. 全面侵食Canvasの制御（外部ライブラリなし、最軽量）
+      const canvas = document.getElementById('ruin-canvas');
+      const ctx = canvas.getContext('getClientRects') ? canvas.getContext('2d', { alpha: true }) : null; // コンテキスト取得失敗のフォールバック
+
+      if(ctx) {
+        // Canvasのリサイズ関数
+        const resizeCanvas = () => {
+          canvas.width = window.innerWidth;
+          canvas.height = window.innerHeight;
+        };
+        resizeCanvas();
+        window.addEventListener('resize', resizeCanvas);
+
+        // 白い侵食を描画する関数
+        const drawRuinSpot = (x, y, radiusBase, isTimeRuin = false) => {
+          const startTime = performance.now(); // ページロードからの時間
+          // 時間が経つほど、侵食の範囲（半径）と透明度が上がる
+          const timeFactor = 1 + (startTime / 300000); // 5分で2倍になる
+          const radius = radiusBase * timeFactor;
+          const alpha = (isTimeRuin ? 0.005 : 0.02) * timeFactor; // マウス侵食の方が強い
+
+          // 円形のグラデーション（シミ）
+          const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius);
+          gradient.addColorStop(0, `rgba(10, 10, 10, ${alpha * 0.1})`); // 中心は薄く（背景色）
+          gradient.addColorStop(0.5, `rgba(255, 255, 255, ${alpha})`); // 中間が白
+          gradient.addColorStop(1, 'rgba(10, 10, 10, 0)'); // 外側に向かって消える（背景色）
+
+          ctx.fillStyle = gradient;
+          ctx.beginPath();
+          ctx.arc(x, y, radius, 0, Math.PI * 2);
+          ctx.fill();
+        };
+
+        // マウスの動きに合わせた侵食（じわじわ覆う）
+        window.addEventListener('mousemove', (e) => {
+          // マウス位置から白いシミを描画
+          drawRuinSpot(e.clientX, e.clientY, 30);
+        });
+
+        // 時間経過によるランダムな侵食（蝕まれる）
+        const timeRuin = () => {
+          // 画面上のランダムな位置にシミを発生させる
+          const x = Math.random() * canvas.width;
+          const y = Math.random() * canvas.height;
+          // 小さめのシミ
+          drawRuinSpot(x, y, Math.random() * 50 + 10, true);
+          
+          // 次のシミまでの時間をランダムに（時間が経つほど発生頻度が上がる）
+          const startTime = performance.now();
+          const frequencyFactor = 1 / (1 + (startTime / 600000)); // 10分で発生間隔が半分に
+          const nextRuin = (Math.random() * 1000 + 100) * frequencyFactor;
+          setTimeout(timeRuin, nextRuin);
+        };
+        timeRuin(); // 開始
+      }
+
     </script>
   </body>
 </html>
