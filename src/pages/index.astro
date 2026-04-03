@@ -1,5 +1,5 @@
 ---
-import '../styles/global.css'; // これを一番上に追加！
+import '../styles/global.css';
 // SS_Portfolio Data
 const name = "Shishu Fujishiro";
 const jpName = "藤白 詩集";
@@ -11,46 +11,13 @@ const snsLinks = [
 ];
 
 const logs = [
-  { 
-    date: "2025.12.21.", 
-    content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック",
-    url: "https://x.com/shiro_works/status/2003103881790914873?s=20" 
-  },
-  { 
-    date: "2025.12.12.", 
-    content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ",
-    url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" 
-  },
-  { 
-    date: "2025.09.01", 
-    content: "Core Creative 加入 / CDs 加入 / 名義追加",
-    url: "https://x.com/shiro_works/status/1962168505782186124?s=20"
-  },
-  { 
-    date: "2025.08.22", 
-    content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！",
-    url: "https://x.com/Wata_kanro/status/1958875429101871257?s=20" 
-  },
-  { 
-    date: "2025.08.16", 
-    content: "【歌ってみた】空想フォレスト / 綿菓子かんろ",
-    url: "https://x.com/Wata_kanro/status/1956371845164253453?s=20"
-  },
-  { 
-    date: "2025.07.25", 
-    content: "【歌ってみた】サンフェーデッド / 綿菓子かんろ",
-    url: "https://x.com/shiro_works/status/1961069976883782057?s=20."
-  },
-  { 
-    date: "2025.05.28", 
-    content: "【歌ってみた】きゅびびびびびびびびびびびびびびびびびびびびびびびびずむ / 綿菓子かんろ",
-    url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
-  },
-  { 
-    date: "2025.03.06", 
-    content: "【歌ってみた】きゅびずむ / 綿菓子かんろ",
-    url: "https://x.com/Wata_kanro/status/1897624776644124810?s=20"
-  },
+  { date: "2025.12.21.", content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック", url: "https://x.com/shiro_works/status/2003103881790914873?s=20" },
+  { date: "2025.12.12.", content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" },
+  { date: "2025.09.01.", content: "Core Creative 加入 / CDs 加入 / 名義追加", url: "https://x.com/shiro_works/status/1962168505782186124?s=20" },
+  { date: "2025.08.22.", content: "【#3 生演奏歌枠】常夏ノ夜ニ萌ユ！", url: "https://x.com/Wata_kanro/status/1958875429101871257?s=20" },
+  { date: "2025.08.16.", content: "【歌ってみた】空想フォレスト / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1956371845164253453?s=20" },
+  { date: "2025.07.25.", content: "【歌ってみた】サンフェーデッド / 綿菓子かんろ", url: "https://x.com/shiro_works/status/1961069976883782057?s=20." },
+  { date: "2025.03.06.", content: "【歌ってみた】きゅびずむ / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1897624776644124810?s=20" },
 ];
 
 const workScope = [
@@ -64,15 +31,41 @@ const workScope = [
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width" />
     <title>SS_Portfolio | {name}</title>
+    <style is:global>
+      /* ロータリーコンテナの基本設定 */
+      .rotary-viewport {
+        height: 320px; /* 表示領域の高さ */
+        overflow-y: auto;
+        scroll-snap-type: y mandatory;
+        scrollbar-width: none; /* Firefox */
+        -ms-overflow-style: none; /* IE/Edge */
+        /* 上下をグラデーションで消す（マスク効果） */
+        mask-image: linear-gradient(
+          to bottom,
+          transparent,
+          black 20%,
+          black 80%,
+          transparent
+        );
+      }
+      .rotary-viewport::-webkit-scrollbar {
+        display: none; /* Chrome/Safari */
+      }
+      .rotary-item {
+        height: 80px; /* 1項目の高さ */
+        display: flex;
+        align-items: center;
+        scroll-snap-align: center;
+        transition: opacity 0.3s ease, transform 0.3s ease;
+      }
+    </style>
   </head>
   <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased">
     
     <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col">
       
       <header class="flex justify-between items-start mb-32">
-        <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">
-          SS_Portfolio v2.0
-        </div>
+        <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">SS_Portfolio v2.2</div>
         <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
           <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
           <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
@@ -85,62 +78,38 @@ const workScope = [
           <div class="border-b border-zinc-900 pb-8 mb-12">
             <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">
               {name}
-              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
-                {jpName}
-              </span>
+              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">{jpName}</span>
             </h1>
-
             <div class="space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light">
-              <div>
-                <p class="text-zinc-400 mb-3">
-                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
-                  He is primarily active as a director for music videos, focusing on illustration-based visual works.
-                  A member of the creative collective <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">Core Creative</a> and the musical unit <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">CDs</a>.
-                </p>
-                <p class="text-zinc-600 italic">
-                  藤白 詩集（ふじしろ・ししゅう、生年不明）は、日本の映像作家、コンポジター、モーションデザイナー。
-                  主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">CDs</a>」のメンバー
-                </p>
-              </div>
+              <p class="text-zinc-400">
+                <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist...
+              </p>
             </div>
           </div>
-
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
-                {link.name}
-              </a>
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-white hover:text-black transition-all duration-300">{link.name}</a>
             ))}
           </div>
         </section>
 
-        <div class="grid lg:grid-cols-2 gap-24">
-          
+        <div class="grid lg:grid-cols-2 gap-24 items-start">
           <section>
-            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-10 border-b border-zinc-900 pb-2">Recent Logs</h2>
-            <div class="space-y-8">
-              {logs.map((log) => (
-                <div class="group flex gap-4">
-                  <div class="mt-1.5 shrink-0">
-                    <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
-                  </div>
-                  
-                  <div>
-                    <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
-                    
-                    <div class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors underline-offset-8 decoration-zinc-800 hover:underline">
-                    <a 
-                     href={log.url} 
-                     target="_blank" 
-                     rel="noopener noreferrer"
-                     class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors underline-offset-8 decoration-zinc-800 hover:underline inline-block"
-                   >
-                     {log.content}
-                   </a>
+            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-6 border-b border-zinc-900 pb-2">Recent Logs</h2>
+            <div id="rotary" class="rotary-viewport">
+              <div id="rotary-list" class="flex flex-col">
+                {logs.map((log) => (
+                  <div class="rotary-item group">
+                    <div class="flex gap-4 items-center">
+                      <div class="h-1 w-1 rounded-full bg-[#d0e2f8] opacity-50"></div>
+                      <div>
+                        <div class="text-[10px] font-mono text-zinc-500">{log.date}</div>
+                        <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-white transition-colors">{log.content}</a>
+                      </div>
                     </div>
                   </div>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
           </section>
 
@@ -156,56 +125,69 @@ const workScope = [
                 ))}
               </div>
             </div>
-
-            <div>
-              <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
-              
-              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all mb-4">
-                <div class="flex justify-between items-center">
-                  <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
-                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
-                </div>
-                <p class="text-[10px] text-zinc-500 mt-2">Click for more project details and showreel.</p>
-              </a>
-
-              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all">
-                <div class="flex justify-between items-center">
-                  <span class="text-sm text-white font-bold tracking-widest uppercase">Core Creative Profile</span>
-                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
-                </div>
-                <p class="text-[10px] text-zinc-500 mt-2">View professional works and creative collective details.</p>
-              </a>
-            </div>
           </section>
-
         </div>
       </main>
 
-      <footer class="mt-40 pt-10 border-t border-zinc-900 flex flex-col md:flex-row justify-between items-center gap-6">
-        <div class="text-[10px] tracking-[0.4em] text-zinc-700">
-          AFFILIATION: CORE CREATIVE / CDs
-        </div>
-        <div class="text-[10px] tracking-widest font-mono text-zinc-500 italic">
-          {email}
-        </div>
+      <footer class="mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500">
+        <div>AFFILIATION: CORE CREATIVE / CDs</div>
+        <div class="italic">{email}</div>
       </footer>
-
     </div>
 
     <script>
-      // ページ読み込み時間の計測
-      window.addEventListener('load', () => {
-        const loadTime = Math.round(performance.now());
-        const loadEl = document.getElementById('load-time');
-        if(loadEl) loadEl.innerText = `LOAD: ${loadTime}ms`;
+      const rotary = document.getElementById('rotary') as HTMLElement;
+      const list = document.getElementById('rotary-list') as HTMLElement;
+      const items = Array.from(list.children);
+      const itemHeight = 80;
+
+      // 無限ループ用のクローン作成
+      items.forEach(item => list.appendChild(item.cloneNode(true))); // 後ろにコピー
+      items.forEach(item => list.insertBefore(item.cloneNode(true), list.firstChild)); // 前にコピー
+
+      // 初期位置を中央（コピーした真ん中のセット）に設定
+      rotary.scrollTop = items.length * itemHeight;
+
+      let isInteracting = false;
+      rotary.addEventListener('mousedown', () => isInteracting = true);
+      window.addEventListener('mouseup', () => isInteracting = false);
+      rotary.addEventListener('touchstart', () => isInteracting = true);
+      window.addEventListener('touchend', () => isInteracting = false);
+      rotary.addEventListener('wheel', () => {
+        isInteracting = true;
+        clearTimeout((rotary as any).wheelTimer);
+        (rotary as any).wheelTimer = setTimeout(() => isInteracting = false, 1000);
       });
 
-      // 現在時刻のリアルタイム更新
-      const timeEl = document.getElementById('sys-time');
+      function updateRotary() {
+        const currentScroll = rotary.scrollTop;
+        const totalHeight = items.length * itemHeight;
+
+        // 無限ループの座標リセット
+        if (currentScroll <= 0) {
+          rotary.scrollTop = totalHeight;
+        } else if (currentScroll >= totalHeight * 2) {
+          rotary.scrollTop = totalHeight;
+        }
+
+        // 自動微動回転 (ユーザーが触っていない時のみ)
+        if (!isInteracting) {
+          rotary.scrollTop += 0.4; // 回転速度
+        }
+
+        requestAnimationFrame(updateRotary);
+      }
+
+      updateRotary();
+
+      // ロード時間と時刻（前回維持）
+      window.addEventListener('load', () => {
+        const loadEl = document.getElementById('load-time');
+        if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+      });
       setInterval(() => {
-        const d = new Date();
-        const timeStr = d.toLocaleTimeString('ja-JP', { hour12: false });
-        if(timeEl) timeEl.innerText = `TIME: ${timeStr} JST`;
+        const timeEl = document.getElementById('sys-time');
+        if(timeEl) timeEl.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
       }, 1000);
     </script>
   </body>
