@@ -32,37 +32,50 @@ const workScope = [
     <meta name="viewport" content="width=device-width" />
     <title>SS_Portfolio | {name}</title>
     <style is:global>
+      /* --- Rotary Setting --- */
       .rotary-viewport {
         height: 320px;
         overflow-y: auto;
         scroll-snap-type: y mandatory;
         scrollbar-width: none;
         -ms-overflow-style: none;
-        mask-image: linear-gradient(
-          to bottom,
-          transparent,
-          black 20%,
-          black 80%,
-          transparent
-        );
+        mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
       }
-      .rotary-viewport::-webkit-scrollbar {
+      .rotary-viewport::-webkit-scrollbar { display: none; }
+      .rotary-item { height: 80px; display: flex; align-items: center; scroll-snap-align: center; }
+
+      /* --- Focus Dim Effect --- */
+      .focus-container { transition: opacity 0.5s ease; }
+      /* リンクにホバーした時、それ以外のテキストの不透明度を下げる */
+      .focus-container:has(a:hover) p { opacity: 0.2; }
+      .focus-container:has(a:hover) a:not(:hover) { opacity: 0.2; }
+      .focus-container p, .focus-container a { transition: opacity 0.3s ease; }
+
+      /* --- Cursor Follower --- */
+      #cursor-light {
+        width: 150px;
+        height: 150px;
+        background: radial-gradient(circle, rgba(208,226,248,0.15) 0%, transparent 70%);
+        border-radius: 50%;
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        transform: translate(-50%, -50%);
+        mix-blend-mode: screen;
+        transition: transform 0.1s ease-out;
         display: none;
       }
-      .rotary-item {
-        height: 80px;
-        display: flex;
-        align-items: center;
-        scroll-snap-align: center;
-      }
+      @media (hover: hover) { #cursor-light { display: block; } }
     </style>
   </head>
-  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased">
+  <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased overflow-x-hidden">
     
-    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col">
+    <div id="cursor-light"></div>
+
+    <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col relative z-10">
       
       <header class="flex justify-between items-start mb-32">
-        <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">SS_Portfolio v2.2</div>
+        <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">SS_Portfolio v2.3</div>
         <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
           <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
           <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
@@ -75,21 +88,19 @@ const workScope = [
           <div class="border-b border-zinc-900 pb-8 mb-12">
             <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default">
               {name}
-              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
-                {jpName}
-              </span>
+              <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">{jpName}</span>
             </h1>
 
-            <div class="space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light">
+            <div class="focus-container space-y-10 text-sm md:text-base leading-relaxed max-w-3xl font-light">
               <div>
                 <p class="text-zinc-400 mb-3">
                   <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
                   He is primarily active as a director for music videos, focusing on illustration-based visual works.
-                  A member of the creative collective <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">Core Creative</a> and the musical unit <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-colors">CDs</a>.
+                  A member of the creative collective <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left">Core Creative</a> and the musical unit <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left">CDs</a>.
                 </p>
                 <p class="text-zinc-600 italic">
                   藤白 詩集（ふじしろ・ししゅう、生年不明）は、日本の映像作家、コンポジター、モーションデザイナー。
-                  主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">CDs</a>」のメンバー
+                  主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-all hover:scale-105 inline-block origin-left">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-all hover:scale-105 inline-block origin-left">CDs</a>」のメンバー
                 </p>
               </div>
             </div> 
@@ -97,7 +108,7 @@ const workScope = [
 
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
+              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-2 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300 hover:scale-110 origin-center">
                 {link.name}
               </a>
             ))}
@@ -115,7 +126,7 @@ const workScope = [
                       <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
                       <div>
                         <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
-                        <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-colors">{log.content}</a>
+                        <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-all hover:scale-105 origin-left inline-block">{log.content}</a>
                       </div>
                     </div>
                   </div>
@@ -139,16 +150,14 @@ const workScope = [
 
             <div>
               <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
-              
-              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all mb-4">
+              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center mb-4">
                 <div class="flex justify-between items-center">
                   <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
                   <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
                 </div>
                 <p class="text-[10px] text-zinc-500 mt-2">Click for more project details and showreel.</p>
               </a>
-
-              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all">
+              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center">
                 <div class="flex justify-between items-center">
                   <span class="text-sm text-white font-bold tracking-widest uppercase">Core Creative Profile</span>
                   <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
@@ -167,6 +176,16 @@ const workScope = [
     </div>
 
     <script>
+      // --- Cursor Follower logic ---
+      const light = document.getElementById('cursor-light');
+      window.addEventListener('mousemove', (e) => {
+        if (light) {
+          light.style.left = `${e.clientX}px`;
+          light.style.top = `${e.clientY}px`;
+        }
+      });
+
+      // --- Rotary logic ---
       const rotary = document.getElementById('rotary') as HTMLElement;
       const list = document.getElementById('rotary-list') as HTMLElement;
       const items = Array.from(list.children);
@@ -174,7 +193,6 @@ const workScope = [
 
       items.forEach(item => list.appendChild(item.cloneNode(true)));
       items.forEach(item => list.insertBefore(item.cloneNode(true), list.firstChild));
-
       rotary.scrollTop = items.length * itemHeight;
 
       let isInteracting = false;
@@ -189,22 +207,14 @@ const workScope = [
       });
 
       function updateRotary() {
-        const currentScroll = rotary.scrollTop;
-        const totalHeight = items.length * itemHeight;
-
-        if (currentScroll <= 0) {
-          rotary.scrollTop = totalHeight;
-        } else if (currentScroll >= totalHeight * 2) {
-          rotary.scrollTop = totalHeight;
-        }
-
-        if (!isInteracting) {
-          rotary.scrollTop += 0.4;
-        }
+        if (rotary.scrollTop <= 0) rotary.scrollTop = items.length * itemHeight;
+        else if (rotary.scrollTop >= items.length * itemHeight * 2) rotary.scrollTop = items.length * itemHeight;
+        if (!isInteracting) rotary.scrollTop += 0.4;
         requestAnimationFrame(updateRotary);
       }
       updateRotary();
 
+      // --- Meta logic ---
       window.addEventListener('load', () => {
         const loadEl = document.getElementById('load-time');
         if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
