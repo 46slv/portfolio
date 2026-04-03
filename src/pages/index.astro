@@ -7,13 +7,10 @@ const roles = "Compositor / Colorist / Motion Designer / Cinematographer";
 const email = "info@corecreative.jp";
 
 const snsLinks = [
-  { name: "X (Twitter)", url: "https://x.com/cumuloworks" }, // ここに自分のURLを
-//  { name: "YouTube", url: "#" },
-//  { name: "GitHub", url: "#" },
+  { name: "X (Twitter)", url: "https://x.com/cumuloworks" },
 ];
 
 const logs = [
-
   { 
     date: "2025.12.21.", 
     content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック",
@@ -27,7 +24,7 @@ const logs = [
   { 
     date: "2025.09.01", 
     content: "Core Creative 加入 / CDs 加入 / 名義追加",
-    url: "https://x.com/shiro_works/status/1962168505782186124?s=20" // 飛ばしたいURLをここへ
+    url: "https://x.com/shiro_works/status/1962168505782186124?s=20"
   },
   { 
     date: "2025.08.22", 
@@ -48,19 +45,12 @@ const logs = [
     date: "2025.05.28", 
     content: "【歌ってみた】きゅびびびびびびびびびびびびびびびびびびびびびびびびずむ / 綿菓子かんろ",
     url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
-
-  },
-  { 
-    date: "2025.05.28", 
-    content: "【歌ってみた】きゅびびびびずむ / 綿菓子かんろ",
-    url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
   },
   { 
     date: "2025.03.06", 
     content: "【歌ってみた】きゅびずむ / 綿菓子かんろ",
     url: "https://x.com/Wata_kanro/status/1897624776644124810?s=20"
   },
-
 ];
 
 const workScope = [
@@ -93,7 +83,7 @@ const workScope = [
       <main class="flex-grow">
         <section class="mb-20">
           <div class="border-b border-zinc-900 pb-8 mb-12">
-            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4 transition-all duration-700 hover:tracking-widest cursor-default">
+            <h1 class="text-4xl md:text-6xl font-bold text-white mb-4">
               {name}
               <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">
                 {jpName}
@@ -112,7 +102,8 @@ const workScope = [
                   主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「<a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">Core Creative</a>」およびレーベル「<a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-colors">CDs</a>」のメンバー
                 </p>
               </div>
-            </div> </div>
+            </div>
+          </div>
 
           <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
             {snsLinks.map(link => (
