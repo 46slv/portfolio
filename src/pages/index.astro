@@ -205,22 +205,21 @@ const workScope = [
               
               <div id="rotary" class="rotary-viewport absolute inset-0 overflow-y-auto">
                 <div id="rotary-dummy" style="height: 100000px;"></div>
-              </div>
-              
-              <div id="rotary-list" class="absolute inset-0 pointer-events-none">
-                {logs.map((log) => (
-                  <div class="rotary-item absolute w-full pointer-events-auto">
-                    <div class="flex gap-4 items-center group">
-                      <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
-                      <div>
-                        <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
-                        <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-all hover:scale-105 origin-left inline-block">
-                          {log.content}
-                        </a>
+                <div id="rotary-list" class="absolute top-0 left-0 w-full">
+                  {logs.map((log) => (
+                    <div class="rotary-item absolute w-full">
+                      <div class="flex gap-4 items-center group">
+                        <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
+                        <div>
+                          <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
+                          <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-all hover:scale-105 origin-left inline-block">
+                            {log.content}
+                          </a>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
 
             </div>
@@ -312,8 +311,9 @@ const workScope = [
 
         // モジュロ計算でY座標を更新する
         const updateItems = () => {
+          const currentScroll = rotary.scrollTop;
           // 中央からの移動量を計算
-          const scrollY = rotary.scrollTop - centerPos;
+          const scrollY = currentScroll - centerPos;
           
           items.forEach((item, i) => {
             const basePos = i * itemHeight;
@@ -322,7 +322,7 @@ const workScope = [
             // 画面外上部（-80px）から画面外下部に到達したらループ
             const wrappedPos = (((pos + offset) % totalHeight) + totalHeight) % totalHeight - offset;
             
-            item.style.transform = `translateY(${wrappedPos}px)`;
+            item.style.transform = `translateY(${currentScroll + wrappedPos}px)`;
           });
         };
 
