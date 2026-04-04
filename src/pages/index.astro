@@ -52,16 +52,27 @@ const workScope = [
       .rotary-viewport {
         height: 320px;
         overflow-y: auto;
-        scroll-snap-type: y mandatory;
-        scrollbar-width: none;
-        -ms-overflow-style: none;
+        scroll-snap-type: y proximity; /* 慣性を残すためproximityに変更 */
+        scroll-behavior: auto;
         mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);
+        
+        /* カスタムスクロールバー（極細） */
+        scrollbar-width: thin; 
+        scrollbar-color: #3f3f46 transparent; 
       }
-      .rotary-viewport::-webkit-scrollbar { display: none; }
-      .rotary-item { height: 80px; display: flex; align-items: center; scroll-snap-align: center; }
+      .rotary-viewport::-webkit-scrollbar { width: 2px; }
+      .rotary-viewport::-webkit-scrollbar-track { background: transparent; }
+      .rotary-viewport::-webkit-scrollbar-thumb { background: #3f3f46; border-radius: 2px; }
+      
+      .rotary-item { 
+        height: 80px; 
+        display: flex; 
+        align-items: center; 
+        scroll-snap-align: center; 
+        scroll-snap-stop: normal; /* スナップの余裕を持たせる */
+      }
 
       /* --- Focus Dim Effect --- */
-      /* リンクホバー時に .dim-text のみを減光させる */
       .focus-container:has(a:hover) .dim-text { opacity: 0.3; }
       .dim-text { transition: opacity 0.4s ease; }
 
@@ -113,7 +124,9 @@ const workScope = [
             <div class="focus-container space-y-8 text-sm md:text-base leading-loose max-w-3xl font-light">
               <p class="text-zinc-400">
                 <span class="dim-text">
-                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer. He is primarily active as a director for music videos, focusing on illustration-based visual works. A member of the creative collective 
+                  <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
+                  He is primarily active as a director for music videos, focusing on illustration-based visual works.
+                  A member of the creative collective 
                 </span>
                 <a 
                   href="https://corecreative.jp/" 
@@ -311,32 +324,54 @@ const workScope = [
         }
       });
 
-      // --- Rotary logic ---
+      // --- Rotary logic (Optimized) ---
       const rotary = document.getElementById('rotary') as HTMLElement;
       const list = document.getElementById('rotary-list') as HTMLElement;
       if (rotary && list) {
-        const items = Array.from(list.children);
+        const originalItems = Array.from(list.children);
         const itemHeight = 80;
+        const totalHeight = originalItems.length * itemHeight;
 
-        items.forEach(item => list.appendChild(item.cloneNode(true)));
-        items.forEach(item => list.insertBefore(item.cloneNode(true), list.firstChild));
-        rotary.scrollTop = items.length * itemHeight;
+        originalItems.forEach(item => list.appendChild(item.cloneNode(true)));
+        originalItems.forEach(item => list.insertBefore(item.cloneNode(true), list.firstChild));
+        
+        rotary.scrollTop = totalHeight;
 
         let isInteracting = false;
-        rotary.addEventListener('mousedown', () => isInteracting = true);
-        window.addEventListener('mouseup', () => isInteracting = false);
-        rotary.addEventListener('touchstart', () => isInteracting = true);
-        window.addEventListener('touchend', () => isInteracting = false);
+        let resumeTimer: number;
+
+        // シームレスなバッファジャンプ処理
+        rotary.addEventListener('scroll', () => {
+          const current = rotary.scrollTop;
+          if (current <= itemHeight) {
+            rotary.scrollTop = current + totalHeight;
+          } else if (current >= totalHeight * 2 - itemHeight) {
+            rotary.scrollTop = current - totalHeight;
+          }
+        }, { passive: true });
+
+        // ユーザーインタラクションの管理
+        const stopAuto = () => isInteracting = true;
+        const startAuto = () => {
+          isInteracting = false;
+          clearTimeout(resumeTimer);
+          resumeTimer = setTimeout(() => isInteracting = false, 2000); // 2秒後に自動回転を再開
+        };
+
+        rotary.addEventListener('mousedown', stopAuto);
+        window.addEventListener('mouseup', startAuto);
+        rotary.addEventListener('touchstart', stopAuto);
+        window.addEventListener('touchend', startAuto);
         rotary.addEventListener('wheel', () => {
-          isInteracting = true;
-          clearTimeout((rotary as any).wheelTimer);
-          (rotary as any).wheelTimer = setTimeout(() => isInteracting = false, 1000);
-        });
+          stopAuto();
+          clearTimeout(resumeTimer);
+          resumeTimer = setTimeout(startAuto, 1000);
+        }, { passive: true });
 
         function updateRotary() {
-          if (rotary.scrollTop <= 0) rotary.scrollTop = items.length * itemHeight;
-          else if (rotary.scrollTop >= items.length * itemHeight * 2) rotary.scrollTop = items.length * itemHeight;
-          if (!isInteracting) rotary.scrollTop += 0.4;
+          if (!isInteracting) {
+            rotary.scrollTop += 0.3; // ゆっくりとした自動微動
+          }
           requestAnimationFrame(updateRotary);
         }
         updateRotary();
