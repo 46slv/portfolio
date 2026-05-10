@@ -42,6 +42,136 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
       <div id="control-panel">
         <div id="panel-inner">
 
+          <div id="design-panel">
+            <details class="panel-section primary-section" open>
+              <summary>Primary</summary>
+              <div class="primary-grid">
+                {[
+                  { id:'design-volume', label:'Volume', value:'0', min:'0', max:'1', fmt:'pct' },
+                  { id:'design-speed', label:'Speed', value:'1', min:'0.5', max:'8', fmt:'x1' },
+                  { id:'design-scale', label:'Scale', value:'1', min:'0.1', max:'3', fmt:'x1' },
+                  { id:'design-beam', label:'Beam', value:'1', min:'0.4', max:'3', fmt:'x1' },
+                  { id:'design-intensity', label:'Intensity', value:'1', min:'0.2', max:'2', fmt:'x1' },
+                  { id:'design-afterglow', label:'Afterglow', value:'0.15', min:'0', max:'0.95', fmt:'pct' },
+                  { id:'design-x', label:'↔ Expand', value:'1', min:'0.5', max:'2', fmt:'x1' },
+                  { id:'design-y', label:'↕ Expand', value:'1', min:'0.5', max:'2', fmt:'x1' },
+                  { id:'design-rotate', label:'Rotate', value:'0', min:'-180', max:'180', fmt:'deg', bipolar:'true' },
+                ].map(k => (
+                  <div class="design-knob-wrap">
+                    <canvas
+                      class="design-knob"
+                      data-id={k.id}
+                      data-min={k.min}
+                      data-max={k.max}
+                      data-val={k.value}
+                      data-fmt={k.fmt}
+                      data-bipolar={k.bipolar}
+                    ></canvas>
+                    <span class="design-label">{k.label}</span>
+                    <span class="design-value" data-for={k.id}></span>
+                  </div>
+                ))}
+              </div>
+            </details>
+
+            <details class="panel-section" open>
+              <summary>Mode</summary>
+              <div class="mode-panel">
+                <div class="btn-group mode-selector">
+                  {[
+                    { id:'scope', label:'OSC' },
+                    { id:'spectrum', label:'SPECTRUM' },
+                    { id:'lissajous', label:'LISSAJOUS' },
+                    { id:'radial', label:'RADIAL' },
+                    { id:'waterfall', label:'WATERFALL' },
+                  ].map(m => (
+                    <button class="mode-btn design-mode-btn" data-mode={m.id}>{m.label}</button>
+                  ))}
+                </div>
+                <div class="mode-tools">
+                  <button id="design-pixelmap" class="toggle-btn visual-toggle" data-active="false">PIXEL MAP</button>
+                  <button id="design-hud" class="toggle-btn visual-toggle" data-active="true">HUD</button>
+                  <button id="design-wave-only" class="toggle-btn visual-toggle" data-active="false">WAVE ONLY</button>
+                  <button id="design-reset" class="toggle-btn visual-toggle">RESET</button>
+                </div>
+                <div class="utility-strip">
+                  <select id="design-input-select" class="viz-select">
+                    <option value="">— mic —</option>
+                  </select>
+                  <button id="design-start-btn">▶ ENGAGE</button>
+                  <button id="design-stop-btn" class="hidden">■ STOP</button>
+                  <span id="design-init-hint">mic standby</span>
+                </div>
+              </div>
+            </details>
+
+            <details class="panel-section">
+              <summary>Color</summary>
+              <div class="color-grid">
+                <label>Preset
+                  <select id="design-color-select" class="viz-select compact-select">
+                    <option value="#36ff72" selected>VECTOR GREEN</option>
+                    <option value="#ffb000">AMBER CRT</option>
+                    <option value="#7fd8ff">ICE BLUE</option>
+                    <option value="#ff4dff">LASER MAGENTA</option>
+                    <option value="#ffff00">ACID YELLOW</option>
+                    <option value="#f4f4f4">TERMINAL WHITE</option>
+                  </select>
+                </label>
+                <div class="design-knob-wrap compact-knob">
+                  <canvas class="design-knob" data-id="design-hue" data-min="0" data-max="360" data-val="60" data-fmt="deg"></canvas>
+                  <span class="design-label">Hue</span>
+                  <span class="design-value" data-for="design-hue"></span>
+                </div>
+              </div>
+            </details>
+
+            <details class="panel-section">
+              <summary>Advanced</summary>
+              <div id="advanced-grid">
+                <label>FPS
+                  <select id="design-fps-select" class="viz-select compact-select">
+                    {[15,24,30,60,120].map(v => <option value={v} selected={v === 60}>{v}</option>)}
+                  </select>
+                </label>
+                <label>Quality
+                  <select id="design-glow-select" class="viz-select compact-select">
+                    <option value="off">OFF</option>
+                    <option value="low" selected>LOW</option>
+                    <option value="high">HIGH</option>
+                  </select>
+                </label>
+                <label>FFT
+                  <select id="design-fft-select" class="viz-select compact-select">
+                    <option value="auto" selected>AUTO</option>
+                    <option value="512">512</option>
+                    <option value="1024">1024</option>
+                    <option value="2048">2048</option>
+                    <option value="4096">4096</option>
+                  </select>
+                </label>
+                <label>Density
+                  <select id="design-sample-select" class="viz-select compact-select">
+                    <option value="1" selected>1:1</option>
+                    <option value="2">1:2</option>
+                    <option value="4">1:4</option>
+                    <option value="8">1:8</option>
+                  </select>
+                </label>
+                <label>Render
+                  <select id="design-scale-select" class="viz-select compact-select">
+                    <option value="1" selected>1.0</option>
+                    <option value="0.75">0.75</option>
+                    <option value="0.5">0.5</option>
+                  </select>
+                </label>
+                <button id="design-adaptive" class="toggle-btn" data-active="false">ADAPT</button>
+                <button id="design-stats" class="toggle-btn" data-active="false">STATS</button>
+                <button id="design-ultra" class="toggle-btn" data-active="false">ULTRA</button>
+              </div>
+            </details>
+          </div>
+
           <!-- Mode row -->
           <div id="mode-row">
             <span class="section-label" style="border:none;margin:0;">DISPLAY</span>
@@ -304,6 +434,49 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   }
   #control-panel.hidden { transform:translateY(100%); pointer-events:none; }
   #panel-inner { padding:28px 20px 14px; }
+  #mode-row, #perf-row, #controls-grid { display:none !important; }
+
+  #design-panel {
+    display:grid; grid-template-columns:minmax(0,1.7fr) minmax(240px,.9fr) minmax(180px,.55fr) minmax(220px,.7fr);
+    gap:14px; align-items:start; max-height:min(44vh,400px); overflow-y:auto; padding-right:4px;
+    scrollbar-width:thin; scrollbar-color:#333 transparent;
+  }
+  #design-panel::-webkit-scrollbar { width:6px; }
+  #design-panel::-webkit-scrollbar-track { background:transparent; }
+  #design-panel::-webkit-scrollbar-thumb { background:#222; border-radius:999px; }
+  .panel-section { border-left:1px solid #181818; padding-left:14px; min-width:0; }
+  .panel-section:first-child { border-left:none; padding-left:0; }
+  .panel-section summary {
+    cursor:pointer; list-style:none; font-size:10px; letter-spacing:.34em; color:#777;
+    text-transform:uppercase; margin-bottom:12px; user-select:none;
+  }
+  .panel-section summary::-webkit-details-marker { display:none; }
+  .panel-section summary::before { content:'▾'; display:inline-block; margin-right:8px; color:#ffff00; }
+  .panel-section:not([open]) summary::before { content:'▸'; }
+  .primary-grid {
+    display:grid; grid-template-columns:repeat(3,minmax(74px,1fr)); gap:12px 14px;
+  }
+  .design-knob-wrap { display:grid; justify-items:center; gap:4px; min-width:0; }
+  .design-knob { width:58px !important; height:58px !important; cursor:ns-resize; }
+  .design-label { font-size:10px; color:#666; letter-spacing:.14em; text-transform:uppercase; text-align:center; }
+  .design-value { font-size:11px; color:#9a9a9a; letter-spacing:.08em; min-height:13px; }
+  .mode-panel, .color-grid, #advanced-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .mode-selector { gap:5px; }
+  .mode-tools { display:flex; flex-wrap:wrap; gap:5px; width:100%; }
+  .visual-toggle { min-height:26px; }
+  .utility-strip { display:flex; flex-wrap:wrap; align-items:center; gap:7px; width:100%; margin-top:4px; }
+  #design-start-btn, #design-stop-btn {
+    font-size:9px; font-family:inherit; letter-spacing:.24em; text-transform:uppercase;
+    padding:6px 10px; cursor:pointer; border:1px solid #ffff00; color:#ffff00; background:transparent;
+  }
+  #design-start-btn:hover { background:#ffff00; color:#000; }
+  #design-stop-btn { border-color:#333; color:#555; }
+  #design-stop-btn.hidden { display:none; }
+  #design-init-hint { font-size:8px; color:#444; font-style:italic; }
+  #advanced-grid label, .color-grid label {
+    display:flex; align-items:center; gap:6px; font-size:8px; color:#666; letter-spacing:.18em; text-transform:uppercase;
+  }
+  .compact-knob .design-knob { width:48px !important; height:48px !important; }
 
   /* Mode row */
   #mode-row {
@@ -376,7 +549,25 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   }
   #perf-overlay.visible { display:block; }
   .visualizer-root.scope-only #hud-bar,
-  .visualizer-root.scope-only #control-panel { display:none; }
+  .visualizer-root.scope-only #control-panel,
+  .visualizer-root.scope-only #perf-overlay { display:none; }
+  .visualizer-root.hud-hidden #hud-bar { display:none; }
+  .visualizer-root.scope-only canvas#visualizer-canvas { background:#000; }
+
+  @media (max-width: 900px) {
+    #panel-inner { padding:24px 14px calc(14px + env(safe-area-inset-bottom)); }
+    #design-panel { grid-template-columns:1fr; max-height:58vh; }
+    .panel-section { border-left:none; padding-left:0; border-top:1px solid #181818; padding-top:12px; }
+    .panel-section:first-child { border-top:none; padding-top:0; }
+    .primary-grid { grid-template-columns:repeat(3,minmax(80px,1fr)); }
+    .design-knob { width:64px !important; height:64px !important; }
+    .mode-btn, .osc-btn, .toggle-btn { font-size:8px; padding:6px 9px; }
+  }
+
+  @media (max-width: 560px) {
+    .primary-grid { grid-template-columns:repeat(2,minmax(96px,1fr)); }
+    #hud-center { display:none; }
+  }
 </style>
 
 <script>
@@ -446,6 +637,13 @@ let pxSize    = 4;
 let pxThresh  = 0.15;
 let pxOpacity = 0.7;
 let pxGap     = 1;
+let beamWidth = 1;
+let intensity = 1;
+let xExpand = 1;
+let yExpand = 1;
+let rotationDeg = 0;
+let hue = 60;
+let hudVisible = true;
 
 // Performance params
 let targetFps = IS_MINI ? 30 : 60;
@@ -550,6 +748,155 @@ function applyAdaptiveQuality() {
   }
 }
 
+function hueColor(h: number) {
+  return `hsl(${Math.round(h)},100%,58%)`;
+}
+
+function setAccentFromHue(v: number) {
+  hue = ((v % 360) + 360) % 360;
+  ACCENT = hueColor(hue);
+  ROOT.dataset.color = ACCENT;
+  const dot = document.getElementById('status-dot') as HTMLElement | null;
+  if (dot) dot.style.background = ACCENT;
+  invalidateGrid();
+}
+
+function fmtDesign(v: number, fmt: string) {
+  switch(fmt) {
+    case 'pct': return `${Math.round(v*100)}%`;
+    case 'x1': return `${v.toFixed(1)}x`;
+    case 'deg': return `${Math.round(v)}°`;
+    default: return v.toFixed(2);
+  }
+}
+
+function drawDesignKnob(kc: HTMLCanvasElement) {
+  const min = parseFloat(kc.dataset.min || '0');
+  const max = parseFloat(kc.dataset.max || '1');
+  const val = parseFloat(kc.dataset.val || '0');
+  const bipolar = kc.dataset.bipolar === 'true';
+  const sz = kc.classList.contains('large-knob') ? 58 : 58;
+  const D = dpr();
+  kc.width = kc.height = sz * D;
+  kc.style.width = kc.style.height = `${sz}px`;
+  const ctx = kc.getContext('2d')!;
+  ctx.setTransform(D,0,0,D,0,0);
+  ctx.clearRect(0,0,sz,sz);
+  const cx=sz/2, cy=sz/2, r=sz/2-5;
+  const start=Math.PI*.75, sweep=Math.PI*1.5;
+  const norm=Math.max(0,Math.min(1,(val-min)/(max-min)));
+  const angle=start+norm*sweep;
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(cx,cy,r,start,start+sweep);ctx.strokeStyle='#1c1c1c';ctx.lineWidth=4;ctx.stroke();
+  ctx.beginPath();
+  if (bipolar && norm < .5) ctx.arc(cx,cy,r,angle,start+sweep*.5);
+  else ctx.arc(cx,cy,r,bipolar ? start+sweep*.5 : start,angle);
+  ctx.strokeStyle=ACCENT;ctx.shadowBlur=glow(10);ctx.shadowColor=ACCENT;ctx.lineWidth=4;ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(cx,cy,r*.42,0,Math.PI*2);ctx.strokeStyle='#2b2b2b';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx+Math.cos(angle)*r,cy+Math.sin(angle)*r,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+}
+
+function applyDesignParam(id: string, v: number) {
+  switch(id) {
+    case 'design-volume': setOutputVol(v); break;
+    case 'design-speed': zoom = v; break;
+    case 'design-scale': vdiv = v; break;
+    case 'design-beam': beamWidth = v; break;
+    case 'design-intensity': intensity = v; break;
+    case 'design-afterglow': persist = v; break;
+    case 'design-x': xExpand = v; break;
+    case 'design-y': yExpand = v; break;
+    case 'design-rotate': rotationDeg = v; break;
+    case 'design-hue': setAccentFromHue(v); break;
+  }
+}
+
+function setScopeOnly(on: boolean) {
+  scopeOnly = on;
+  ROOT.classList.toggle('scope-only', scopeOnly);
+  document.getElementById('scope-only-btn')?.setAttribute('data-active', String(scopeOnly));
+  document.getElementById('design-wave-only')?.setAttribute('data-active', String(scopeOnly));
+  if (scopeOnly) {
+    mode = 'scope';
+    showGrid = false;
+    pixelMapOn = false;
+    perfOverlayOn = false;
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('[data-mode="scope"]').forEach(b=>b.classList.add('active'));
+    document.getElementById('perf-overlay')?.classList.remove('visible');
+    document.getElementById('design-pixelmap')?.setAttribute('data-active','false');
+  }
+  document.dispatchEvent(new CustomEvent('ss-scope-only', { detail: { active: scopeOnly } }));
+}
+
+function resetDesignParams() {
+  const defaults: Record<string,string> = {
+    'design-volume':'0',
+    'design-speed':'1',
+    'design-scale':'1',
+    'design-beam':'1',
+    'design-intensity':'1',
+    'design-afterglow':'0.15',
+    'design-x':'1',
+    'design-y':'1',
+    'design-rotate':'0',
+    'design-hue':'60',
+  };
+  document.querySelectorAll('.design-knob').forEach(el=>{
+    const kc = el as HTMLCanvasElement;
+    const next = defaults[kc.dataset.id || ''];
+    if (!next) return;
+    kc.dataset.val = next;
+    const fmt = kc.dataset.fmt || 'raw';
+    const val = parseFloat(next);
+    const lbl = document.querySelector(`.design-value[data-for="${kc.dataset.id}"]`) as HTMLElement | null;
+    if (lbl) lbl.textContent = fmtDesign(val, fmt);
+    drawDesignKnob(kc);
+    applyDesignParam(kc.dataset.id!, val);
+  });
+  showGrid = true;
+  pixelMapOn = false;
+  glowQuality = 'low';
+  sampleStep = 1;
+  renderScale = 1;
+  setTargetFps(60);
+  resize();
+}
+
+function initDesignKnobs() {
+  document.querySelectorAll('.design-knob').forEach(el=>{
+    const kc = el as HTMLCanvasElement;
+    const id = kc.dataset.id!;
+    const lbl = document.querySelector(`.design-value[data-for="${id}"]`) as HTMLElement | null;
+    const fmt = kc.dataset.fmt || 'raw';
+    const min = parseFloat(kc.dataset.min || '0');
+    const max = parseFloat(kc.dataset.max || '1');
+    let startY = 0;
+    let startVal = 0;
+    let dragging = false;
+    const setVal = (val: number) => {
+      const next = Math.max(min, Math.min(max, val));
+      kc.dataset.val = String(next);
+      if (lbl) lbl.textContent = fmtDesign(next, fmt);
+      drawDesignKnob(kc);
+      applyDesignParam(id, next);
+    };
+    setVal(parseFloat(kc.dataset.val || '0'));
+    const move = (clientY: number) => {
+      const fine = window.event instanceof MouseEvent && window.event.shiftKey ? .001 : .004;
+      setVal(startVal + (startY - clientY) * (max - min) * fine);
+    };
+    kc.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startVal=parseFloat(kc.dataset.val||'0');e.preventDefault();});
+    window.addEventListener('mousemove',e=>{if(dragging)move(e.clientY);});
+    window.addEventListener('mouseup',()=>{dragging=false;});
+    kc.addEventListener('touchstart',e=>{dragging=true;startY=e.touches[0].clientY;startVal=parseFloat(kc.dataset.val||'0');e.preventDefault();},{passive:false});
+    window.addEventListener('touchmove',e=>{if(dragging)move(e.touches[0].clientY);},{passive:false});
+    window.addEventListener('touchend',()=>{dragging=false;});
+    kc.addEventListener('dblclick',()=>setVal(parseFloat(kc.dataset.id === 'design-afterglow' ? '0.15' : kc.dataset.id === 'design-hue' ? '60' : kc.dataset.id === 'design-volume' ? '0' : '1')));
+  });
+}
+
 // ── Audio init ───────────────────────────────────────────
 async function initAudio(deviceId?: string) {
   if (running) { await restartMic(deviceId); return; }
@@ -632,11 +979,17 @@ function setEngageUI(on: boolean) {
   const sl = document.getElementById('status-label');
   const sb = document.getElementById('start-btn');
   const xb = document.getElementById('stop-btn');
+  const dsb = document.getElementById('design-start-btn');
+  const dxb = document.getElementById('design-stop-btn');
   const ih = document.getElementById('init-hint');
+  const dih = document.getElementById('design-init-hint');
   if (sl) sl.textContent = on ? 'ACTIVE' : 'STANDBY';
   sb?.classList.toggle('hidden', on);
   xb?.classList.toggle('hidden', !on);
+  dsb?.classList.toggle('hidden', on);
+  dxb?.classList.toggle('hidden', !on);
   if (ih && on) ih.textContent = micStream ? 'mic connected' : 'synth only';
+  if (dih && on) dih.textContent = micStream ? 'mic connected' : 'synth only';
 }
 
 function setOutputVol(v: number) {
@@ -680,14 +1033,20 @@ function startOsc(type: typeof oscType) {
 // ── Device enumeration ───────────────────────────────────
 async function populateDevices() {
   const sel = document.getElementById('input-select') as HTMLSelectElement;
-  if (!sel) return;
+  const designSel = document.getElementById('design-input-select') as HTMLSelectElement;
+  if (!sel && !designSel) return;
   try {
     // Trigger permission prompt
     await navigator.mediaDevices.getUserMedia({audio:true}).then(s=>s.getTracks().forEach(t=>t.stop())).catch(()=>{});
     const devs = await navigator.mediaDevices.enumerateDevices();
     const ins  = devs.filter(d => d.kind === 'audioinput');
-    sel.innerHTML = ins.map((d,i) => `<option value="${d.deviceId}">${d.label||'Microphone '+(i+1)}</option>`).join('');
-  } catch { sel.innerHTML = '<option value="">— permission required —</option>'; }
+    const html = ins.map((d,i) => `<option value="${d.deviceId}">${d.label||'Microphone '+(i+1)}</option>`).join('');
+    if (sel) sel.innerHTML = html;
+    if (designSel) designSel.innerHTML = html;
+  } catch {
+    if (sel) sel.innerHTML = '<option value="">— permission required —</option>';
+    if (designSel) designSel.innerHTML = '<option value="">— permission required —</option>';
+  }
 }
 
 // ── Data getters ─────────────────────────────────────────
@@ -782,14 +1141,14 @@ function drawScope(c: CanvasRenderingContext2D, W: number, H: number) {
   const points = Math.max(2, Math.ceil(visLen / sampleStep));
 
   const wave = (lw: number, blur: number, alpha: number) => {
-    c.save(); c.lineWidth=lw; c.shadowBlur=glow(blur); c.shadowColor=ACCENT;
-    c.strokeStyle=ACCENT; c.globalAlpha=alpha; c.beginPath();
+    c.save(); c.lineWidth=lw*beamWidth; c.shadowBlur=glow(blur*intensity); c.shadowColor=ACCENT;
+    c.strokeStyle=ACCENT; c.globalAlpha=Math.min(1,alpha*intensity); c.beginPath();
     for (let p=0; p<points; p++) {
       const i = Math.min(visLen - 1, p * sampleStep);
       const v = ((data[(start+i)%data.length]/128)-1)*gain*vdiv;
-      const y = H/2 - v*H*0.42;
-      const x = points === 1 ? 0 : (p/(points-1))*W;
-      p===0 ? c.moveTo(0,y) : c.lineTo(x,y);
+      const y = H/2 - v*H*0.42*yExpand;
+      const x = points === 1 ? W/2 : ((p/(points-1)-0.5)*W*xExpand)+W/2;
+      p===0 ? c.moveTo(x,y) : c.lineTo(x,y);
     }
     c.stroke(); c.restore();
   };
@@ -1010,6 +1369,11 @@ function drawLoop(now = 0) {
   C.fillStyle=`rgba(0,0,0,${ultraMinimal ? 1 : 1-persist})`;C.fillRect(0,0,W,H);
 
   C.save();C.scale(D,D);
+  if (rotationDeg !== 0) {
+    C.translate(Wl/2,Hl/2);
+    C.rotate(rotationDeg*Math.PI/180);
+    C.translate(-Wl/2,-Hl/2);
+  }
   switch(mode){
     case'scope':     drawScope(C,Wl,Hl);     break;
     case'spectrum':  drawSpectrum(C,Wl,Hl);  break;
@@ -1214,19 +1578,29 @@ function togglePanel(){
 
 // ── UI WIRING ────────────────────────────────────────────
 if (!IS_MINI) {
+  initDesignKnobs();
   initKnobs();
   populateDevices();
 
   document.getElementById('panel-toggle-btn')?.addEventListener('click',togglePanel);
-  document.addEventListener('keydown',e=>{ if(e.key==='Tab'){e.preventDefault();togglePanel();} });
+  document.addEventListener('keydown',e=>{ if(e.key==='Tab'){e.preventDefault();setScopeOnly(!scopeOnly);} });
 
   document.getElementById('start-btn')?.addEventListener('click',async()=>{
     const sel=document.getElementById('input-select') as HTMLSelectElement;
     await initAudio(sel?.value||undefined);
   });
+  document.getElementById('design-start-btn')?.addEventListener('click',async()=>{
+    const sel=document.getElementById('design-input-select') as HTMLSelectElement;
+    await initAudio(sel?.value||undefined);
+  });
   document.getElementById('stop-btn')?.addEventListener('click',stopAudio);
+  document.getElementById('design-stop-btn')?.addEventListener('click',stopAudio);
 
   document.getElementById('input-select')?.addEventListener('change',async e=>{
+    const id=(e.target as HTMLSelectElement).value;
+    if(running) await restartMic(id);
+  });
+  document.getElementById('design-input-select')?.addEventListener('change',async e=>{
     const id=(e.target as HTMLSelectElement).value;
     if(running) await restartMic(id);
   });
@@ -1242,7 +1616,7 @@ if (!IS_MINI) {
       autoFftForMode();
     });
   });
-  (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
+  document.querySelectorAll('[data-mode="scope"]').forEach(b=>b.classList.add('active'));
 
   document.querySelectorAll('.osc-btn').forEach(btn=>{
     (btn as HTMLElement).addEventListener('click',()=>{
@@ -1259,6 +1633,18 @@ if (!IS_MINI) {
     const b=e.currentTarget as HTMLElement;
     b.dataset.active=String(pixelMapOn);
   });
+  document.getElementById('design-pixelmap')?.addEventListener('click',e=>{
+    pixelMapOn=!pixelMapOn;
+    (e.currentTarget as HTMLElement).dataset.active=String(pixelMapOn);
+  });
+  document.getElementById('design-hud')?.addEventListener('click',e=>{
+    hudVisible=!hudVisible;
+    ROOT.classList.toggle('hud-hidden',!hudVisible);
+    (e.currentTarget as HTMLElement).dataset.active=String(hudVisible);
+  });
+  document.getElementById('design-wave-only')?.addEventListener('click',()=>setScopeOnly(!scopeOnly));
+  document.getElementById('design-reset')?.addEventListener('click',resetDesignParams);
+  document.addEventListener('ss-toggle-panel',togglePanel);
 
   const mkToggle=(id:string,cb:(v:boolean)=>void)=>{
     document.getElementById(id)?.addEventListener('click',e=>{
@@ -1275,7 +1661,16 @@ if (!IS_MINI) {
     setTargetFps(parseInt((e.target as HTMLSelectElement).value,10));
     updatePerfHud(true);
   });
+  document.getElementById('design-fps-select')?.addEventListener('change',e=>{
+    setTargetFps(parseInt((e.target as HTMLSelectElement).value,10));
+    updatePerfHud(true);
+  });
   document.getElementById('scale-select')?.addEventListener('change',e=>{
+    renderScale=parseFloat((e.target as HTMLSelectElement).value);
+    resize();
+    updatePerfHud(true);
+  });
+  document.getElementById('design-scale-select')?.addEventListener('change',e=>{
     renderScale=parseFloat((e.target as HTMLSelectElement).value);
     resize();
     updatePerfHud(true);
@@ -1284,7 +1679,16 @@ if (!IS_MINI) {
     sampleStep=parseInt((e.target as HTMLSelectElement).value,10);
     updatePerfHud(true);
   });
+  document.getElementById('design-sample-select')?.addEventListener('change',e=>{
+    sampleStep=parseInt((e.target as HTMLSelectElement).value,10);
+    updatePerfHud(true);
+  });
   document.getElementById('fft-select')?.addEventListener('change',e=>{
+    fftSetting=(e.target as HTMLSelectElement).value as typeof fftSetting;
+    applyFftSetting();
+    updatePerfHud(true);
+  });
+  document.getElementById('design-fft-select')?.addEventListener('change',e=>{
     fftSetting=(e.target as HTMLSelectElement).value as typeof fftSetting;
     applyFftSetting();
     updatePerfHud(true);
@@ -1293,12 +1697,26 @@ if (!IS_MINI) {
     glowQuality=(e.target as HTMLSelectElement).value as typeof glowQuality;
     updatePerfHud(true);
   });
+  document.getElementById('design-glow-select')?.addEventListener('change',e=>{
+    glowQuality=(e.target as HTMLSelectElement).value as typeof glowQuality;
+    updatePerfHud(true);
+  });
   document.getElementById('color-select')?.addEventListener('change',e=>{
     ACCENT=(e.target as HTMLSelectElement).value;
     ROOT.dataset.color=ACCENT;
     invalidateGrid();
   });
+  document.getElementById('design-color-select')?.addEventListener('change',e=>{
+    ACCENT=(e.target as HTMLSelectElement).value;
+    ROOT.dataset.color=ACCENT;
+    invalidateGrid();
+    document.querySelectorAll('.design-knob').forEach(el=>drawDesignKnob(el as HTMLCanvasElement));
+  });
   document.getElementById('adaptive-btn')?.addEventListener('click',e=>{
+    adaptiveQuality=!adaptiveQuality;
+    (e.currentTarget as HTMLElement).dataset.active=String(adaptiveQuality);
+  });
+  document.getElementById('design-adaptive')?.addEventListener('click',e=>{
     adaptiveQuality=!adaptiveQuality;
     (e.currentTarget as HTMLElement).dataset.active=String(adaptiveQuality);
   });
@@ -1307,10 +1725,13 @@ if (!IS_MINI) {
     (e.currentTarget as HTMLElement).dataset.active=String(perfOverlayOn);
     updatePerfHud(true);
   });
+  document.getElementById('design-stats')?.addEventListener('click',e=>{
+    perfOverlayOn=!perfOverlayOn;
+    (e.currentTarget as HTMLElement).dataset.active=String(perfOverlayOn);
+    updatePerfHud(true);
+  });
   document.getElementById('scope-only-btn')?.addEventListener('click',e=>{
-    scopeOnly=!scopeOnly;
-    ROOT.classList.toggle('scope-only',scopeOnly);
-    (e.currentTarget as HTMLElement).dataset.active=String(scopeOnly);
+    setScopeOnly(!scopeOnly);
   });
   document.getElementById('ultra-btn')?.addEventListener('click',e=>{
     ultraMinimal=!ultraMinimal;
@@ -1323,23 +1744,33 @@ if (!IS_MINI) {
       pixelMapOn=false;
       showGrid=false;
       mode='scope';
-      scopeOnly=true;
-      ROOT.classList.add('scope-only');
-      const scopeBtn=document.getElementById('scope-only-btn');
-      if(scopeBtn) scopeBtn.dataset.active='true';
+      setScopeOnly(true);
       document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
-      (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
+      document.querySelectorAll('[data-mode="scope"]').forEach(b=>b.classList.add('active'));
+    }
+    updatePerfHud(true);
+  });
+  document.getElementById('design-ultra')?.addEventListener('click',e=>{
+    ultraMinimal=!ultraMinimal;
+    (e.currentTarget as HTMLElement).dataset.active=String(ultraMinimal);
+    if(ultraMinimal){
+      setTargetFps(120);
+      sampleStep=Math.max(sampleStep,4);
+      glowQuality='off';
+      persist=0;
+      pixelMapOn=false;
+      showGrid=false;
+      mode='scope';
+      setScopeOnly(true);
     }
     updatePerfHud(true);
   });
   canvas.addEventListener('dblclick',()=>{
-    scopeOnly=!scopeOnly;
-    ROOT.classList.toggle('scope-only',scopeOnly);
+    setScopeOnly(!scopeOnly);
   });
   document.addEventListener('keydown',e=>{
     if(e.key==='Escape'&&scopeOnly){
-      scopeOnly=false;
-      ROOT.classList.remove('scope-only');
+      setScopeOnly(false);
     }
   });
 }

@@ -204,10 +204,13 @@ import Visualizer from '../components/Visualizer.astro';
         cursor: pointer;
 
         transition:
+          opacity .18s ease,
           border-color .18s ease,
           color .18s ease,
           background .18s ease,
           transform .18s ease;
+
+        opacity: 0.42;
       }
 
       .top-button:hover {
@@ -215,6 +218,7 @@ import Visualizer from '../components/Visualizer.astro';
         border-color: rgba(216,255,114,0.3);
 
         transform: translateY(-1px);
+        opacity: 1;
       }
 
       .top-button:active {
@@ -257,6 +261,19 @@ import Visualizer from '../components/Visualizer.astro';
         opacity: 0;
         transform: translateY(-6px);
         pointer-events: none;
+      }
+
+      body.scope-only #topbar,
+      body.scope-only #help,
+      body.scope-only .scope-wrap::before,
+      body.scope-only .scope-wrap::after {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      body.scope-only .scope-wrap::before,
+      body.scope-only .scope-wrap::after {
+        display: none;
       }
 
       #help-title {
@@ -382,7 +399,7 @@ import Visualizer from '../components/Visualizer.astro';
 
       <div class="help-row">
         <span>TAB</span>
-        <span class="help-key">TOGGLE PANEL</span>
+        <span class="help-key">WAVE ONLY</span>
       </div>
 
       <div class="help-row">
@@ -438,8 +455,8 @@ import Visualizer from '../components/Visualizer.astro';
       */
 
       function togglePanel() {
-        body.classList.toggle(
-          "panel-hidden"
+        document.dispatchEvent(
+          new CustomEvent("ss-toggle-panel")
         );
       }
 
@@ -492,7 +509,6 @@ import Visualizer from '../components/Visualizer.astro';
         async (e) => {
           if (e.key === "Tab") {
             e.preventDefault();
-            togglePanel();
           }
 
           if (
@@ -535,7 +551,17 @@ import Visualizer from '../components/Visualizer.astro';
 
       setTimeout(() => {
         help?.classList.add("hidden");
-      }, 6000);
+      }, 1200);
+
+      document.addEventListener(
+        "ss-scope-only",
+        (event) => {
+          body.classList.toggle(
+            "scope-only",
+            Boolean(event.detail?.active)
+          );
+        }
+      );
     </script>
   </body>
 </html>
