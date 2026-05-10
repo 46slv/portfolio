@@ -13,6 +13,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   data-color={color}
 >
   <canvas id="visualizer-canvas"></canvas>
+  {!isMini && <div id="perf-overlay"></div>}
 
   {!isMini && (
     <div id="viz-ui">
@@ -30,6 +31,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
           <span id="hud-freq">FREQ: ---Hz</span>
           <span id="hud-rms">RMS: -∞dB</span>
           <span id="hud-mode-label">MODE: SCOPE</span>
+          <span id="hud-perf">FPS: --/60 | --ms | DROP 0</span>
         </div>
         <div id="hud-right">
           <button id="panel-toggle-btn" title="Toggle panel (Tab)">PANEL ▾</button>
@@ -59,6 +61,60 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
               <span class="section-label" style="border:none;margin:0;padding:0;">OVERLAY</span>
               <button id="pixelmap-btn" class="toggle-btn" data-active="false">PIXEL MAP</button>
             </div>
+          </div>
+
+          <div id="perf-row">
+            <span class="section-label" style="border:none;margin:0;padding:0;">PERF</span>
+            <label>FPS
+              <select id="fps-select" class="viz-select compact-select">
+                {[15,24,30,60,120].map(v => <option value={v} selected={v === 60}>{v}</option>)}
+              </select>
+            </label>
+            <label>SCALE
+              <select id="scale-select" class="viz-select compact-select">
+                <option value="1" selected>1.0</option>
+                <option value="0.75">0.75</option>
+                <option value="0.5">0.5</option>
+              </select>
+            </label>
+            <label>SAMPLE
+              <select id="sample-select" class="viz-select compact-select">
+                <option value="1" selected>1:1</option>
+                <option value="2">1:2</option>
+                <option value="4">1:4</option>
+                <option value="8">1:8</option>
+              </select>
+            </label>
+            <label>FFT
+              <select id="fft-select" class="viz-select compact-select">
+                <option value="auto" selected>AUTO</option>
+                <option value="512">512</option>
+                <option value="1024">1024</option>
+                <option value="2048">2048</option>
+                <option value="4096">4096</option>
+              </select>
+            </label>
+            <label>GLOW
+              <select id="glow-select" class="viz-select compact-select">
+                <option value="off">OFF</option>
+                <option value="low" selected>LOW</option>
+                <option value="high">HIGH</option>
+              </select>
+            </label>
+            <label>COLOR
+              <select id="color-select" class="viz-select compact-select">
+                <option value="#36ff72" selected>VECTOR</option>
+                <option value="#ffb000">AMBER</option>
+                <option value="#7fd8ff">ICE</option>
+                <option value="#ff4dff">MAGENTA</option>
+                <option value="#ffff00">ACID</option>
+                <option value="#f4f4f4">WHITE</option>
+              </select>
+            </label>
+            <button id="adaptive-btn" class="toggle-btn" data-active="false">ADAPT</button>
+            <button id="perf-overlay-btn" class="toggle-btn" data-active="false">STATS</button>
+            <button id="scope-only-btn" class="toggle-btn" data-active="false">SCOPE ONLY</button>
+            <button id="ultra-btn" class="toggle-btn" data-active="false">ULTRA</button>
           </div>
 
           <!-- Main controls grid -->
@@ -253,6 +309,11 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   #mode-row {
     display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;
   }
+  #perf-row {
+    display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;
+    font-size:7px; color:#555; letter-spacing:.2em; text-transform:uppercase;
+  }
+  #perf-row label { display:flex; align-items:center; gap:5px; }
   .btn-group { display:flex; gap:3px; flex-wrap:wrap; }
   .section-label {
     font-size:7px; letter-spacing:.4em; color:#3a3a3a; text-transform:uppercase;
@@ -294,6 +355,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   }
   .viz-select:focus { border-color:#444; }
   .viz-select option { background:#111; }
+  .compact-select { width:auto; min-width:58px; max-width:96px; flex:0 0 auto; padding:3px 5px; }
 
   /* Engage/Stop */
   #start-btn, #stop-btn {
@@ -306,6 +368,15 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   #stop-btn:hover { border-color:#a00; color:#a00; }
   #stop-btn.hidden { display:none; }
   #init-hint { font-size:7px; color:#2a2a2a; font-style:italic; margin-top:4px; display:block; }
+  #perf-overlay {
+    position:absolute; right:20px; top:46px; z-index:4; pointer-events:none;
+    font-size:8px; line-height:1.7; letter-spacing:.18em; color:#777;
+    background:rgba(0,0,0,.72); border:1px solid #222; padding:8px 10px;
+    white-space:pre; display:none;
+  }
+  #perf-overlay.visible { display:block; }
+  .visualizer-root.scope-only #hud-bar,
+  .visualizer-root.scope-only #control-panel { display:none; }
 </style>
 
 <script>
@@ -316,12 +387,17 @@ const ROOT    = document.querySelector('.visualizer-root') as HTMLElement;
 const canvas  = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
 const C       = canvas.getContext('2d')!;
 const IS_MINI = ROOT.dataset.mini === 'true';
-const ACCENT  = ROOT.dataset.color || '#ffff00';
+let ACCENT  = ROOT.dataset.color || '#ffff00';
+let gridCanvas: HTMLCanvasElement | null = null;
+let gridKey = '';
 
-function dpr() { return window.devicePixelRatio || 1; }
+let renderScale = 1;
+let dprClamp = 2;
+function dpr() { return Math.min(window.devicePixelRatio || 1, dprClamp) * renderScale; }
 function resize() {
   canvas.width  = canvas.clientWidth  * dpr();
   canvas.height = canvas.clientHeight * dpr();
+  invalidateGrid();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -371,6 +447,26 @@ let pxThresh  = 0.15;
 let pxOpacity = 0.7;
 let pxGap     = 1;
 
+// Performance params
+let targetFps = IS_MINI ? 30 : 60;
+let actualFps = 0;
+let msFrame = 0;
+let droppedFrames = 0;
+let frameInterval = 1000 / targetFps;
+let lastFrameAt = 0;
+let fpsWindowAt = 0;
+let fpsFrames = 0;
+let sampleStep = IS_MINI ? 4 : 1;
+let fftSetting: 'auto' | '512' | '1024' | '2048' | '4096' = 'auto';
+let glowQuality: 'off' | 'low' | 'high' = IS_MINI ? 'off' : 'low';
+let adaptiveQuality = false;
+let perfOverlayOn = false;
+let scopeOnly = false;
+let ultraMinimal = false;
+let lastHudAt = 0;
+let hudPeakHz = 0;
+let hudRmsDb = -Infinity;
+
 // ── Buffers ──────────────────────────────────────────────
 const WATERFALL_ROWS = 150;
 let waterfallData: Uint8Array[] = [];
@@ -379,6 +475,80 @@ let lissX: number[] = [];
 let lissY: number[] = [];
 interface Ptcl { x:number;y:number;vx:number;vy:number;life:number;mLife:number;sz:number;hue:number }
 let particles: Ptcl[] = [];
+
+function setTargetFps(v: number) {
+  targetFps = Math.max(1, v);
+  frameInterval = 1000 / targetFps;
+}
+
+function glow(v: number) {
+  if (glowQuality === 'off') return 0;
+  return glowQuality === 'high' ? v : v * 0.35;
+}
+
+function setFftSize(size: number) {
+  if (!analyser) return;
+  analyser.fftSize = size;
+  waterfallData = [];
+}
+
+function autoFftForMode() {
+  if (fftSetting !== 'auto') return;
+  const next =
+    mode === 'spectrum' || mode === 'waterfall' ? 4096 :
+    mode === 'particle' ? 1024 :
+    2048;
+  setFftSize(next);
+}
+
+function applyFftSetting() {
+  if (fftSetting === 'auto') {
+    autoFftForMode();
+  } else {
+    setFftSize(parseInt(fftSetting, 10));
+  }
+}
+
+function invalidateGrid() {
+  gridCanvas = null;
+  gridKey = '';
+}
+
+function updatePerfHud(force = false) {
+  const now = performance.now();
+  if (!force && now - lastHudAt < 250) return;
+  lastHudAt = now;
+
+  const hz=(h:number)=>h>=1000?`${(h/1000).toFixed(1)}k`:`${Math.round(h)}`;
+  const fe=document.getElementById('hud-freq');
+  const re=document.getElementById('hud-rms');
+  const pe=document.getElementById('hud-perf');
+  const oe=document.getElementById('perf-overlay');
+  if(fe) fe.textContent=`FREQ: ${hz(hudPeakHz)}Hz`;
+  if(re) re.textContent=`RMS: ${isFinite(hudRmsDb)?hudRmsDb.toFixed(1):'-∞'}dB`;
+  if(pe) pe.textContent=`FPS: ${actualFps.toFixed(0)}/${targetFps} | ${msFrame.toFixed(1)}ms | DROP ${droppedFrames}`;
+  if(oe) {
+    oe.classList.toggle('visible', perfOverlayOn);
+    oe.textContent =
+      `FPS ${actualFps.toFixed(1)} / ${targetFps}\n` +
+      `FRAME ${msFrame.toFixed(1)}ms\n` +
+      `SCALE ${renderScale.toFixed(2)} DPR ${dpr().toFixed(2)}\n` +
+      `FFT ${analyser?.fftSize ?? '--'}\n` +
+      `SAMPLES 1:${sampleStep}\n` +
+      `GLOW ${glowQuality.toUpperCase()}\n` +
+      `DROP ${droppedFrames}`;
+  }
+}
+
+function applyAdaptiveQuality() {
+  if (!adaptiveQuality || actualFps === 0) return;
+  if (actualFps < targetFps * 0.72) {
+    if (sampleStep < 8) sampleStep *= 2;
+    if (glowQuality === 'high') glowQuality = 'low';
+    else if (glowQuality === 'low') glowQuality = 'off';
+    if (renderScale > 0.5) { renderScale = renderScale === 1 ? 0.75 : 0.5; resize(); }
+  }
+}
 
 // ── Audio init ───────────────────────────────────────────
 async function initAudio(deviceId?: string) {
@@ -392,8 +562,9 @@ async function initAudio(deviceId?: string) {
 
   audioCtx    = new AudioContext();
   analyser    = audioCtx.createAnalyser();
-  analyser.fftSize = 4096;
+  analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0.0;
+  applyFftSetting();
 
   gainNode    = audioCtx.createGain();           gainNode.gain.value    = gain;
   distNode    = audioCtx.createWaveShaper();     distNode.oversample    = '4x';
@@ -548,14 +719,21 @@ function idxToHz(i: number): number { return i*(audioCtx?.sampleRate??44100)/ana
 
 // ── Grid ─────────────────────────────────────────────────
 function drawGrid(c: CanvasRenderingContext2D, W: number, H: number) {
-  c.save();
-  c.strokeStyle='rgba(255,255,0,0.055)'; c.lineWidth=0.5;
-  for(let i=0;i<=10;i++){const x=W/10*i;c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
-  for(let j=0;j<=8;j++){const y=H/8*j;c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
-  c.strokeStyle='rgba(255,255,0,0.11)';
-  c.beginPath();c.moveTo(0,H/2);c.lineTo(W,H/2);c.stroke();
-  c.beginPath();c.moveTo(W/2,0);c.lineTo(W/2,H);c.stroke();
-  c.restore();
+  const key = `${Math.round(W)}x${Math.round(H)}:${ACCENT}`;
+  if (!gridCanvas || gridKey !== key) {
+    gridCanvas = document.createElement('canvas');
+    gridCanvas.width = Math.max(1, Math.round(W));
+    gridCanvas.height = Math.max(1, Math.round(H));
+    gridKey = key;
+    const g = gridCanvas.getContext('2d')!;
+    g.strokeStyle='rgba(255,255,0,0.055)'; g.lineWidth=0.5;
+    for(let i=0;i<=10;i++){const x=W/10*i;g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}
+    for(let j=0;j<=8;j++){const y=H/8*j;g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+    g.strokeStyle='rgba(255,255,0,0.11)';
+    g.beginPath();g.moveTo(0,H/2);g.lineTo(W,H/2);g.stroke();
+    g.beginPath();g.moveTo(W/2,0);g.lineTo(W/2,H);g.stroke();
+  }
+  c.drawImage(gridCanvas, 0, 0, W, H);
 }
 
 // ── Pixel Map ────────────────────────────────────────────
@@ -601,15 +779,17 @@ function drawScope(c: CanvasRenderingContext2D, W: number, H: number) {
   if (showGrid) drawGrid(c, W, H);
   const start  = trigSync ? findTrigger(data) : 0;
   const visLen = Math.max(2, Math.floor(data.length / zoom));
-  const sw     = W / visLen;
+  const points = Math.max(2, Math.ceil(visLen / sampleStep));
 
   const wave = (lw: number, blur: number, alpha: number) => {
-    c.save(); c.lineWidth=lw; c.shadowBlur=blur; c.shadowColor=ACCENT;
+    c.save(); c.lineWidth=lw; c.shadowBlur=glow(blur); c.shadowColor=ACCENT;
     c.strokeStyle=ACCENT; c.globalAlpha=alpha; c.beginPath();
-    for (let i=0; i<visLen; i++) {
+    for (let p=0; p<points; p++) {
+      const i = Math.min(visLen - 1, p * sampleStep);
       const v = ((data[(start+i)%data.length]/128)-1)*gain*vdiv;
       const y = H/2 - v*H*0.42;
-      i===0 ? c.moveTo(0,y) : c.lineTo(i*sw,y);
+      const x = points === 1 ? 0 : (p/(points-1))*W;
+      p===0 ? c.moveTo(0,y) : c.lineTo(x,y);
     }
     c.stroke(); c.restore();
   };
@@ -638,7 +818,7 @@ function drawSpectrum(c: CanvasRenderingContext2D, W: number, H: number) {
     const h = v*H*.95;
     const hue = (i/bins)*60+35;
     c.fillStyle=`hsla(${hue},${80+v*20}%,55%,${0.4+v*0.6})`;
-    c.shadowBlur=8*v; c.shadowColor=`hsl(${hue},100%,70%)`;
+    c.shadowBlur=glow(8*v); c.shadowColor=`hsl(${hue},100%,70%)`;
     c.fillRect(i*bw, H-h, Math.max(bw-.5,.5), h);
   }
   c.save(); c.strokeStyle='rgba(255,255,255,.2)'; c.lineWidth=.5; c.beginPath();
@@ -674,14 +854,14 @@ function drawLissajous(c: CanvasRenderingContext2D, W: number, H: number) {
     const t = i/n;
     c.save();
     c.strokeStyle=`hsla(${t*55+35},100%,60%,${t*.9})`;
-    c.lineWidth=1.2; c.shadowBlur=6*t; c.shadowColor=`hsl(${t*55+35},100%,70%)`;
+    c.lineWidth=1.2; c.shadowBlur=glow(6*t); c.shadowColor=`hsl(${t*55+35},100%,70%)`;
     c.beginPath();
     c.moveTo(W/2+lissX[i-1]*W*.44, H/2+lissY[i-1]*H*.44);
     c.lineTo(W/2+lissX[i]  *W*.44, H/2+lissY[i]  *H*.44);
     c.stroke(); c.restore();
   }
   if (n>0) {
-    c.save(); c.fillStyle=ACCENT; c.shadowBlur=14; c.shadowColor=ACCENT;
+    c.save(); c.fillStyle=ACCENT; c.shadowBlur=glow(14); c.shadowColor=ACCENT;
     c.beginPath(); c.arc(W/2+lissX[n-1]*W*.44, H/2+lissY[n-1]*H*.44, 3, 0, Math.PI*2);
     c.fill(); c.restore();
   }
@@ -705,7 +885,7 @@ function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
     const ang=i*(Math.PI*2/fBins)-Math.PI/2;
     const hue=(i/fBins)*60+30;
     c.strokeStyle=`hsla(${hue},100%,58%,${.4+v*.6})`;
-    c.shadowColor=`hsl(${hue},100%,70%)`;c.shadowBlur=8*v;c.lineWidth=1.5;
+    c.shadowColor=`hsl(${hue},100%,70%)`;c.shadowBlur=glow(8*v);c.lineWidth=1.5;
     c.beginPath();
     c.moveTo(cx+Math.cos(ang)*baseR*.12, cy+Math.sin(ang)*baseR*.12);
     c.lineTo(cx+Math.cos(ang)*(baseR*.12+v*baseR*.65), cy+Math.sin(ang)*(baseR*.12+v*baseR*.65));
@@ -714,7 +894,7 @@ function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
 
   const wBins=Math.min(data.length,512), wStep=Math.PI*2/wBins;
   const ring=(lw:number,blur:number,alpha:number)=>{
-    c.save();c.strokeStyle=ACCENT;c.lineWidth=lw;c.shadowBlur=blur;c.shadowColor=ACCENT;c.globalAlpha=alpha;
+    c.save();c.strokeStyle=ACCENT;c.lineWidth=lw;c.shadowBlur=glow(blur);c.shadowColor=ACCENT;c.globalAlpha=alpha;
     c.beginPath();
     for(let i=0;i<wBins;i++){
       const v=((data[i]/128)-1)*gain*vdiv;
@@ -726,7 +906,7 @@ function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
   ring(6,28,.1); ring(1.5,8,1);
   const rms=calcRMS(data);
   c.save();c.beginPath();c.arc(cx,cy,3+rms*18,0,Math.PI*2);
-  c.fillStyle=ACCENT;c.shadowBlur=20;c.shadowColor=ACCENT;c.fill();c.restore();
+  c.fillStyle=ACCENT;c.shadowBlur=glow(20);c.shadowColor=ACCENT;c.fill();c.restore();
   updateHUD(idxToHz(peakIdx(freq)),0);
 }
 
@@ -772,11 +952,11 @@ function drawParticles(c: CanvasRenderingContext2D, W: number, H: number) {
   for(const p of particles){
     p.x+=p.vx;p.y+=p.vy;p.vy+=.06;p.life-=.016/p.mLife;
     c.save();c.globalAlpha=Math.max(0,p.life);c.beginPath();c.arc(p.x,p.y,p.sz,0,Math.PI*2);
-    c.fillStyle=`hsl(${p.hue},100%,65%)`;c.shadowBlur=10;c.shadowColor=`hsl(${p.hue},100%,70%)`;
+    c.fillStyle=`hsl(${p.hue},100%,65%)`;c.shadowBlur=glow(10);c.shadowColor=`hsl(${p.hue},100%,70%)`;
     c.fill();c.restore();
   }
-  c.save();c.strokeStyle='rgba(255,255,0,.2)';c.lineWidth=1;c.shadowBlur=6;c.shadowColor=ACCENT;c.beginPath();
-  for(let i=0;i<data.length;i++){
+  c.save();c.strokeStyle='rgba(255,255,0,.2)';c.lineWidth=1;c.shadowBlur=glow(6);c.shadowColor=ACCENT;c.beginPath();
+  for(let i=0;i<data.length;i+=sampleStep){
     const v=((data[i]/128)-1)*gain*vdiv;
     const y=H/2-v*H*.38;i===0?c.moveTo(0,y):c.lineTo((i/data.length)*W,y);
   }c.stroke();c.restore();
@@ -793,17 +973,33 @@ function updateHUD(peakHz: number, rmsDb: number) {
 }
 
 // ── DRAW LOOP ────────────────────────────────────────────
-function drawLoop() {
+function drawLoop(now = 0) {
   if (!running) return;
   requestAnimationFrame(drawLoop);
+  if (document.hidden) return;
+  if (!lastFrameAt) lastFrameAt = now;
+  const elapsed = now - lastFrameAt;
+  if (elapsed < frameInterval * 0.92) return;
+  msFrame = elapsed;
+  if (elapsed > frameInterval * 1.7) droppedFrames++;
+  lastFrameAt = now - (elapsed % frameInterval);
+  fpsFrames++;
+  if (!fpsWindowAt) fpsWindowAt = now;
+  if (now - fpsWindowAt >= 500) {
+    actualFps = fpsFrames * 1000 / (now - fpsWindowAt);
+    fpsFrames = 0;
+    fpsWindowAt = now;
+    applyAdaptiveQuality();
+    updatePerfHud(true);
+  }
   const W=canvas.width, H=canvas.height, D=dpr(), Wl=W/D, Hl=H/D;
 
   if (IS_MINI) {
     C.clearRect(0,0,W,H);
     if (!analyser) return;
     const d=getTime();
-    C.save();C.scale(D,D);C.lineWidth=1;C.strokeStyle=ACCENT;C.shadowBlur=4;C.shadowColor=ACCENT;C.beginPath();
-    for(let i=0;i<d.length;i++){
+    C.save();C.scale(D,D);C.lineWidth=1;C.strokeStyle=ACCENT;C.shadowBlur=glow(4);C.shadowColor=ACCENT;C.beginPath();
+    for(let i=0;i<d.length;i+=sampleStep){
       const v=((d[i]/128)-1)*gain*vdiv;
       const y=Hl/2-v*Hl*.42;i===0?C.moveTo(0,y):C.lineTo((i/d.length)*Wl,y);
     }C.stroke();C.restore();
@@ -811,7 +1007,7 @@ function drawLoop() {
   }
 
   // Phosphor persistence
-  C.fillStyle=`rgba(0,0,0,${1-persist})`;C.fillRect(0,0,W,H);
+  C.fillStyle=`rgba(0,0,0,${ultraMinimal ? 1 : 1-persist})`;C.fillRect(0,0,W,H);
 
   C.save();C.scale(D,D);
   switch(mode){
@@ -828,17 +1024,23 @@ function drawLoop() {
 
 // ── DEMO LOOP ────────────────────────────────────────────
 let demoT=0;
-function demoLoop(){
+let demoLastAt=0;
+function demoLoop(now=0){
   if(running) return;
   requestAnimationFrame(demoLoop);
+  if(document.hidden) return;
+  if(!demoLastAt) demoLastAt=now;
+  const elapsed=now-demoLastAt;
+  if(elapsed<frameInterval*.92) return;
+  demoLastAt=now-(elapsed%frameInterval);
   const W=canvas.width,H=canvas.height,D=dpr(),Wl=W/D,Hl=H/D;
   demoT+=.018;
   C.fillStyle='rgba(0,0,0,.25)';C.fillRect(0,0,W,H);
   C.save();C.scale(D,D);
   if(!IS_MINI&&showGrid) drawGrid(C,Wl,Hl);
-  C.strokeStyle=ACCENT;C.shadowBlur=8;C.shadowColor=ACCENT;C.lineWidth=IS_MINI?1:1.4;
+  C.strokeStyle=ACCENT;C.shadowBlur=glow(8);C.shadowColor=ACCENT;C.lineWidth=IS_MINI?1:1.4;
   C.beginPath();
-  const pts=IS_MINI?200:1024;
+  const pts=IS_MINI?96:Math.max(128,Math.floor(1024/sampleStep));
   for(let i=0;i<pts;i++){
     const t=demoT+i*.035;
     const y=Hl/2+Math.sin(t)*Hl*.28+Math.sin(t*2.7+.5)*Hl*.07+Math.sin(t*7.1)*Hl*.02;
@@ -1037,6 +1239,7 @@ if (!IS_MINI) {
       const lbl=document.getElementById('hud-mode-label');
       if(lbl) lbl.textContent=`MODE: ${mode.toUpperCase()}`;
       waterfallData=[];lissX=[];lissY=[];particles=[];
+      autoFftForMode();
     });
   });
   (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
@@ -1067,6 +1270,78 @@ if (!IS_MINI) {
   mkToggle('btn-grid',  v=>{showGrid=v;});
   mkToggle('btn-trig',  v=>{trigSync=v;});
   mkToggle('btn-invert',v=>{invertSig=v;});
+
+  document.getElementById('fps-select')?.addEventListener('change',e=>{
+    setTargetFps(parseInt((e.target as HTMLSelectElement).value,10));
+    updatePerfHud(true);
+  });
+  document.getElementById('scale-select')?.addEventListener('change',e=>{
+    renderScale=parseFloat((e.target as HTMLSelectElement).value);
+    resize();
+    updatePerfHud(true);
+  });
+  document.getElementById('sample-select')?.addEventListener('change',e=>{
+    sampleStep=parseInt((e.target as HTMLSelectElement).value,10);
+    updatePerfHud(true);
+  });
+  document.getElementById('fft-select')?.addEventListener('change',e=>{
+    fftSetting=(e.target as HTMLSelectElement).value as typeof fftSetting;
+    applyFftSetting();
+    updatePerfHud(true);
+  });
+  document.getElementById('glow-select')?.addEventListener('change',e=>{
+    glowQuality=(e.target as HTMLSelectElement).value as typeof glowQuality;
+    updatePerfHud(true);
+  });
+  document.getElementById('color-select')?.addEventListener('change',e=>{
+    ACCENT=(e.target as HTMLSelectElement).value;
+    ROOT.dataset.color=ACCENT;
+    invalidateGrid();
+  });
+  document.getElementById('adaptive-btn')?.addEventListener('click',e=>{
+    adaptiveQuality=!adaptiveQuality;
+    (e.currentTarget as HTMLElement).dataset.active=String(adaptiveQuality);
+  });
+  document.getElementById('perf-overlay-btn')?.addEventListener('click',e=>{
+    perfOverlayOn=!perfOverlayOn;
+    (e.currentTarget as HTMLElement).dataset.active=String(perfOverlayOn);
+    updatePerfHud(true);
+  });
+  document.getElementById('scope-only-btn')?.addEventListener('click',e=>{
+    scopeOnly=!scopeOnly;
+    ROOT.classList.toggle('scope-only',scopeOnly);
+    (e.currentTarget as HTMLElement).dataset.active=String(scopeOnly);
+  });
+  document.getElementById('ultra-btn')?.addEventListener('click',e=>{
+    ultraMinimal=!ultraMinimal;
+    (e.currentTarget as HTMLElement).dataset.active=String(ultraMinimal);
+    if(ultraMinimal){
+      setTargetFps(120);
+      sampleStep=Math.max(sampleStep,4);
+      glowQuality='off';
+      persist=0;
+      pixelMapOn=false;
+      showGrid=false;
+      mode='scope';
+      scopeOnly=true;
+      ROOT.classList.add('scope-only');
+      const scopeBtn=document.getElementById('scope-only-btn');
+      if(scopeBtn) scopeBtn.dataset.active='true';
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
+    }
+    updatePerfHud(true);
+  });
+  canvas.addEventListener('dblclick',()=>{
+    scopeOnly=!scopeOnly;
+    ROOT.classList.toggle('scope-only',scopeOnly);
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&scopeOnly){
+      scopeOnly=false;
+      ROOT.classList.remove('scope-only');
+    }
+  });
 }
 
 if(IS_MINI) canvas.addEventListener('click',()=>initAudio(),{once:true});
