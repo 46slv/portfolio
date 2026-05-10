@@ -1,58 +1,541 @@
 ---
-// visualizer.astro — Full-Screen Advanced Scope Page
+// src/pages/visualizer.astro
+// SS_SCOPE v4.0
+
 import '../styles/global.css';
 import Visualizer from '../components/Visualizer.astro';
 ---
+
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SS_SCOPE v3.0 | Audio Visualizer</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+
+    <title>SS_SCOPE v4.0 | CRT Audio Observatory</title>
+
+    <meta
+      name="theme-color"
+      content="#000000"
+    />
+
     <style>
-      *, *::before, *::after { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
-      .scope-wrap { width: 100vw; height: 100vh; position: relative; }
+      :root {
+        --bg: #000;
+        --text-dim: rgba(255,255,255,0.3);
+        --text: rgba(255,255,255,0.85);
 
-      /* Back link */
-      #back-link {
-        position: fixed; top: 16px; left: 16px; z-index: 100;
-        font-size: 9px; font-family: monospace; letter-spacing: 0.4em;
-        color: #444; text-decoration: none; text-transform: uppercase;
-        transition: color 0.2s;
+        --accent: #d8ff72;
+
+        --panel:
+          rgba(8,8,8,0.72);
+
+        --border:
+          rgba(255,255,255,0.08);
+
+        --blur: blur(20px);
       }
-      #back-link:hover { color: #ffff00; }
 
-      /* Panel collapse toggle */
-      #panel-toggle {
-        position: fixed; bottom: 16px; right: 16px; z-index: 200;
-        font-size: 8px; font-family: monospace; letter-spacing: 0.3em;
-        color: #444; background: transparent; border: 1px solid #222;
-        padding: 6px 12px; cursor: pointer; text-transform: uppercase;
-        transition: all 0.2s;
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
-      #panel-toggle:hover { color: #ffff00; border-color: #ffff00; }
 
-      /* Hide panel */
-      body.panel-hidden #control-panel { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
-      #control-panel { transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+
+        width: 100%;
+        height: 100%;
+
+        overflow: hidden;
+
+        background:
+          radial-gradient(
+            circle at center,
+            #0b0b0b 0%,
+            #000 70%
+          );
+
+        color: white;
+
+        font-family:
+          Inter,
+          system-ui,
+          sans-serif;
+
+        overscroll-behavior: none;
+      }
+
+      body {
+        position: relative;
+      }
+
+      .scope-wrap {
+        position: fixed;
+        inset: 0;
+
+        width: 100vw;
+        height: 100vh;
+
+        overflow: hidden;
+
+        isolation: isolate;
+      }
+
+      /*
+      ------------------------------------------------
+      OVERLAY FX
+      ------------------------------------------------
+      */
+
+      .scope-wrap::before {
+        content: "";
+
+        position: absolute;
+        inset: 0;
+
+        pointer-events: none;
+        z-index: 3;
+
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.018) 0px,
+            rgba(255,255,255,0.018) 1px,
+            transparent 2px,
+            transparent 4px
+          );
+
+        mix-blend-mode: screen;
+
+        opacity: 0.25;
+      }
+
+      .scope-wrap::after {
+        content: "";
+
+        position: absolute;
+        inset: 0;
+
+        pointer-events: none;
+        z-index: 2;
+
+        background:
+          radial-gradient(
+            circle at center,
+            transparent 45%,
+            rgba(0,0,0,0.4) 100%
+          );
+
+        opacity: 0.9;
+      }
+
+      /*
+      ------------------------------------------------
+      TOP BAR
+      ------------------------------------------------
+      */
+
+      #topbar {
+        position: fixed;
+
+        top: 0;
+        left: 0;
+        right: 0;
+
+        height: 56px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        padding:
+          env(safe-area-inset-top)
+          18px
+          0
+          18px;
+
+        z-index: 200;
+
+        pointer-events: none;
+      }
+
+      #topbar-left,
+      #topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+
+        pointer-events: auto;
+      }
+
+      .top-button {
+        appearance: none;
+
+        border: 1px solid var(--border);
+
+        background: var(--panel);
+        backdrop-filter: var(--blur);
+
+        color: var(--text-dim);
+
+        border-radius: 999px;
+
+        height: 34px;
+
+        padding: 0 14px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        font-size: 10px;
+        font-family: monospace;
+
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+
+        cursor: pointer;
+
+        transition:
+          border-color .18s ease,
+          color .18s ease,
+          background .18s ease,
+          transform .18s ease;
+      }
+
+      .top-button:hover {
+        color: var(--accent);
+        border-color: rgba(216,255,114,0.3);
+
+        transform: translateY(-1px);
+      }
+
+      .top-button:active {
+        transform: translateY(0);
+      }
+
+      /*
+      ------------------------------------------------
+      HELP OVERLAY
+      ------------------------------------------------
+      */
+
+      #help {
+        position: fixed;
+
+        right: 20px;
+        top: 72px;
+
+        z-index: 300;
+
+        width: 240px;
+
+        padding: 14px;
+
+        border-radius: 18px;
+
+        background: rgba(0,0,0,0.72);
+        backdrop-filter: blur(18px);
+
+        border: 1px solid var(--border);
+
+        font-family: monospace;
+
+        transition:
+          opacity .2s ease,
+          transform .2s ease;
+      }
+
+      #help.hidden {
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+      }
+
+      #help-title {
+        font-size: 11px;
+        letter-spacing: 0.22em;
+
+        color: rgba(255,255,255,0.9);
+
+        margin-bottom: 12px;
+      }
+
+      .help-row {
+        display: flex;
+        justify-content: space-between;
+
+        font-size: 10px;
+
+        color: rgba(255,255,255,0.55);
+
+        margin-bottom: 8px;
+      }
+
+      .help-key {
+        color: rgba(255,255,255,0.95);
+      }
+
+      /*
+      ------------------------------------------------
+      PANEL HIDE STATE
+      ------------------------------------------------
+      */
+
+      body.panel-hidden #panel {
+        opacity: 0;
+        transform:
+          translateY(16px);
+
+        pointer-events: none;
+      }
+
+      /*
+      ------------------------------------------------
+      FADE-IN
+      ------------------------------------------------
+      */
+
+      body {
+        animation:
+          bootFade 0.8s ease;
+      }
+
+      @keyframes bootFade {
+        from {
+          opacity: 0;
+          filter: blur(12px);
+        }
+
+        to {
+          opacity: 1;
+          filter: blur(0px);
+        }
+      }
+
+      /*
+      ------------------------------------------------
+      MOBILE
+      ------------------------------------------------
+      */
+
+      @media (max-width: 700px) {
+        #help {
+          width: calc(100vw - 32px);
+          right: 16px;
+        }
+
+        .top-button {
+          font-size: 9px;
+          letter-spacing: 0.14em;
+        }
+      }
     </style>
   </head>
+
   <body>
-    <a id="back-link" href="/">← BACK</a>
-    <button id="panel-toggle">▲ PANEL</button>
-    <div class="scope-wrap">
-      <Visualizer isMini={false} color="#ffff00" />
+    <div id="topbar">
+      <div id="topbar-left">
+        <a
+          href="/"
+          class="top-button"
+        >
+          ← BACK
+        </a>
+      </div>
+
+      <div id="topbar-right">
+        <button
+          id="panel-toggle"
+          class="top-button"
+        >
+          PANEL
+        </button>
+
+        <button
+          id="help-toggle"
+          class="top-button"
+        >
+          HELP
+        </button>
+
+        <button
+          id="fullscreen-toggle"
+          class="top-button"
+        >
+          FULL
+        </button>
+      </div>
     </div>
+
+    <div id="help">
+      <div id="help-title">
+        SS_SCOPE SHORTCUTS
+      </div>
+
+      <div class="help-row">
+        <span>TAB</span>
+        <span class="help-key">TOGGLE PANEL</span>
+      </div>
+
+      <div class="help-row">
+        <span>H</span>
+        <span class="help-key">TOGGLE HELP</span>
+      </div>
+
+      <div class="help-row">
+        <span>F</span>
+        <span class="help-key">FULLSCREEN</span>
+      </div>
+
+      <div class="help-row">
+        <span>DBL CLICK</span>
+        <span class="help-key">RESET KNOB</span>
+      </div>
+
+      <div class="help-row">
+        <span>SHIFT</span>
+        <span class="help-key">FINE CONTROL</span>
+      </div>
+    </div>
+
+    <div class="scope-wrap">
+      <Visualizer />
+    </div>
+
     <script>
-      const toggle = document.getElementById('panel-toggle');
-      toggle?.addEventListener('click', () => {
-        document.body.classList.toggle('panel-hidden');
-        if (document.body.classList.contains('panel-hidden')) {
-          toggle.textContent = '▼ PANEL';
-        } else {
-          toggle.textContent = '▲ PANEL';
+      const body = document.body;
+
+      const panelToggle =
+        document.getElementById(
+          "panel-toggle"
+        );
+
+      const helpToggle =
+        document.getElementById(
+          "help-toggle"
+        );
+
+      const fullscreenToggle =
+        document.getElementById(
+          "fullscreen-toggle"
+        );
+
+      const help =
+        document.getElementById("help");
+
+      /*
+      ----------------------------------------
+      PANEL TOGGLE
+      ----------------------------------------
+      */
+
+      function togglePanel() {
+        body.classList.toggle(
+          "panel-hidden"
+        );
+      }
+
+      panelToggle?.addEventListener(
+        "click",
+        togglePanel
+      );
+
+      /*
+      ----------------------------------------
+      HELP
+      ----------------------------------------
+      */
+
+      helpToggle?.addEventListener(
+        "click",
+        () => {
+          help?.classList.toggle(
+            "hidden"
+          );
         }
-      });
+      );
+
+      /*
+      ----------------------------------------
+      FULLSCREEN
+      ----------------------------------------
+      */
+
+      fullscreenToggle?.addEventListener(
+        "click",
+        async () => {
+          if (!document.fullscreenElement) {
+            await document.documentElement
+              .requestFullscreen?.();
+          } else {
+            await document.exitFullscreen?.();
+          }
+        }
+      );
+
+      /*
+      ----------------------------------------
+      KEYBOARD
+      ----------------------------------------
+      */
+
+      window.addEventListener(
+        "keydown",
+        async (e) => {
+          if (e.key === "Tab") {
+            e.preventDefault();
+            togglePanel();
+          }
+
+          if (
+            e.key.toLowerCase() === "h"
+          ) {
+            help?.classList.toggle(
+              "hidden"
+            );
+          }
+
+          if (
+            e.key.toLowerCase() === "f"
+          ) {
+            if (!document.fullscreenElement) {
+              await document.documentElement
+                .requestFullscreen?.();
+            } else {
+              await document.exitFullscreen?.();
+            }
+          }
+        }
+      );
+
+      /*
+      ----------------------------------------
+      PREVENT GESTURE NAVIGATION
+      ----------------------------------------
+      */
+
+      window.addEventListener(
+        "gesturestart",
+        e => e.preventDefault()
+      );
+
+      /*
+      ----------------------------------------
+      INITIAL STATE
+      ----------------------------------------
+      */
+
+      setTimeout(() => {
+        help?.classList.add("hidden");
+      }, 6000);
     </script>
   </body>
 </html>

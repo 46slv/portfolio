@@ -284,29 +284,6 @@ const { logs } = Astro.props;
 }
 </file>
 
-<file path="src/pages/visualizer.astro">
----
-// visualizer.astro
-import '../styles/global.css';
-import Visualizer from '../components/Visualizer.astro';
----
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <title>Audio Visualizer | Fullscreen Scope</title>
-    <style>
-      body { background: #000; margin: 0; overflow: hidden; }
-      .full-screen { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
-    </style>
-  </head>
-  <body>
-    <div class="full-screen">
-      <Visualizer color="#ffff00" />
-    </div>
-  </body>
-</html>
-</file>
-
 <file path="src/components/Header.astro">
 ---
 import Visualizer from './Visualizer.astro';
@@ -361,73 +338,952 @@ const { name, jpName } = Astro.props;
 </script>
 </file>
 
+<file path="src/pages/visualizer.astro">
+---
+// visualizer.astro — Full-Screen Advanced Scope Page
+import '../styles/global.css';
+import Visualizer from '../components/Visualizer.astro';
+---
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>SS_SCOPE v3.0 | Audio Visualizer</title>
+    <style>
+      *, *::before, *::after { box-sizing: border-box; }
+      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
+      .scope-wrap { width: 100vw; height: 100vh; position: relative; }
+
+      /* Back link */
+      #back-link {
+        position: fixed; top: 16px; left: 16px; z-index: 100;
+        font-size: 9px; font-family: monospace; letter-spacing: 0.4em;
+        color: #444; text-decoration: none; text-transform: uppercase;
+        transition: color 0.2s;
+      }
+      #back-link:hover { color: #ffff00; }
+
+      /* Panel collapse toggle */
+      #panel-toggle {
+        position: fixed; bottom: 16px; right: 16px; z-index: 200;
+        font-size: 8px; font-family: monospace; letter-spacing: 0.3em;
+        color: #444; background: transparent; border: 1px solid #222;
+        padding: 6px 12px; cursor: pointer; text-transform: uppercase;
+        transition: all 0.2s;
+      }
+      #panel-toggle:hover { color: #ffff00; border-color: #ffff00; }
+
+      /* Hide panel */
+      body.panel-hidden #control-panel { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
+      #control-panel { transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
+    </style>
+  </head>
+  <body>
+    <a id="back-link" href="/">← BACK</a>
+    <button id="panel-toggle">▲ PANEL</button>
+    <div class="scope-wrap">
+      <Visualizer isMini={false} color="#ffff00" />
+    </div>
+    <script>
+      const toggle = document.getElementById('panel-toggle');
+      toggle?.addEventListener('click', () => {
+        document.body.classList.toggle('panel-hidden');
+        if (document.body.classList.contains('panel-hidden')) {
+          toggle.textContent = '▼ PANEL';
+        } else {
+          toggle.textContent = '▲ PANEL';
+        }
+      });
+    </script>
+  </body>
+</html>
+</file>
+
 <file path="src/components/Visualizer.astro">
 ---
-// Visualizer.astro
+// Visualizer.astro — Advanced Oscilloscope + Synthesizer Engine
 interface Props {
-  isMini?: boolean; // ヘッダー用かどうか
+  isMini?: boolean;
+  color?: string;
 }
-const { isMini = false } = Astro.props;
+const { isMini = false, color = '#ffff00' } = Astro.props;
 ---
-<div class={`visualizer-container relative w-full h-full ${isMini ? 'max-h-[30px]' : 'min-h-[300px]'}`}>
+
+<div
+  class={`visualizer-root relative w-full h-full ${isMini ? 'mini-mode' : 'fullscreen-mode'}`}
+  data-mini={isMini ? 'true' : 'false'}
+  data-color={color}
+>
   <canvas id="visualizer-canvas" class="w-full h-full block"></canvas>
+
+  {!isMini && (
+    <div id="viz-ui" class="absolute inset-0 pointer-events-none">
+      <!-- HUD overlay: top bar -->
+      <div class="absolute top-0 left-0 right-0 flex justify-between items-center px-6 py-4 pointer-events-auto" style="background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);">
+        <div class="flex items-center gap-6">
+          <span id="hud-title" class="text-[10px] tracking-[0.5em] font-mono font-bold text-[#ffff00] uppercase">SS_SCOPE v3.0</span>
+          <div class="flex items-center gap-2">
+            <div id="status-dot" class="w-1.5 h-1.5 rounded-full bg-[#ffff00] animate-pulse"></div>
+            <span id="status-label" class="text-[9px] font-mono text-zinc-500 tracking-widest uppercase">STANDBY</span>
+          </div>
+        </div>
+        <div class="flex items-center gap-4 text-[9px] font-mono text-zinc-600">
+          <span id="hud-freq">FREQ: ---Hz</span>
+          <span id="hud-rms">RMS: ---dB</span>
+          <span id="hud-mode-label">MODE: SCOPE</span>
+        </div>
+      </div>
+
+      <!-- Bottom control panel -->
+      <div id="control-panel" class="absolute bottom-0 left-0 right-0 pointer-events-auto" style="background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 70%, transparent 100%);">
+        <div class="px-6 pb-5 pt-8">
+
+          <!-- Mode selector -->
+          <div class="flex gap-2 mb-5">
+            {[
+              { id: 'scope',      label: 'OSCILLOSCOPE' },
+              { id: 'spectrum',   label: 'SPECTRUM' },
+              { id: 'lissajous',  label: 'LISSAJOUS' },
+              { id: 'radial',     label: 'RADIAL' },
+              { id: 'waterfall',  label: 'WATERFALL' },
+              { id: 'particle',   label: 'PARTICLE' },
+            ].map(m => (
+              <button
+                class="mode-btn text-[8px] tracking-[0.3em] font-mono px-3 py-1.5 border transition-all duration-200 uppercase"
+                data-mode={m.id}
+                style="border-color: #333; color: #555;"
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+
+          <!-- Controls grid -->
+          <div class="grid grid-cols-4 gap-6">
+
+            <!-- INPUT / GAIN -->
+            <div class="space-y-3">
+              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">Input</div>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">GAIN</span>
+                <input type="range" id="ctrl-gain" min="0.1" max="5" step="0.05" value="1" class="viz-slider" />
+                <span id="val-gain" class="text-[8px] font-mono text-zinc-400">1.00×</span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">THRESHOLD</span>
+                <input type="range" id="ctrl-threshold" min="0" max="100" step="1" value="0" class="viz-slider" />
+                <span id="val-threshold" class="text-[8px] font-mono text-zinc-400">0%</span>
+              </label>
+            </div>
+
+            <!-- SYNTH oscillator -->
+            <div class="space-y-3">
+              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">Synth Osc</div>
+              <div class="flex gap-1 flex-wrap">
+                {['OFF','SINE','SAW','SQR','TRI','NOISE'].map(t => (
+                  <button class="osc-btn text-[7px] font-mono px-1.5 py-0.5 border transition-all" data-osc={t} style="border-color:#333;color:#444;">
+                    {t}
+                  </button>
+                ))}
+              </div>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">FREQ</span>
+                <input type="range" id="ctrl-osc-freq" min="20" max="2000" step="1" value="440" class="viz-slider" />
+                <span id="val-osc-freq" class="text-[8px] font-mono text-zinc-400">440 Hz</span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">VOL</span>
+                <input type="range" id="ctrl-osc-vol" min="0" max="1" step="0.01" value="0.3" class="viz-slider" />
+                <span id="val-osc-vol" class="text-[8px] font-mono text-zinc-400">30%</span>
+              </label>
+            </div>
+
+            <!-- EFFECTS -->
+            <div class="space-y-3">
+              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">FX Chain</div>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">DISTORTION</span>
+                <input type="range" id="ctrl-dist" min="0" max="400" step="1" value="0" class="viz-slider" />
+                <span id="val-dist" class="text-[8px] font-mono text-zinc-400">0</span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">DELAY MIX</span>
+                <input type="range" id="ctrl-delay" min="0" max="1" step="0.01" value="0" class="viz-slider" />
+                <span id="val-delay" class="text-[8px] font-mono text-zinc-400">0%</span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">LPF CUTOFF</span>
+                <input type="range" id="ctrl-lpf" min="100" max="20000" step="10" value="20000" class="viz-slider" />
+                <span id="val-lpf" class="text-[8px] font-mono text-zinc-400">20kHz</span>
+              </label>
+            </div>
+
+            <!-- DISPLAY -->
+            <div class="space-y-3">
+              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">Display</div>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">TIMEBASE</span>
+                <input type="range" id="ctrl-zoom" min="0.5" max="8" step="0.1" value="1" class="viz-slider" />
+                <span id="val-zoom" class="text-[8px] font-mono text-zinc-400">1.0×</span>
+              </label>
+              <label class="flex flex-col gap-1">
+                <span class="text-[8px] font-mono text-zinc-500">PERSISTENCE</span>
+                <input type="range" id="ctrl-persist" min="0" max="0.95" step="0.01" value="0.15" class="viz-slider" />
+                <span id="val-persist" class="text-[8px] font-mono text-zinc-400">15%</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="ctrl-grid" checked class="accent-[#ffff00]" />
+                <span class="text-[8px] font-mono text-zinc-500">GRID</span>
+              </label>
+              <label class="flex items-center gap-2 cursor-pointer">
+                <input type="checkbox" id="ctrl-trigger" class="accent-[#ffff00]" />
+                <span class="text-[8px] font-mono text-zinc-500">TRIG SYNC</span>
+              </label>
+            </div>
+          </div>
+
+          <!-- Start button -->
+          <div class="mt-5 flex items-center gap-4">
+            <button id="start-btn" class="text-[9px] tracking-[0.4em] font-mono px-6 py-2 border border-[#ffff00] text-[#ffff00] hover:bg-[#ffff00] hover:text-black transition-all duration-200 uppercase">
+              ▶ ENGAGE MIC INPUT
+            </button>
+            <button id="stop-btn" class="hidden text-[9px] tracking-[0.4em] font-mono px-6 py-2 border border-zinc-700 text-zinc-500 hover:border-red-800 hover:text-red-500 transition-all duration-200 uppercase">
+              ■ DISCONNECT
+            </button>
+            <span id="init-hint" class="text-[8px] font-mono text-zinc-700 italic">— click to activate microphone input</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  )}
 </div>
 
+<style>
+  .mini-mode canvas { cursor: pointer; }
+  .fullscreen-mode { background: #000; }
+
+  .viz-slider {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 100%;
+    height: 2px;
+    background: #222;
+    outline: none;
+    cursor: pointer;
+  }
+  .viz-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ffff00;
+    cursor: pointer;
+    box-shadow: 0 0 6px rgba(255,255,0,0.5);
+  }
+  .viz-slider::-moz-range-thumb {
+    width: 10px; height: 10px;
+    border-radius: 50%;
+    background: #ffff00;
+    cursor: pointer;
+    border: none;
+  }
+
+  .mode-btn.active {
+    border-color: #ffff00 !important;
+    color: #ffff00 !important;
+    background: rgba(255,255,0,0.05);
+  }
+  .osc-btn.active {
+    border-color: #ffff00 !important;
+    color: #000 !important;
+    background: #ffff00 !important;
+  }
+</style>
+
 <script>
-  let audioContext: AudioContext;
-  let analyser: AnalyserNode;
-  const canvas = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
-  const ctx = canvas.getContext('2d')!;
+// ────────────────────────────────────────────────
+// SS_SCOPE v3.0 — Advanced Audio Visualizer Engine
+// ────────────────────────────────────────────────
 
-  // イエロー (#ffff00) を定数として定義
-  const WAVE_COLOR = '#ffff00';
+const ROOT     = document.querySelector('.visualizer-root') as HTMLElement;
+const canvas   = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
+const ctx2d    = canvas.getContext('2d')!;
+const IS_MINI  = ROOT?.dataset.mini === 'true';
+const ACCENT   = ROOT?.dataset.color || '#ffff00';
 
-  function resize() {
-    canvas.width = canvas.clientWidth * window.devicePixelRatio;
-    canvas.height = canvas.clientHeight * window.devicePixelRatio;
+// ── State ──────────────────────────────────────
+let audioCtx: AudioContext;
+let analyser: AnalyserNode;
+let gainNode: GainNode;
+let distNode: WaveShaperNode;
+let lpfNode: BiquadFilterNode;
+let delayNode: DelayNode;
+let delayGain: GainNode;
+let oscNode: OscillatorNode | null = null;
+let oscGain: GainNode;
+let noiseNode: AudioBufferSourceNode | null = null;
+let micStream: MediaStream | null = null;
+let micSource: MediaStreamAudioSourceNode | null = null;
+let running = false;
+
+let mode       = 'scope';
+let gain       = 1.0;
+let threshold  = 0;
+let zoom       = 1.0;
+let persist    = 0.15;
+let showGrid   = true;
+let trigSync   = false;
+let oscType: OscillatorType | 'off' | 'noise' = 'off';
+let oscFreq    = 440;
+let oscVol     = 0.3;
+let distAmt    = 0;
+let delayMix   = 0;
+let lpfFreq    = 20000;
+
+// Waterfall buffer
+const WATERFALL_ROWS = 120;
+let waterfallData: Uint8Array[] = [];
+
+// Lissajous history
+const LISSAJOUS_LEN = 512;
+let lissLeft: number[] = [];
+let lissRight: number[] = [];
+
+// Particle system
+interface Particle { x:number; y:number; vx:number; vy:number; life:number; maxLife:number; size:number; color:string; }
+let particles: Particle[] = [];
+
+// ── Resize ─────────────────────────────────────
+function resize() {
+  const dpr = window.devicePixelRatio || 1;
+  canvas.width  = canvas.clientWidth  * dpr;
+  canvas.height = canvas.clientHeight * dpr;
+}
+window.addEventListener('resize', resize);
+resize();
+
+// ── Audio init ─────────────────────────────────
+async function initAudio() {
+  if (running) return;
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
+  } catch (e) {
+    console.warn('Mic unavailable, synth-only mode');
   }
 
-  async function initAudio() {
-    if (audioContext) return;
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    audioContext = new AudioContext();
-    analyser = audioContext.createAnalyser();
-    analyser.fftSize = 1024;
-    const source = audioContext.createMediaStreamSource(stream);
-    source.connect(analyser);
-    draw();
+  audioCtx  = new AudioContext();
+  analyser  = audioCtx.createAnalyser();
+  analyser.fftSize = 4096;
+  analyser.smoothingTimeConstant = 0.0;
+
+  gainNode  = audioCtx.createGain();
+  gainNode.gain.value = gain;
+
+  distNode  = audioCtx.createWaveShaper();
+  distNode.oversample = '4x';
+
+  lpfNode   = audioCtx.createBiquadFilter();
+  lpfNode.type = 'lowpass';
+  lpfNode.frequency.value = lpfFreq;
+
+  delayNode = audioCtx.createDelay(1.0);
+  delayNode.delayTime.value = 0.25;
+  delayGain = audioCtx.createGain();
+  delayGain.gain.value = 0;
+
+  oscGain   = audioCtx.createGain();
+  oscGain.gain.value = 0;
+
+  // Chain: source → gain → dist → lpf → (delay side-chain) → analyser → dest
+  gainNode.connect(distNode);
+  distNode.connect(lpfNode);
+  lpfNode.connect(analyser);
+  lpfNode.connect(delayNode);
+  delayNode.connect(delayGain);
+  delayGain.connect(analyser);
+  analyser.connect(audioCtx.destination);
+
+  oscGain.connect(gainNode);
+
+  if (micStream) {
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    micSource.connect(gainNode);
   }
 
-  function draw() {
-    requestAnimationFrame(draw);
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    analyser.getByteTimeDomainData(dataArray);
+  applyDistortion(distAmt);
+  running = true;
 
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 2 * window.devicePixelRatio;
-    ctx.strokeStyle = WAVE_COLOR;
-    // わずかに発光させる
-    ctx.shadowBlur = 4;
-    ctx.shadowColor = WAVE_COLOR;
-    
-    ctx.beginPath();
-    const sliceWidth = canvas.width / bufferLength;
-    let x = 0;
+  if (!IS_MINI) {
+    document.getElementById('status-label')!.textContent = 'ACTIVE';
+    document.getElementById('start-btn')!.classList.add('hidden');
+    document.getElementById('stop-btn')!.classList.remove('hidden');
+    document.getElementById('init-hint')!.textContent = micStream ? '— microphone connected' : '— synth-only (mic unavailable)';
+  }
+  requestAnimationFrame(drawLoop);
+}
 
-    for (let i = 0; i < bufferLength; i++) {
-      const v = dataArray[i] / 128.0;
-      const y = (v * canvas.height) / 2;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-      x += sliceWidth;
+function stopAudio() {
+  if (!running) return;
+  oscNode?.stop(); oscNode = null;
+  noiseNode?.stop(); noiseNode = null;
+  micStream?.getTracks().forEach(t => t.stop());
+  audioCtx?.close();
+  running = false;
+  if (!IS_MINI) {
+    document.getElementById('status-label')!.textContent = 'STANDBY';
+    document.getElementById('start-btn')!.classList.remove('hidden');
+    document.getElementById('stop-btn')!.classList.add('hidden');
+  }
+}
+
+// ── Distortion curve ───────────────────────────
+function makeDistCurve(amount: number): Float32Array {
+  const samples = 256;
+  const curve = new Float32Array(samples);
+  for (let i = 0; i < samples; ++i) {
+    const x = (i * 2) / samples - 1;
+    curve[i] = amount === 0 ? x : ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+  }
+  return curve;
+}
+function applyDistortion(v: number) { if (distNode) distNode.curve = makeDistCurve(v); }
+
+// ── Oscillator control ─────────────────────────
+function startOsc(type: typeof oscType) {
+  oscNode?.stop(); oscNode = null;
+  noiseNode?.stop(); noiseNode = null;
+  if (!audioCtx || type === 'off') return;
+
+  if (type === 'noise') {
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
+    const data = buf.getChannelData(0);
+    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    noiseNode = audioCtx.createBufferSource();
+    noiseNode.buffer = buf;
+    noiseNode.loop = true;
+    noiseNode.connect(oscGain);
+    noiseNode.start();
+  } else {
+    oscNode = audioCtx.createOscillator();
+    oscNode.type = type as OscillatorType;
+    oscNode.frequency.value = oscFreq;
+    oscNode.connect(oscGain);
+    oscNode.start();
+  }
+  oscGain.gain.value = oscVol;
+}
+
+// ── Domain data helpers ────────────────────────
+function getTimeDomain(): Uint8Array {
+  const buf = new Uint8Array(analyser.fftSize);
+  analyser.getByteTimeDomainData(buf);
+  return buf;
+}
+function getFreqDomain(): Uint8Array {
+  const buf = new Uint8Array(analyser.frequencyBinCount);
+  analyser.getByteFrequencyData(buf);
+  return buf;
+}
+
+// ── Trigger sync (rising edge) ─────────────────
+function findTrigger(data: Uint8Array): number {
+  const mid = 128;
+  for (let i = 1; i < data.length - 1; i++) {
+    if (data[i - 1] < mid && data[i] >= mid) return i;
+  }
+  return 0;
+}
+
+// ── RMS + peak freq ────────────────────────────
+function calcRMS(data: Uint8Array): number {
+  let sum = 0;
+  for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
+  return Math.sqrt(sum / data.length);
+}
+function calcPeakFreq(freq: Uint8Array): number {
+  let maxIdx = 0;
+  for (let i = 1; i < freq.length; i++) if (freq[i] > freq[maxIdx]) maxIdx = i;
+  return (maxIdx / freq.length) * (audioCtx?.sampleRate ?? 44100) / 2;
+}
+
+// ── Phosphor glow helper ───────────────────────
+function glowLine(c: CanvasRenderingContext2D, color: string, blur: number, lw: number) {
+  c.shadowBlur  = blur;
+  c.shadowColor = color;
+  c.strokeStyle = color;
+  c.lineWidth   = lw;
+}
+
+// ── Grid ───────────────────────────────────────
+function drawGrid(c: CanvasRenderingContext2D, W: number, H: number) {
+  c.save();
+  c.strokeStyle = 'rgba(255,255,0,0.06)';
+  c.lineWidth = 0.5;
+  const cols = 10, rows = 8;
+  for (let i = 0; i <= cols; i++) {
+    const x = (W / cols) * i;
+    c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke();
+  }
+  for (let i = 0; i <= rows; i++) {
+    const y = (H / rows) * i;
+    c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
+  }
+  // Center lines
+  c.strokeStyle = 'rgba(255,255,0,0.12)';
+  c.beginPath(); c.moveTo(0, H/2); c.lineTo(W, H/2); c.stroke();
+  c.beginPath(); c.moveTo(W/2, 0); c.lineTo(W/2, H); c.stroke();
+  c.restore();
+}
+
+// ── MODE: OSCILLOSCOPE ─────────────────────────
+function drawScope(c: CanvasRenderingContext2D, W: number, H: number) {
+  const data = getTimeDomain();
+  if (showGrid) drawGrid(c, W, H);
+  const start = trigSync ? findTrigger(data) : 0;
+  const visLen = Math.floor(data.length / zoom);
+  const sliceW = W / visLen;
+
+  // Glow pass
+  c.save();
+  glowLine(c, ACCENT, 20, 3);
+  c.globalAlpha = 0.3;
+  c.beginPath();
+  for (let i = 0; i < visLen; i++) {
+    const idx = (start + i) % data.length;
+    const v = ((data[idx] / 128.0) - 1) * gain;
+    const y = H / 2 - v * (H / 2) * 0.85;
+    i === 0 ? c.moveTo(0, y) : c.lineTo(i * sliceW, y);
+  }
+  c.stroke();
+  c.restore();
+
+  // Main pass
+  c.save();
+  glowLine(c, ACCENT, 8, 1.5);
+  c.beginPath();
+  for (let i = 0; i < visLen; i++) {
+    const idx = (start + i) % data.length;
+    const v = ((data[idx] / 128.0) - 1) * gain;
+    const y = H / 2 - v * (H / 2) * 0.85;
+    i === 0 ? c.moveTo(0, y) : c.lineTo(i * sliceW, y);
+  }
+  c.stroke();
+  c.restore();
+
+  // HUD
+  const rms = calcRMS(data);
+  const db = rms > 0 ? (20 * Math.log10(rms)).toFixed(1) : '-∞';
+  const freq = getFreqDomain();
+  const pf = calcPeakFreq(freq);
+  updateHUD(pf, parseFloat(db as string));
+}
+
+// ── MODE: SPECTRUM ─────────────────────────────
+function drawSpectrum(c: CanvasRenderingContext2D, W: number, H: number) {
+  const freq = getFreqDomain();
+  if (showGrid) drawGrid(c, W, H);
+
+  const bins = Math.floor(freq.length / zoom);
+  const barW = W / bins;
+
+  for (let i = 0; i < bins; i++) {
+    const v = (freq[i] / 255) * gain;
+    const h = v * H;
+    const hue = (i / bins) * 60 + 40; // yellow-green sweep
+    const alpha = 0.6 + v * 0.4;
+    c.fillStyle = `hsla(${hue}, 100%, 55%, ${alpha})`;
+    c.shadowBlur = 10 * v;
+    c.shadowColor = `hsl(${hue}, 100%, 70%)`;
+    c.fillRect(i * barW, H - h, barW - 0.5, h);
+  }
+
+  // Peak hold line
+  c.save();
+  c.strokeStyle = 'rgba(255,255,255,0.3)';
+  c.lineWidth = 0.5;
+  c.beginPath();
+  for (let i = 0; i < bins; i++) {
+    const v = (freq[i] / 255) * gain;
+    const y = H - v * H;
+    i === 0 ? c.moveTo(i * barW, y) : c.lineTo(i * barW, y);
+  }
+  c.stroke();
+  c.restore();
+
+  updateHUD(calcPeakFreq(freq), 0);
+}
+
+// ── MODE: LISSAJOUS ────────────────────────────
+function drawLissajous(c: CanvasRenderingContext2D, W: number, H: number) {
+  const data = getTimeDomain();
+  const step = Math.max(1, Math.floor(data.length / LISSAJOUS_LEN));
+  for (let i = 0; i < data.length - step; i += step) {
+    const l = ((data[i] / 128) - 1) * gain;
+    const r = ((data[i + step] / 128) - 1) * gain;
+    lissLeft.push(l);
+    lissRight.push(r);
+  }
+  while (lissLeft.length > LISSAJOUS_LEN) { lissLeft.shift(); lissRight.shift(); }
+
+  if (showGrid) {
+    c.save();
+    c.strokeStyle = 'rgba(255,255,0,0.06)';
+    c.lineWidth = 0.5;
+    [-0.5,0,0.5].forEach(v => {
+      const px = W/2 + v * W * 0.45;
+      const py = H/2 + v * H * 0.45;
+      c.beginPath(); c.moveTo(px,0); c.lineTo(px,H); c.stroke();
+      c.beginPath(); c.moveTo(0,py); c.lineTo(W,py); c.stroke();
+    });
+    c.restore();
+  }
+
+  c.save();
+  for (let i = 0; i < lissLeft.length; i++) {
+    const alpha = i / lissLeft.length;
+    const x = W/2 + lissLeft[i]  * W * 0.45;
+    const y = H/2 + lissRight[i] * H * 0.45;
+    const hue = alpha * 60 + 40;
+    c.fillStyle = `hsla(${hue}, 100%, 60%, ${alpha * 0.8})`;
+    c.shadowBlur = 6;
+    c.shadowColor = `hsl(${hue}, 100%, 70%)`;
+    c.beginPath();
+    c.arc(x, y, 1.5, 0, Math.PI * 2);
+    c.fill();
+  }
+  c.restore();
+}
+
+// ── MODE: RADIAL ───────────────────────────────
+function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
+  const data = getTimeDomain();
+  const freq = getFreqDomain();
+  const cx = W / 2, cy = H / 2;
+  const baseR = Math.min(W, H) * 0.28;
+
+  if (showGrid) {
+    c.save();
+    for (let ring = 1; ring <= 3; ring++) {
+      c.beginPath();
+      c.arc(cx, cy, baseR * ring * 0.5, 0, Math.PI * 2);
+      c.strokeStyle = 'rgba(255,255,0,0.05)';
+      c.lineWidth = 0.5;
+      c.stroke();
     }
-    ctx.stroke();
+    c.restore();
   }
 
-  window.addEventListener('resize', resize);
-  window.addEventListener('click', initAudio, { once: true });
-  resize();
+  const bins = Math.min(data.length, 512);
+  const step = (Math.PI * 2) / bins;
+
+  // Outer waveform
+  c.save();
+  glowLine(c, ACCENT, 15, 1.5);
+  c.beginPath();
+  for (let i = 0; i < bins; i++) {
+    const v = ((data[i] / 128) - 1) * gain;
+    const r = baseR + v * baseR * 0.6;
+    const angle = i * step - Math.PI / 2;
+    const x = cx + Math.cos(angle) * r;
+    const y = cy + Math.sin(angle) * r;
+    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
+  }
+  c.closePath();
+  c.stroke();
+  c.restore();
+
+  // Inner freq bars
+  const freqBins = Math.min(freq.length, 128);
+  const fStep = (Math.PI * 2) / freqBins;
+  c.save();
+  for (let i = 0; i < freqBins; i++) {
+    const v = (freq[i] / 255) * gain;
+    const angle = i * fStep - Math.PI / 2;
+    const r1 = baseR * 0.15;
+    const r2 = r1 + v * baseR * 0.7;
+    const hue = (i / freqBins) * 60 + 30;
+    c.strokeStyle = `hsla(${hue}, 100%, 60%, 0.6)`;
+    c.shadowColor = `hsl(${hue}, 100%, 70%)`;
+    c.shadowBlur = 8 * v;
+    c.lineWidth = 1;
+    c.beginPath();
+    c.moveTo(cx + Math.cos(angle) * r1, cy + Math.sin(angle) * r1);
+    c.lineTo(cx + Math.cos(angle) * r2, cy + Math.sin(angle) * r2);
+    c.stroke();
+  }
+  c.restore();
+
+  // Center dot
+  c.save();
+  const rms = calcRMS(data);
+  c.beginPath();
+  c.arc(cx, cy, 4 + rms * 20, 0, Math.PI * 2);
+  c.fillStyle = ACCENT;
+  c.shadowBlur = 20;
+  c.shadowColor = ACCENT;
+  c.fill();
+  c.restore();
+}
+
+// ── MODE: WATERFALL ────────────────────────────
+function drawWaterfall(c: CanvasRenderingContext2D, W: number, H: number) {
+  const freq = getFreqDomain();
+  waterfallData.unshift(new Uint8Array(freq));
+  if (waterfallData.length > WATERFALL_ROWS) waterfallData.pop();
+
+  const rowH = H / WATERFALL_ROWS;
+  const bins = freq.length;
+
+  for (let row = 0; row < waterfallData.length; row++) {
+    const d = waterfallData[row];
+    const y = row * rowH;
+    for (let i = 0; i < bins; i++) {
+      const v = (d[i] / 255) * gain;
+      const clamped = Math.min(v, 1);
+      // Hot colormap: black → red → orange → yellow → white
+      let r = 0, g = 0, b = 0;
+      if (clamped < 0.25)      { r = clamped * 4 * 180; }
+      else if (clamped < 0.5)  { r = 180 + (clamped - 0.25) * 4 * 75; g = (clamped - 0.25) * 4 * 120; }
+      else if (clamped < 0.75) { r = 255; g = 120 + (clamped - 0.5) * 4 * 135; }
+      else                     { r = 255; g = 255; b = (clamped - 0.75) * 4 * 255; }
+      c.fillStyle = `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
+      c.fillRect((i / bins) * W, y, W / bins + 0.5, rowH + 0.5);
+    }
+  }
+
+  // Frequency axis labels
+  c.save();
+  c.fillStyle = 'rgba(255,255,255,0.4)';
+  c.font = `${9 * window.devicePixelRatio}px monospace`;
+  const sr = audioCtx?.sampleRate ?? 44100;
+  [100, 500, 1000, 5000, 10000].forEach(hz => {
+    const x = (hz / (sr / 2)) * W;
+    c.fillText(`${hz >= 1000 ? hz/1000+'k' : hz}Hz`, x + 2, 14 * window.devicePixelRatio);
+  });
+  c.restore();
+}
+
+// ── MODE: PARTICLE ─────────────────────────────
+function spawnParticles(rms: number, freq: Uint8Array, W: number, H: number) {
+  const count = Math.floor(rms * 30);
+  for (let i = 0; i < count; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const speed = 1 + Math.random() * 4 * rms;
+    const hue = 40 + Math.random() * 40;
+    particles.push({
+      x: W / 2 + (Math.random() - 0.5) * W * 0.3,
+      y: H / 2 + (Math.random() - 0.5) * H * 0.3,
+      vx: Math.cos(angle) * speed,
+      vy: Math.sin(angle) * speed,
+      life: 1.0,
+      maxLife: 0.5 + Math.random() * 1.0,
+      size: 1 + Math.random() * 3 * rms,
+      color: `hsl(${hue}, 100%, 65%)`,
+    });
+  }
+}
+
+function drawParticles(c: CanvasRenderingContext2D, W: number, H: number) {
+  const data = getTimeDomain();
+  const freq = getFreqDomain();
+  const rms  = calcRMS(data);
+
+  if (showGrid) drawGrid(c, W, H);
+  spawnParticles(rms, freq, W, H);
+
+  // Update + draw
+  particles = particles.filter(p => p.life > 0);
+  for (const p of particles) {
+    p.x += p.vx;
+    p.y += p.vy;
+    p.vy += 0.05; // gravity
+    p.life -= 0.016 / p.maxLife;
+    const a = Math.max(0, p.life);
+    c.save();
+    c.globalAlpha = a;
+    c.beginPath();
+    c.arc(p.x, p.y, p.size, 0, Math.PI * 2);
+    c.fillStyle = p.color;
+    c.shadowBlur = 10;
+    c.shadowColor = p.color;
+    c.fill();
+    c.restore();
+  }
+
+  // Background waveform
+  c.save();
+  glowLine(c, 'rgba(255,255,0,0.3)', 8, 1);
+  c.globalAlpha = 0.4;
+  c.beginPath();
+  const bins = data.length;
+  for (let i = 0; i < bins; i++) {
+    const v = ((data[i] / 128) - 1) * gain;
+    const y = H / 2 - v * H * 0.4;
+    i === 0 ? c.moveTo(0, y) : c.lineTo((i / bins) * W, y);
+  }
+  c.stroke();
+  c.restore();
+}
+
+// ── HUD update ─────────────────────────────────
+function updateHUD(peakHz: number, rmsDb: number) {
+  const fEl = document.getElementById('hud-freq');
+  const rEl = document.getElementById('hud-rms');
+  if (fEl) fEl.textContent = `FREQ: ${peakHz >= 1000 ? (peakHz/1000).toFixed(1)+'k' : Math.round(peakHz)}Hz`;
+  if (rEl) rEl.textContent = `RMS: ${isFinite(rmsDb) ? rmsDb.toFixed(1) : '-∞'}dB`;
+}
+
+// ── Main draw loop ─────────────────────────────
+function drawLoop() {
+  if (!running) return;
+  requestAnimationFrame(drawLoop);
+
+  const W = canvas.width;
+  const H = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
+
+  if (IS_MINI) {
+    // Mini: thin waveform only
+    ctx2d.clearRect(0, 0, W, H);
+    if (!analyser) return;
+    const data = getTimeDomain();
+    ctx2d.save();
+    ctx2d.lineWidth = 1 * dpr;
+    ctx2d.strokeStyle = ACCENT;
+    ctx2d.shadowBlur = 4;
+    ctx2d.shadowColor = ACCENT;
+    ctx2d.beginPath();
+    const sw = W / data.length;
+    for (let i = 0; i < data.length; i++) {
+      const v = (data[i] / 128.0) - 1;
+      const y = H / 2 - v * (H / 2) * 0.8 * gain;
+      i === 0 ? ctx2d.moveTo(0, y) : ctx2d.lineTo(i * sw, y);
+    }
+    ctx2d.stroke();
+    ctx2d.restore();
+    return;
+  }
+
+  // Persistence (phosphor decay)
+  ctx2d.save();
+  ctx2d.globalCompositeOperation = 'source-over';
+  ctx2d.fillStyle = `rgba(0,0,0,${1 - persist})`;
+  ctx2d.fillRect(0, 0, W, H);
+  ctx2d.restore();
+
+  ctx2d.save();
+  ctx2d.scale(dpr, dpr);
+  const Wl = W / dpr, Hl = H / dpr;
+
+  switch (mode) {
+    case 'scope':     drawScope(ctx2d, Wl, Hl);     break;
+    case 'spectrum':  drawSpectrum(ctx2d, Wl, Hl);  break;
+    case 'lissajous': drawLissajous(ctx2d, Wl, Hl); break;
+    case 'radial':    drawRadial(ctx2d, Wl, Hl);    break;
+    case 'waterfall': drawWaterfall(ctx2d, Wl, Hl); break;
+    case 'particle':  drawParticles(ctx2d, Wl, Hl); break;
+  }
+  ctx2d.restore();
+}
+
+// ── Demo mode (no audio) ───────────────────────
+let demoT = 0;
+function demoLoop() {
+  if (running) return;
+  requestAnimationFrame(demoLoop);
+  const W = canvas.width, H = canvas.height;
+  const dpr = window.devicePixelRatio || 1;
+  const Wl = W / dpr, Hl = H / dpr;
+  demoT += 0.02;
+
+  ctx2d.fillStyle = 'rgba(0,0,0,0.3)';
+  ctx2d.fillRect(0, 0, W, H);
+  ctx2d.save();
+  ctx2d.scale(dpr, dpr);
+  if (!IS_MINI && showGrid) drawGrid(ctx2d, Wl, Hl);
+  ctx2d.save();
+  glowLine(ctx2d, ACCENT, 10, IS_MINI ? 1 : 1.5);
+  ctx2d.beginPath();
+  const pts = IS_MINI ? 200 : 800;
+  for (let i = 0; i < pts; i++) {
+    const x = (i / pts) * Wl;
+    const t = demoT + i * 0.04;
+    const y = Hl / 2 + Math.sin(t) * Hl * 0.3 + Math.sin(t * 3.1) * Hl * 0.08;
+    i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
+  }
+  ctx2d.stroke();
+  ctx2d.restore();
+  ctx2d.restore();
+}
+
+// ── UI wiring (fullscreen only) ───────────────
+if (!IS_MINI) {
+  const $ = (id: string) => document.getElementById(id);
+
+  $('start-btn')?.addEventListener('click', initAudio);
+  $('stop-btn')?.addEventListener('click', stopAudio);
+
+  // Mode buttons
+  document.querySelectorAll('.mode-btn').forEach(btn => {
+    (btn as HTMLElement).addEventListener('click', () => {
+      mode = (btn as HTMLElement).dataset.mode!;
+      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      ($('hud-mode-label') as HTMLElement).textContent = `MODE: ${mode.toUpperCase()}`;
+      waterfallData = [];
+      lissLeft = []; lissRight = [];
+      particles = [];
+    });
+  });
+  (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
+
+  // Osc buttons
+  document.querySelectorAll('.osc-btn').forEach(btn => {
+    (btn as HTMLElement).addEventListener('click', () => {
+      document.querySelectorAll('.osc-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+      const t = (btn as HTMLElement).dataset.osc!.toLowerCase() as typeof oscType;
+      oscType = t;
+      if (running) startOsc(oscType);
+    });
+  });
+  (document.querySelector('[data-osc="OFF"]') as HTMLElement)?.classList.add('active');
+
+  // Sliders
+  function bindSlider(id: string, valId: string, fmt: (v: number) => string, cb: (v: number) => void) {
+    const el = $(id) as HTMLInputElement;
+    const ve = $(valId);
+    if (!el) return;
+    el.addEventListener('input', () => {
+      const v = parseFloat(el.value);
+      if (ve) ve.textContent = fmt(v);
+      cb(v);
+    });
+  }
+
+  bindSlider('ctrl-gain', 'val-gain', v => `${v.toFixed(2)}×`, v => { gain = v; gainNode?.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01); });
+  bindSlider('ctrl-threshold', 'val-threshold', v => `${Math.round(v)}%`, v => { threshold = v; });
+  bindSlider('ctrl-zoom', 'val-zoom', v => `${v.toFixed(1)}×`, v => { zoom = v; });
+  bindSlider('ctrl-persist', 'val-persist', v => `${Math.round(v*100)}%`, v => { persist = v; });
+  bindSlider('ctrl-osc-freq', 'val-osc-freq', v => `${Math.round(v)} Hz`, v => {
+    oscFreq = v;
+    if (oscNode) oscNode.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01);
+  });
+  bindSlider('ctrl-osc-vol', 'val-osc-vol', v => `${Math.round(v*100)}%`, v => {
+    oscVol = v;
+    if (oscGain) oscGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
+  });
+  bindSlider('ctrl-dist', 'val-dist', v => `${Math.round(v)}`, v => { distAmt = v; applyDistortion(v); });
+  bindSlider('ctrl-delay', 'val-delay', v => `${Math.round(v*100)}%`, v => { delayMix = v; delayGain?.gain.setTargetAtTime(v * 0.6, audioCtx?.currentTime||0, 0.01); });
+  bindSlider('ctrl-lpf', 'val-lpf', v => v >= 1000 ? `${(v/1000).toFixed(1)}kHz` : `${Math.round(v)}Hz`, v => { lpfFreq = v; lpfNode?.frequency.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01); });
+
+  ($('ctrl-grid') as HTMLInputElement)?.addEventListener('change', e => { showGrid = (e.target as HTMLInputElement).checked; });
+  ($('ctrl-trigger') as HTMLInputElement)?.addEventListener('change', e => { trigSync = (e.target as HTMLInputElement).checked; });
+} else {
+  canvas.addEventListener('click', initAudio, { once: true });
+}
+
+// Start demo
+demoLoop();
 </script>
 </file>
 
@@ -463,14 +1319,48 @@ const logs = [
   },
   { 
     date: "2025.12.12.", 
-    content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ",
+    content: "【生演奏歌枠 #4】manuscript / 綿菓子かんろ",
     url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" 
   },
   { 
     date: "2025.09.01", 
     content: "Core Creative 加入 / CDs 加入 / 名義追加",
-    url: "https://x.com/shiro_works/status/1962168505782186124?s=20" 
+    url: "https://x.com/shiro_works/status/1962168505782186124?s=20" // 飛ばしたいURLをここへ
   },
+  { 
+    date: "2025.08.22", 
+    content: "【生演奏歌枠 #3】常夏ノ夜ニ萌ユ！",
+    url: "https://x.com/Wata_kanro/status/1958875429101871257?s=20" 
+  },
+  { 
+    date: "2025.08.16", 
+    content: "【歌ってみた】空想フォレスト / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1956371845164253453?s=20"
+  },
+  { 
+    date: "2025.07.25", 
+    content: "【歌ってみた】サンフェーデッド / 綿菓子かんろ",
+    url: "https://x.com/shiro_works/status/1961069976883782057?s=20."
+  },
+  { 
+    date: "2025.05.28", 
+    content: "【歌ってみた】きゅびびびびびびびびびびびびびびびびびびびびびびびびずむ / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
+
+  },
+  { 
+    date: "2025.05.28", 
+    content: "【歌ってみた】きゅびびびびずむ / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1927654765754003841?s=20"
+  },
+  { 
+    date: "2025.03.06", 
+    content: "【歌ってみた】きゅびずむ / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1897624776644124810?s=20"
+  },
+
+       /* 先ほどから、ここまでは手入力するので変更しない */
+
 ];
 
 const workScope = [
