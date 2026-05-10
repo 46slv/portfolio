@@ -1,0 +1,107 @@
+---
+// Visualizer.astro
+interface Props {
+  isMini?: boolean;
+}
+const { isMini = false } = Astro.props;
+---
+<div class={`visualizer-container relative w-full h-full ${isMini ? 'min-h-[60px]' : 'min-h-[200px]'}`}>
+  <canvas id="visualizer-canvas" class="w-full h-full"></canvas>
+  
+  {!isMini && (
+    <div id="vis-controls" class="absolute bottom-4 left-4 flex gap-4 z-20 bg-black/80 p-2 border border-zinc-800">
+      <div class="flex flex-col gap-1">
+        <label class="text-[8px] text-zinc-500 uppercase">Input Device</label>
+        <select id="audio-input" class="bg-transparent text-[10px] text-zinc-300 outline-none w-40"></select>
+      </div>
+      <div class="flex flex-col gap-1">
+        <label class="text-[8px] text-zinc-500 uppercase">Mode</label>
+        <select id="vis-mode" class="bg-transparent text-[10px] text-zinc-300 outline-none">
+          <option value="waveform">Waveform</option>
+          <option value="oscilloscope">Oscilloscope</option>
+        </select>
+      </div>
+    </div>
+  )}
+</div>
+
+<script>
+  let audioContext: AudioContext;
+  let analyser: AnalyserNode;
+  let source: MediaStreamAudioSourceNode;
+  
+  const canvas = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d')!;
+  const inputSelect = document.getElementById('audio-input') as HTMLSelectElement;
+  const modeSelect = document.getElementById('vis-mode') as HTMLSelectElement;
+
+  function resize() {
+    canvas.width = canvas.clientWidth * window.devicePixelRatio;
+    canvas.height = canvas.clientHeight * window.devicePixelRatio;
+  }
+  window.addEventListener('resize', resize);
+  resize();
+
+  async function initAudio(deviceId?: string) {
+    if (audioContext) audioContext.close();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        audio: deviceId ? { deviceId: { exact: deviceId } } : true 
+      });
+      audioContext = new AudioContext();
+      analyser = audioContext.createAnalyser();
+      analyser.fftSize = 2048;
+      source = audioContext.createMediaStreamSource(stream);
+      source.connect(analyser);
+      draw();
+    } catch (e) { console.error("Audio init failed", e); }
+  }
+
+  function draw() {
+    requestAnimationFrame(draw);
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    const mode = modeSelect?.value || 'waveform';
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2 * window.devicePixelRatio;
+    ctx.strokeStyle = '#d0e2f8';
+    ctx.beginPath();
+
+    if (mode === 'waveform') {
+      analyser.getByteTimeDomainData(dataArray);
+      const sliceWidth = canvas.width / bufferLength;
+      let x = 0;
+      for (let i = 0; i < bufferLength; i++) {
+        const v = dataArray[i] / 128.0;
+        const y = v * canvas.height / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+        x += sliceWidth;
+      }
+    } else if (mode === 'oscilloscope') {
+      analyser.getByteTimeDomainData(dataArray);
+      // X-Y表示のシミュレーション
+      for (let i = 0; i < bufferLength; i += 2) {
+        const x = (dataArray[i] / 128.0 - 1) * canvas.width * 0.4 + canvas.width / 2;
+        const y = (dataArray[i+1] / 128.0 - 1) * canvas.height * 0.4 + canvas.height / 2;
+        if (i === 0) ctx.moveTo(x, y);
+        else ctx.lineTo(x, y);
+      }
+    }
+    ctx.stroke();
+  }
+
+  navigator.mediaDevices.enumerateDevices().then(devices => {
+    if(!inputSelect) return;
+    devices.filter(d => d.kind === 'audioinput').forEach(d => {
+      const opt = document.createElement('option');
+      opt.value = d.deviceId;
+      opt.text = d.label || `Device ${inputSelect.length + 1}`;
+      inputSelect.appendChild(opt);
+    });
+  });
+
+  inputSelect?.addEventListener('change', () => initAudio(inputSelect.value));
+  window.addEventListener('click', () => { if(!audioContext) initAudio(); }, { once: true });
+</script>

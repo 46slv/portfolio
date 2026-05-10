@@ -1,0 +1,90 @@
+---
+// RotaryLogs.astro
+interface Log {
+  date: string;
+  content: string;
+  url: string;
+}
+interface Props {
+  logs: Log[];
+}
+const { logs } = Astro.props;
+---
+<section class="animate-fade-slide delay-300">
+  <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-6 border-b border-zinc-900 pb-2">Recent Logs</h2>
+  <div class="relative h-[320px]" style="mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);">
+    <div id="rotary" class="rotary-viewport absolute inset-0 overflow-y-auto">
+      <div id="rotary-dummy" style="height: 100000px;"></div>
+      <div id="rotary-list" class="absolute top-0 left-0 w-full">
+        {logs.map((log) => (
+          <div class="rotary-item absolute w-full">
+            <div class="flex gap-4 items-center group">
+              <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
+              <div>
+                <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
+                <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-all hover:scale-105 origin-left inline-block">
+                  {log.content}
+                </a>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  </div>
+</section>
+
+<script>
+  const rotary = document.getElementById('rotary') as HTMLElement;
+  const list = document.getElementById('rotary-list') as HTMLElement;
+  
+  if (rotary && list) {
+    const items = Array.from(list.children) as HTMLElement[];
+    const itemHeight = 80;
+    const totalHeight = items.length * itemHeight;
+    const offset = itemHeight; 
+    const centerPos = Math.floor(50000 / itemHeight) * itemHeight;
+    rotary.scrollTop = centerPos;
+
+    let isInteracting = false;
+    let snapTimeout: number;
+
+    const updateItems = () => {
+      const currentScroll = rotary.scrollTop;
+      const scrollY = currentScroll - centerPos;
+      items.forEach((item, i) => {
+        const basePos = i * itemHeight;
+        const pos = basePos - scrollY;
+        const wrappedPos = (((pos + offset) % totalHeight) + totalHeight) % totalHeight - offset;
+        item.style.transform = `translateY(${currentScroll + wrappedPos}px)`;
+      });
+    };
+
+    const snapToCenter = () => {
+      if (isInteracting) return;
+      const target = Math.round(rotary.scrollTop / itemHeight) * itemHeight;
+      rotary.scrollTo({ top: target, behavior: 'smooth' });
+    };
+
+    rotary.addEventListener('scroll', () => {
+      updateItems();
+      clearTimeout(snapTimeout);
+      if (!isInteracting) snapTimeout = window.setTimeout(snapToCenter, 500);
+    }, { passive: true });
+
+    const startInteraction = () => { isInteracting = true; clearTimeout(snapTimeout); };
+    const endInteraction = () => { isInteracting = false; snapTimeout = window.setTimeout(snapToCenter, 500); };
+
+    rotary.addEventListener('mousedown', startInteraction);
+    window.addEventListener('mouseup', endInteraction);
+    rotary.addEventListener('touchstart', startInteraction);
+    window.addEventListener('touchend', endInteraction);
+    rotary.addEventListener('wheel', () => {
+      startInteraction();
+      clearTimeout((rotary as any).wheelTimer);
+      (rotary as any).wheelTimer = setTimeout(endInteraction, 150);
+    }, { passive: true });
+
+    updateItems();
+  }
+</script>

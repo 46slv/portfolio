@@ -1,0 +1,20 @@
+---
+// visualizer.astro
+import '../styles/global.css';
+import Visualizer from '../components/Visualizer.astro';
+---
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Audio Visualizer | Fullscreen</title>
+    <style>
+      body { background: transparent; margin: 0; overflow: hidden; }
+      .full-screen { width: 100vw; height: 100vh; }
+    </style>
+  </head>
+  <body>
+    <div class="full-screen">
+      <Visualizer />
+    </div>
+  </body>
+</html>

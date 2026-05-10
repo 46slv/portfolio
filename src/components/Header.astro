@@ -1,0 +1,34 @@
+---
+// Header.astro
+interface Props {
+  name: string;
+  jpName: string;
+}
+const { name, jpName } = Astro.props;
+---
+<header class="flex justify-between items-start mb-12 animate-fade-slide">
+  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">SS_Portfolio v2.05</div>
+  <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
+    <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
+    <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
+    <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
+  </div>
+</header>
+
+<div class="border-b border-zinc-900 pb-8 mb-12 animate-fade-slide delay-100">
+  <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 transition-all duration-700 hover:tracking-widest cursor-default">
+    {name}
+    <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">{jpName}</span>
+  </h1>
+</div>
+
+<script>
+  window.addEventListener('load', () => {
+    const loadEl = document.getElementById('load-time');
+    if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+  });
+  setInterval(() => {
+    const timeEl = document.getElementById('sys-time');
+    if(timeEl) timeEl.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
+  }, 1000);
+</script>
