@@ -9,6 +9,7 @@ export class AudioEngine {
   frequencyAnalyser: AnalyserNode;
 
   inputGain: GainNode;
+  outputGain: GainNode;
   monitorGain: GainNode;
 
   filterNode: BiquadFilterNode;
@@ -17,6 +18,8 @@ export class AudioEngine {
 
   delayNode: DelayNode;
   delayGain: GainNode;
+
+  keepAliveGain: GainNode;
 
   sourceNode?: MediaStreamAudioSourceNode;
 
@@ -63,14 +66,33 @@ export class AudioEngine {
       this.audioCtx
         .createGain();
 
-    this.inputGain.gain.value = 1;
+    this.inputGain.gain.value =
+      1;
+
+    this.outputGain =
+      this.audioCtx
+        .createGain();
+
+    this.outputGain.gain.value =
+      1;
 
     this.monitorGain =
       this.audioCtx
         .createGain();
 
-    // default mute
-    this.monitorGain.gain.value = 0;
+    // monitor muted by default
+
+    this.monitorGain.gain.value =
+      0;
+
+    this.keepAliveGain =
+      this.audioCtx
+        .createGain();
+
+    // prevents browser graph suspension
+
+    this.keepAliveGain.gain.value =
+      0.00001;
 
     this.filterNode =
       this.audioCtx
@@ -118,14 +140,16 @@ export class AudioEngine {
       -> INPUT GAIN
       -> DISTORTION
       -> FILTER
-      -> DELAY
-      -> DELAY MIX
-      -> ANALYSERS
+      -> DRY + DELAY
+      -> OUTPUT BUS
+      -> ANALYSIS
       -> MONITOR
       -> OUTPUT
 
     --------------------------------
     */
+
+    // input chain
 
     this.inputGain.connect(
       this.distortionNode
@@ -135,6 +159,8 @@ export class AudioEngine {
       this.filterNode
     );
 
+    // delay send
+
     this.filterNode.connect(
       this.delayNode
     );
@@ -143,52 +169,59 @@ export class AudioEngine {
       this.delayGain
     );
 
-    this.delayGain.connect(
-      this.analyser
-    );
-
-    this.delayGain.connect(
-      this.frequencyAnalyser
-    );
-
     // dry path
+
     this.filterNode.connect(
+      this.outputGain
+    );
+
+    // wet path
+
+    this.delayGain.connect(
+      this.outputGain
+    );
+
+    /*
+    --------------------------------
+    ANALYSIS TAP
+    --------------------------------
+    */
+
+    this.outputGain.connect(
       this.analyser
     );
 
-    this.filterNode.connect(
+    this.outputGain.connect(
       this.frequencyAnalyser
     );
 
-    // monitor routing
-    this.analyser.connect(
-  // silent keepalive
+    /*
+    --------------------------------
+    MONITOR PATH
+    --------------------------------
+    */
 
-  const silentGain =
-    this.audioCtx.createGain();
+    this.outputGain.connect(
+      this.monitorGain
+    );
 
-  silentGain.gain.value =
-    0.00001;
+    this.monitorGain.connect(
+      this.audioCtx.destination
+    );
 
-  // analyser chain
+    /*
+    --------------------------------
+    KEEPALIVE PATH
+    --------------------------------
+    */
 
-  this.analyser.connect(
-    silentGain
-  );
+    this.outputGain.connect(
+      this.keepAliveGain
+    );
 
-  silentGain.connect(
-    this.audioCtx.destination
-  );
-
-  // monitor chain
-
-  this.analyser.connect(
-    this.monitorGain
-  );
-
-  this.monitorGain.connect(
-    this.audioCtx.destination
-  );
+    this.keepAliveGain.connect(
+      this.audioCtx.destination
+    );
   }
 
   /*
@@ -245,6 +278,7 @@ export class AudioEngine {
       this.audioCtx.state ===
       'suspended'
     ) {
+
       await this.audioCtx.resume();
     }
   }
