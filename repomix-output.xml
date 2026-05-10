@@ -284,6 +284,29 @@ const { logs } = Astro.props;
 }
 </file>
 
+<file path="src/pages/visualizer.astro">
+---
+// visualizer.astro
+import '../styles/global.css';
+import Visualizer from '../components/Visualizer.astro';
+---
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Audio Visualizer | Fullscreen Scope</title>
+    <style>
+      body { background: #000; margin: 0; overflow: hidden; }
+      .full-screen { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    </style>
+  </head>
+  <body>
+    <div class="full-screen">
+      <Visualizer color="#ffff00" />
+    </div>
+  </body>
+</html>
+</file>
+
 <file path="src/components/Header.astro">
 ---
 import Visualizer from './Visualizer.astro';
@@ -406,29 +429,6 @@ const { isMini = false } = Astro.props;
   window.addEventListener('click', initAudio, { once: true });
   resize();
 </script>
-</file>
-
-<file path="src/pages/visualizer.astro">
----
-// visualizer.astro
-import '../styles/global.css';
-import Visualizer from '../components/Visualizer.astro';
----
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <title>Audio Visualizer | Fullscreen Scope</title>
-    <style>
-      body { background: #000; margin: 0; overflow: hidden; }
-      .full-screen { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
-    </style>
-  </head>
-  <body>
-    <div class="full-screen">
-      <Visualizer color="#ffff00" />
-    </div>
-  </body>
-</html>
 </file>
 
 <file path="src/pages/index.astro">
