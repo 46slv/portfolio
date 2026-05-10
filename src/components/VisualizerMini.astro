@@ -1,42 +1,3 @@
-差し替えるファイル：
-
-```txt id="h7l2xq"
-src/components/VisualizerMini.astro
-```
-
-原因はほぼ確実に：
-
-```txt id="q2v9mr"
-AudioContext resumeされてない
-```
-
-か、
-
-```txt id="k1m8pd"
-getUserMedia後に描画loopだけ走ってる
-```
-
-。
-
-ヘッダー側は：
-
-```txt id="n5c3wa"
-「軽量版」
-```
-
-なので、
-
-* AudioEngine未使用
-* interaction不足
-* autoplay policy
-
-のどれかで止まりやすい。
-
-以下へ丸ごと差し替え。
-
----
-
-```astro id="u4f8zn"
 ---
 // src/components/VisualizerMini.astro
 
@@ -45,258 +6,163 @@ const {
 } = Astro.props;
 ---
 
-<div id="mini-viz-wrap">
-
-  <canvas id="mini-viz"></canvas>
-
-  <button id="mini-start">
-    ENABLE AUDIO
-  </button>
-
-</div>
+<canvas class="mini-viz" aria-hidden="true"></canvas>
 
 <style>
-
-  #mini-viz-wrap {
-
-    position: relative;
-
-    width: 100%;
-    height: 64px;
-
-    overflow: hidden;
-  }
-
-  #mini-viz {
-
+  .mini-viz {
     width: 100%;
     height: 100%;
-
     display: block;
+    opacity: 0.72;
   }
-
-  #mini-start {
-
-    position: absolute;
-
-    inset: 0;
-
-    border: none;
-
-    background:
-      rgba(0,0,0,0.0);
-
-    color:
-      rgba(255,255,255,0.45);
-
-    font-size: 10px;
-
-    letter-spacing: 0.18em;
-
-    cursor: pointer;
-
-    transition:
-      opacity .25s ease;
-
-    backdrop-filter:
-      blur(2px);
-  }
-
-  #mini-start.hidden {
-
-    opacity: 0;
-
-    pointer-events: none;
-  }
-
 </style>
 
 <script define:vars={{ color }}>
+  const previous =
+    document.currentScript
+      ?.previousElementSibling;
 
   const canvas =
-    document.getElementById(
-      "mini-viz"
-    );
-
-  const ctx =
-    canvas.getContext("2d");
-
-  const startButton =
-    document.getElementById(
-      "mini-start"
-    );
-
-  let width = 0;
-  let height = 0;
-
-  function resize() {
-
-    width =
-      canvas.width =
-      canvas.clientWidth *
-      devicePixelRatio;
-
-    height =
-      canvas.height =
-      canvas.clientHeight *
-      devicePixelRatio;
-  }
-
-  resize();
-
-  window.addEventListener(
-    "resize",
-    resize
-  );
-
-  let analyser;
-  let data;
-
-  let initialized = false;
-
-  async function initAudio() {
-
-    if (initialized)
-      return;
-
-    initialized = true;
-
-    const audioCtx =
-      new AudioContext();
-
-    await audioCtx.resume();
-
-    const stream =
-      await navigator
-        .mediaDevices
-        .getUserMedia({
-          audio: {
-            echoCancellation: false,
-            noiseSuppression: false,
-            autoGainControl: false
-          }
-        });
-
-    const source =
-      audioCtx
-        .createMediaStreamSource(
-          stream
+    previous instanceof HTMLCanvasElement
+      ? previous
+      : document.querySelector(
+          ".mini-viz"
         );
 
-    analyser =
-      audioCtx
-        .createAnalyser();
+  if (canvas instanceof HTMLCanvasElement) {
+    const ctx =
+      canvas.getContext("2d");
 
-    analyser.fftSize =
-      2048;
+    let width = 0;
+    let height = 0;
+    let tick = 0;
 
-    analyser.smoothingTimeConstant =
-      0.82;
+    const dpr = () =>
+      window.devicePixelRatio || 1;
 
-    source.connect(
-      analyser
-    );
+    function resize() {
+      const scale = dpr();
 
-    // keepalive
+      width =
+        canvas.clientWidth *
+        scale;
 
-    const keepAlive =
-      audioCtx
-        .createGain();
+      height =
+        canvas.clientHeight *
+        scale;
 
-    keepAlive.gain.value =
-      0.00001;
-
-    analyser.connect(
-      keepAlive
-    );
-
-    keepAlive.connect(
-      audioCtx.destination
-    );
-
-    data =
-      new Uint8Array(
-        analyser.fftSize
-      );
-
-    startButton.classList.add(
-      "hidden"
-    );
-
-    render();
-  }
-
-  function render() {
-
-    requestAnimationFrame(
-      render
-    );
-
-    if (!analyser)
-      return;
-
-    analyser
-      .getByteTimeDomainData(
-        data
-      );
-
-    ctx.fillStyle =
-      "rgba(0,0,0,0.18)";
-
-    ctx.fillRect(
-      0,
-      0,
-      width,
-      height
-    );
-
-    ctx.beginPath();
-
-    for (
-      let i = 0;
-      i < data.length;
-      i++
-    ) {
-
-      const x =
-        (i / data.length) *
+      canvas.width =
         width;
 
-      const y =
-        height / 2 +
-        ((data[i] - 128) / 128) *
-        height *
-        0.38;
-
-      if (i === 0) {
-
-        ctx.moveTo(x, y);
-
-      } else {
-
-        ctx.lineTo(x, y);
-      }
+      canvas.height =
+        height;
     }
 
-    ctx.strokeStyle =
-      color;
+    function draw() {
+      if (!ctx)
+        return;
 
-    ctx.lineWidth = 2;
+      tick += 0.022;
 
-    ctx.shadowBlur = 10;
+      ctx.clearRect(
+        0,
+        0,
+        width,
+        height
+      );
 
-    ctx.shadowColor =
-      color;
+      ctx.save();
 
-    ctx.stroke();
+      ctx.globalAlpha =
+        0.16;
 
-    ctx.shadowBlur = 0;
+      ctx.strokeStyle =
+        color;
+
+      ctx.lineWidth =
+        Math.max(
+          1,
+          dpr()
+        );
+
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+
+      ctx.globalAlpha =
+        0.92;
+
+      ctx.lineWidth =
+        Math.max(
+          1.15,
+          1.35 * dpr()
+        );
+
+      ctx.shadowBlur =
+        7 * dpr();
+
+      ctx.shadowColor =
+        color;
+
+      ctx.beginPath();
+
+      const points = 96;
+
+      for (
+        let i = 0;
+        i <= points;
+        i++
+      ) {
+        const ratio =
+          i / points;
+
+        const x =
+          ratio *
+          width;
+
+        const envelope =
+          Math.sin(
+            Math.PI * ratio
+          );
+
+        const wave =
+          Math.sin(
+            ratio * Math.PI * 8 +
+            tick * 3.2
+          ) * 0.62 +
+          Math.sin(
+            ratio * Math.PI * 17 -
+            tick * 2.1
+          ) * 0.22;
+
+        const y =
+          height / 2 +
+          wave *
+          envelope *
+          height *
+          0.28;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+
+      ctx.stroke();
+      ctx.restore();
+
+      requestAnimationFrame(draw);
+    }
+
+    resize();
+
+    window.addEventListener(
+      "resize",
+      resize
+    );
+
+    requestAnimationFrame(draw);
   }
-
-  startButton.addEventListener(
-    "click",
-    initAudio
-  );
-
 </script>
-```

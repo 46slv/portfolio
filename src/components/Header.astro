@@ -12,12 +12,9 @@ const { name, jpName } = Astro.props;
     SS_Portfolio v2.05
   </div>
 
-  <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative group overflow-hidden">
-    <a href="/visualizer" class="block w-full h-full" title="Open Fullscreen Scope">
+  <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative overflow-hidden">
+    <a href="/visualizer" class="block w-36 h-6 mx-auto cursor-default opacity-55 transition-opacity duration-300 hover:opacity-70" aria-label="Open scope">
       <Visualizer isMini={true} />
-      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-        <span class="text-[8px] text-[#ffff00] tracking-[0.5em] font-bold">CLICK TO EXPAND SCOPE</span>
-      </div>
     </a>
   </div>
 
