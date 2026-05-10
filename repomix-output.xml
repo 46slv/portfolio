@@ -179,43 +179,6 @@ All commands are run from the root of the project, from a terminal:
 Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
 </file>
 
-<file path="src/components/Header.astro">
----
-// Header.astro
-interface Props {
-  name: string;
-  jpName: string;
-}
-const { name, jpName } = Astro.props;
----
-<header class="flex justify-between items-start mb-12 animate-fade-slide">
-  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">SS_Portfolio v2.05</div>
-  <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
-    <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
-    <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
-    <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
-  </div>
-</header>
-
-<div class="border-b border-zinc-900 pb-8 mb-12 animate-fade-slide delay-100">
-  <h1 class="text-4xl md:text-6xl font-bold text-white mb-6 transition-all duration-700 hover:tracking-widest cursor-default">
-    {name}
-    <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4 tracking-normal">{jpName}</span>
-  </h1>
-</div>
-
-<script>
-  window.addEventListener('load', () => {
-    const loadEl = document.getElementById('load-time');
-    if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
-  });
-  setInterval(() => {
-    const timeEl = document.getElementById('sys-time');
-    if(timeEl) timeEl.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
-  }, 1000);
-</script>
-</file>
-
 <file path="src/components/RotaryLogs.astro">
 ---
 // RotaryLogs.astro
@@ -309,139 +272,6 @@ const { logs } = Astro.props;
 </script>
 </file>
 
-<file path="src/components/Visualizer.astro">
----
-// Visualizer.astro
-interface Props {
-  isMini?: boolean;
-}
-const { isMini = false } = Astro.props;
----
-<div class={`visualizer-container relative w-full h-full ${isMini ? 'min-h-[60px]' : 'min-h-[200px]'}`}>
-  <canvas id="visualizer-canvas" class="w-full h-full"></canvas>
-  
-  {!isMini && (
-    <div id="vis-controls" class="absolute bottom-4 left-4 flex gap-4 z-20 bg-black/80 p-2 border border-zinc-800">
-      <div class="flex flex-col gap-1">
-        <label class="text-[8px] text-zinc-500 uppercase">Input Device</label>
-        <select id="audio-input" class="bg-transparent text-[10px] text-zinc-300 outline-none w-40"></select>
-      </div>
-      <div class="flex flex-col gap-1">
-        <label class="text-[8px] text-zinc-500 uppercase">Mode</label>
-        <select id="vis-mode" class="bg-transparent text-[10px] text-zinc-300 outline-none">
-          <option value="waveform">Waveform</option>
-          <option value="oscilloscope">Oscilloscope</option>
-        </select>
-      </div>
-    </div>
-  )}
-</div>
-
-<script>
-  let audioContext: AudioContext;
-  let analyser: AnalyserNode;
-  let source: MediaStreamAudioSourceNode;
-  
-  const canvas = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
-  const ctx = canvas.getContext('2d')!;
-  const inputSelect = document.getElementById('audio-input') as HTMLSelectElement;
-  const modeSelect = document.getElementById('vis-mode') as HTMLSelectElement;
-
-  function resize() {
-    canvas.width = canvas.clientWidth * window.devicePixelRatio;
-    canvas.height = canvas.clientHeight * window.devicePixelRatio;
-  }
-  window.addEventListener('resize', resize);
-  resize();
-
-  async function initAudio(deviceId?: string) {
-    if (audioContext) audioContext.close();
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        audio: deviceId ? { deviceId: { exact: deviceId } } : true 
-      });
-      audioContext = new AudioContext();
-      analyser = audioContext.createAnalyser();
-      analyser.fftSize = 2048;
-      source = audioContext.createMediaStreamSource(stream);
-      source.connect(analyser);
-      draw();
-    } catch (e) { console.error("Audio init failed", e); }
-  }
-
-  function draw() {
-    requestAnimationFrame(draw);
-    const bufferLength = analyser.frequencyBinCount;
-    const dataArray = new Uint8Array(bufferLength);
-    const mode = modeSelect?.value || 'waveform';
-
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 2 * window.devicePixelRatio;
-    ctx.strokeStyle = '#d0e2f8';
-    ctx.beginPath();
-
-    if (mode === 'waveform') {
-      analyser.getByteTimeDomainData(dataArray);
-      const sliceWidth = canvas.width / bufferLength;
-      let x = 0;
-      for (let i = 0; i < bufferLength; i++) {
-        const v = dataArray[i] / 128.0;
-        const y = v * canvas.height / 2;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-        x += sliceWidth;
-      }
-    } else if (mode === 'oscilloscope') {
-      analyser.getByteTimeDomainData(dataArray);
-      // X-Y表示のシミュレーション
-      for (let i = 0; i < bufferLength; i += 2) {
-        const x = (dataArray[i] / 128.0 - 1) * canvas.width * 0.4 + canvas.width / 2;
-        const y = (dataArray[i+1] / 128.0 - 1) * canvas.height * 0.4 + canvas.height / 2;
-        if (i === 0) ctx.moveTo(x, y);
-        else ctx.lineTo(x, y);
-      }
-    }
-    ctx.stroke();
-  }
-
-  navigator.mediaDevices.enumerateDevices().then(devices => {
-    if(!inputSelect) return;
-    devices.filter(d => d.kind === 'audioinput').forEach(d => {
-      const opt = document.createElement('option');
-      opt.value = d.deviceId;
-      opt.text = d.label || `Device ${inputSelect.length + 1}`;
-      inputSelect.appendChild(opt);
-    });
-  });
-
-  inputSelect?.addEventListener('change', () => initAudio(inputSelect.value));
-  window.addEventListener('click', () => { if(!audioContext) initAudio(); }, { once: true });
-</script>
-</file>
-
-<file path="src/pages/visualizer.astro">
----
-// visualizer.astro
-import '../styles/global.css';
-import Visualizer from '../components/Visualizer.astro';
----
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
-    <title>Audio Visualizer | Fullscreen</title>
-    <style>
-      body { background: transparent; margin: 0; overflow: hidden; }
-      .full-screen { width: 100vw; height: 100vh; }
-    </style>
-  </head>
-  <body>
-    <div class="full-screen">
-      <Visualizer />
-    </div>
-  </body>
-</html>
-</file>
-
 <file path="src/styles/global.css">
 @import "tailwindcss";
 </file>
@@ -454,26 +284,193 @@ import Visualizer from '../components/Visualizer.astro';
 }
 </file>
 
+<file path="src/components/Header.astro">
+---
+import Visualizer from './Visualizer.astro';
+
+interface Props {
+  name: string;
+  jpName: string;
+}
+const { name, jpName } = Astro.props;
+---
+<header class="flex justify-between items-end mb-12 animate-fade-slide">
+  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50 pb-1">
+    SS_Portfolio v2.05
+  </div>
+
+  <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative group overflow-hidden">
+    <a href="/visualizer" class="block w-full h-full" title="Open Fullscreen Scope">
+      <Visualizer isMini={true} />
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
+        <span class="text-[8px] text-[#ffff00] tracking-[0.5em] font-bold">CLICK TO EXPAND SCOPE</span>
+      </div>
+    </a>
+  </div>
+
+  <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
+    <div class="flex items-center justify-end gap-2">
+      Status: <span class="text-green-500 animate-pulse">ONLINE</span>
+    </div>
+    <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
+    <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
+  </div>
+</header>
+
+<div class="border-b border-zinc-900 pb-8 mb-12 animate-fade-slide delay-100">
+  <h1 class="text-4xl md:text-6xl font-bold text-white mb-6">
+    {name}
+    <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">{jpName}</span>
+  </h1>
+</div>
+
+<script>
+  // 時刻とロード時間の更新ロジック
+  setInterval(() => {
+    const el = document.getElementById('sys-time');
+    if (el) el.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
+  }, 1000);
+  
+  window.addEventListener('load', () => {
+    const el = document.getElementById('load-time');
+    if (el) el.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+  });
+</script>
+</file>
+
+<file path="src/components/Visualizer.astro">
+---
+// Visualizer.astro
+interface Props {
+  isMini?: boolean; // ヘッダー用かどうか
+}
+const { isMini = false } = Astro.props;
+---
+<div class={`visualizer-container relative w-full h-full ${isMini ? 'max-h-[30px]' : 'min-h-[300px]'}`}>
+  <canvas id="visualizer-canvas" class="w-full h-full block"></canvas>
+</div>
+
+<script>
+  let audioContext: AudioContext;
+  let analyser: AnalyserNode;
+  const canvas = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
+  const ctx = canvas.getContext('2d')!;
+
+  // イエロー (#ffff00) を定数として定義
+  const WAVE_COLOR = '#ffff00';
+
+  function resize() {
+    canvas.width = canvas.clientWidth * window.devicePixelRatio;
+    canvas.height = canvas.clientHeight * window.devicePixelRatio;
+  }
+
+  async function initAudio() {
+    if (audioContext) return;
+    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    audioContext = new AudioContext();
+    analyser = audioContext.createAnalyser();
+    analyser.fftSize = 1024;
+    const source = audioContext.createMediaStreamSource(stream);
+    source.connect(analyser);
+    draw();
+  }
+
+  function draw() {
+    requestAnimationFrame(draw);
+    const bufferLength = analyser.frequencyBinCount;
+    const dataArray = new Uint8Array(bufferLength);
+    analyser.getByteTimeDomainData(dataArray);
+
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.lineWidth = 2 * window.devicePixelRatio;
+    ctx.strokeStyle = WAVE_COLOR;
+    // わずかに発光させる
+    ctx.shadowBlur = 4;
+    ctx.shadowColor = WAVE_COLOR;
+    
+    ctx.beginPath();
+    const sliceWidth = canvas.width / bufferLength;
+    let x = 0;
+
+    for (let i = 0; i < bufferLength; i++) {
+      const v = dataArray[i] / 128.0;
+      const y = (v * canvas.height) / 2;
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+      x += sliceWidth;
+    }
+    ctx.stroke();
+  }
+
+  window.addEventListener('resize', resize);
+  window.addEventListener('click', initAudio, { once: true });
+  resize();
+</script>
+</file>
+
+<file path="src/pages/visualizer.astro">
+---
+// visualizer.astro
+import '../styles/global.css';
+import Visualizer from '../components/Visualizer.astro';
+---
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <title>Audio Visualizer | Fullscreen Scope</title>
+    <style>
+      body { background: #000; margin: 0; overflow: hidden; }
+      .full-screen { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
+    </style>
+  </head>
+  <body>
+    <div class="full-screen">
+      <Visualizer color="#ffff00" />
+    </div>
+  </body>
+</html>
+</file>
+
 <file path="src/pages/index.astro">
 ---
-// index.astro
+// index.astro (Restored from index origin.astro and integrated Direct Links)
 import '../styles/global.css';
 import Header from '../components/Header.astro';
 import RotaryLogs from '../components/RotaryLogs.astro';
-import Visualizer from '../components/Visualizer.astro';
 
 const name = "Shishu Fujishiro";
 const jpName = "藤白 詩集";
+const roles = "Compositor / Colorist / Motion Designer / Cinematographer";
 const email = "info@corecreative.jp";
 
 const snsLinks = [
   { name: "X (Twitter)", url: "https://x.com/shiro_works" },
 ];
 
+      /* 以下の制作物の情報は手入力するので変更しない */
+
 const logs = [
-  { date: "2026.05.08.", content: "Sound・有機・Traxx teaser", url: "https://x.com/sasuke_maschine/status/2052729058602193100?s=20" },
-  { date: "2025.12.21.", content: "V/R Converters「ニューラルへ縹緲」リリックブック", url: "https://x.com/shiro_works/status/2003103881790914873?s=20" },
-  { date: "2025.12.12.", content: "【生演奏歌枠 #4】manuscript / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" },
+
+  { 
+    date: "2026.05.08.", 
+    content: "Sound・有機・Traxx teaser / テクノポップ・有機・シンセサイザーちゃん",
+    url: "https://x.com/sasuke_maschine/status/2052729058602193100?s=20" 
+  },
+  { 
+    date: "2025.12.21.", 
+    content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック",
+    url: "https://x.com/shiro_works/status/2003103881790914873?s=20" 
+  },
+  { 
+    date: "2025.12.12.", 
+    content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" 
+  },
+  { 
+    date: "2025.09.01", 
+    content: "Core Creative 加入 / CDs 加入 / 名義追加",
+    url: "https://x.com/shiro_works/status/1962168505782186124?s=20" 
+  },
 ];
 
 const workScope = [
@@ -488,6 +485,7 @@ const workScope = [
     <meta name="viewport" content="width=device-width" />
     <title>SS_Portfolio | {name}</title>
     <style is:global>
+      /* --- 既存のAnimation & Utility (index origin.astroを継承) --- */
       @keyframes fadeSlideRight {
         0% { opacity: 0; transform: translateX(-15px); }
         100% { opacity: 1; transform: translateX(0); }
@@ -498,10 +496,12 @@ const workScope = [
       .delay-300 { animation-delay: 300ms; }
       .delay-400 { animation-delay: 400ms; }
       .delay-500 { animation-delay: 500ms; }
-      
+
       .rotary-viewport { -webkit-overflow-scrolling: touch; scrollbar-width: thin; scrollbar-color: #3f3f46 transparent; }
       .rotary-item { height: 80px; display: flex; align-items: center; top: 0; will-change: transform; }
-      
+      .focus-container:has(a:hover) .dim-text { opacity: 0.3; }
+      .dim-text { transition: opacity 0.4s ease; }
+
       #cursor-light {
         width: 150px; height: 150px;
         background: radial-gradient(circle, rgba(208,226,248,0.15) 0%, transparent 70%);
@@ -512,34 +512,53 @@ const workScope = [
     </style>
   </head>
   <body class="bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased overflow-x-hidden">
+    
     <div id="cursor-light"></div>
 
     <div class="max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col relative z-10">
-      <Header name={name} jpName={jpName} />
       
-      <a href="/visualizer" class="block h-12 mb-12 border-b border-zinc-900 group relative">
-        <Visualizer isMini={true} />
-        <span class="absolute inset-0 flex items-center justify-center text-[8px] tracking-[0.4em] text-white opacity-0 group-hover:opacity-100 transition-opacity bg-black/40">
-          OPEN FULLSCREEN SCOPE
-        </span>
-      </a>
+      <Header name={name} jpName={jpName} />
 
       <main class="flex-grow">
-        <section class="mb-24 animate-fade-slide delay-200">
-          <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
-            {snsLinks.map(link => (
-              <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-3 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
-                {link.name}
-              </a>
-            ))}
-            <button id="copy-email-btn" class="border border-zinc-800 px-5 py-3 hover:bg-[#d0e2f8] hover:text-black transition-all" data-email={email}>
-              Mail: {email}
-            </button>
+        <section class="mb-24">
+          <div class="focus-container space-y-8 text-sm md:text-base leading-loose max-w-3xl font-light animate-fade-slide delay-200">
+            <p class="text-zinc-400">
+              <span class="dim-text">
+                <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
+                He is primarily active as a director for music videos, focusing on illustration-based visual works.
+                A member of the creative collective
+              </span>
+              <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left">Core Creative</a>
+              <span class="dim-text">and the musical unit</span>
+              <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left">CDs</a>
+              <span class="dim-text">.</span>
+            </p>
+            <p class="text-zinc-600 italic">
+              <span class="dim-text">藤白 詩集（ふじしろ・ししゅう、生年不明）は、日本の映像作家、コンポジター、モーションデザイナー。主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「</span>
+              <a href="https://corecreative.jp/" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-all hover:scale-105 inline-block origin-left">Core Creative</a>
+              <span class="dim-text">」およびレーベル「</span>
+              <a href="https://x.com/CDs_inter" target="_blank" class="hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-all hover:scale-105 inline-block origin-left">CDs</a>
+              <span class="dim-text">」のメンバー。</span>
+            </p>
+          </div>
+
+          <div class="mt-12 animate-fade-slide delay-300">
+            <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
+              {snsLinks.map(link => (
+                <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-3 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
+                  {link.name}
+                </a>
+              ))}
+              <button id="copy-email-btn" class="border border-zinc-800 px-5 py-3 hover:bg-[#d0e2f8] hover:text-black transition-all" data-email={email}>
+                Mail: {email}
+              </button>
+            </div>
           </div>
         </section>
 
         <div class="grid lg:grid-cols-2 gap-24 items-start">
           <RotaryLogs logs={logs} />
+          
           <section class="space-y-20 animate-fade-slide delay-400">
             <div>
               <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Work Scope</h2>
@@ -552,12 +571,36 @@ const workScope = [
                 ))}
               </div>
             </div>
+
+            <div>
+              <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
+              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center mb-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">old site.</p>
+              </a>
+              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Core Creative Profile</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">View professional works and creative collective details.</p>
+              </a>
+            </div>
           </section>
         </div>
       </main>
+
+      <footer class="mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500 italic">
+        <div>AFFILIATION: CORE CREATIVE / CDs</div>
+        <div>{email}</div>
+      </footer>
     </div>
 
     <script>
+      // --- 既存のCursor Light & Email Copyロジックを復元 ---
       const light = document.getElementById('cursor-light');
       window.addEventListener('mousemove', (e) => {
         if (light) {
@@ -565,7 +608,29 @@ const workScope = [
           light.style.top = `${e.clientY}px`;
         }
       });
-      // Email copy logic...
+
+      // Email Copy Logic
+      const copyBtn = document.getElementById('copy-email-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const email = copyBtn.getAttribute('data-email');
+          if (email) {
+            navigator.clipboard.writeText(email);
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = 'COPIED!';
+            setTimeout(() => { copyBtn.innerText = originalText; }, 2000);
+          }
+        });
+      }
+
+      window.addEventListener('load', () => {
+        const loadEl = document.getElementById('load-time');
+        if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+      });
+      setInterval(() => {
+        const timeEl = document.getElementById('sys-time');
+        if(timeEl) timeEl.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
+      }, 1000);
     </script>
   </body>
 </html>

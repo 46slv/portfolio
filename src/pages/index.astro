@@ -1,5 +1,5 @@
 ---
-// index.astro (Restored from index origin.astro)
+// index.astro (Restored from index origin.astro and integrated Direct Links)
 import '../styles/global.css';
 import Header from '../components/Header.astro';
 import RotaryLogs from '../components/RotaryLogs.astro';
@@ -13,11 +13,30 @@ const snsLinks = [
   { name: "X (Twitter)", url: "https://x.com/shiro_works" },
 ];
 
+      /* 以下の制作物の情報は手入力するので変更しない */
+
 const logs = [
-  { date: "2026.05.08.", content: "Sound・有機・Traxx teaser / テクノポップ・有機・シンセサイザーちゃん", url: "https://x.com/sasuke_maschine/status/2052729058602193100?s=20" },
-  { date: "2025.12.21.", content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック", url: "https://x.com/shiro_works/status/2003103881790914873?s=20" },
-  { date: "2025.12.12.", content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ", url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" },
-  // ... 他のログデータ (index origin.astroから全量復元)
+
+  { 
+    date: "2026.05.08.", 
+    content: "Sound・有機・Traxx teaser / テクノポップ・有機・シンセサイザーちゃん",
+    url: "https://x.com/sasuke_maschine/status/2052729058602193100?s=20" 
+  },
+  { 
+    date: "2025.12.21.", 
+    content: "V/R Converters「ニューラルへ縹緲」オフィシャルリリックブック",
+    url: "https://x.com/shiro_works/status/2003103881790914873?s=20" 
+  },
+  { 
+    date: "2025.12.12.", 
+    content: "【 # 4 生演奏歌枠 】manuscript / 綿菓子かんろ",
+    url: "https://x.com/Wata_kanro/status/1999463442328224198?s=20" 
+  },
+  { 
+    date: "2025.09.01", 
+    content: "Core Creative 加入 / CDs 加入 / 名義追加",
+    url: "https://x.com/shiro_works/status/1962168505782186124?s=20" 
+  },
 ];
 
 const workScope = [
@@ -118,6 +137,24 @@ const workScope = [
                 ))}
               </div>
             </div>
+
+            <div>
+              <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
+              <a href="https://lime479000.studio.site/about" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center mb-4">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Go to Studio Site</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">old site.</p>
+              </a>
+              <a href="https://corecreative.jp/shishu-fujishiro" target="_blank" class="block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center">
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">Core Creative Profile</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">View professional works and creative collective details.</p>
+              </a>
+            </div>
           </section>
         </div>
       </main>
@@ -137,7 +174,29 @@ const workScope = [
           light.style.top = `${e.clientY}px`;
         }
       });
-      // (Emailコピーなどのロジックも継続)
+
+      // Email Copy Logic
+      const copyBtn = document.getElementById('copy-email-btn');
+      if (copyBtn) {
+        copyBtn.addEventListener('click', () => {
+          const email = copyBtn.getAttribute('data-email');
+          if (email) {
+            navigator.clipboard.writeText(email);
+            const originalText = copyBtn.innerText;
+            copyBtn.innerText = 'COPIED!';
+            setTimeout(() => { copyBtn.innerText = originalText; }, 2000);
+          }
+        });
+      }
+
+      window.addEventListener('load', () => {
+        const loadEl = document.getElementById('load-time');
+        if(loadEl) loadEl.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+      });
+      setInterval(() => {
+        const timeEl = document.getElementById('sys-time');
+        if(timeEl) timeEl.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
+      }, 1000);
     </script>
   </body>
 </html>
