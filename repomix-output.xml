@@ -49,6 +49,8 @@ README.md
 src/components/Header.astro
 src/components/RotaryLogs.astro
 src/components/Visualizer.astro
+src/components/VisualizerMini.astro
+src/lib/audio/AudioEngine.ts
 src/pages/index.astro
 src/pages/visualizer.astro
 src/styles/global.css
@@ -272,6 +274,661 @@ const { logs } = Astro.props;
 </script>
 </file>
 
+<file path="src/components/VisualizerMini.astro">
+---
+// src/components/VisualizerMini.astro
+// Lightweight Header Scope
+
+const {
+  color = "#d8ff72",
+  height = 72
+} = Astro.props;
+---
+
+<div
+  class="mini-viz"
+  style={`height:${height}px`}
+>
+  <canvas id="mini-scope"></canvas>
+</div>
+
+<style>
+  .mini-viz {
+    position: relative;
+
+    width: 100%;
+    overflow: hidden;
+
+    pointer-events: none;
+
+    background:
+      linear-gradient(
+        to bottom,
+        rgba(255,255,255,0.012),
+        rgba(255,255,255,0)
+      );
+  }
+
+  #mini-scope {
+    position: absolute;
+    inset: 0;
+
+    width: 100%;
+    height: 100%;
+
+    display: block;
+  }
+</style>
+
+<script define:vars={{ color }}>
+  import { AudioEngine }
+  from "../lib/audio/AudioEngine";
+
+  const canvas =
+    document.getElementById(
+      "mini-scope"
+    );
+
+  const ctx =
+    canvas.getContext("2d");
+
+  let width = 0;
+  let height = 0;
+
+  const engine =
+    new AudioEngine();
+
+  function resize() {
+    const rect =
+      canvas.getBoundingClientRect();
+
+    width =
+      canvas.width =
+      rect.width * devicePixelRatio;
+
+    height =
+      canvas.height =
+      rect.height * devicePixelRatio;
+  }
+
+  resize();
+
+  window.addEventListener(
+    "resize",
+    resize
+  );
+
+  async function boot() {
+    await engine.initInput();
+  }
+
+  function clearFrame() {
+    ctx.fillStyle =
+      "rgba(0,0,0,0.08)";
+
+    ctx.fillRect(
+      0,
+      0,
+      width,
+      height
+    );
+  }
+
+  function drawGrid() {
+    ctx.strokeStyle =
+      "rgba(255,255,255,0.025)";
+
+    ctx.lineWidth = 1;
+
+    const step = width / 8;
+
+    for (
+      let x = 0;
+      x < width;
+      x += step
+    ) {
+      ctx.beginPath();
+
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, height);
+
+      ctx.stroke();
+    }
+  }
+
+  function drawWave() {
+    const data =
+      engine.getTimeData();
+
+    ctx.beginPath();
+
+    for (
+      let i = 0;
+      i < data.length;
+      i++
+    ) {
+      const x =
+        (i / data.length) * width;
+
+      const y =
+        height / 2 +
+        ((data[i] - 128) / 128) *
+        height *
+        0.3;
+
+      if (i === 0) {
+        ctx.moveTo(x, y);
+      } else {
+        ctx.lineTo(x, y);
+      }
+    }
+
+    ctx.strokeStyle = color;
+
+    ctx.lineWidth = 2;
+
+    ctx.shadowBlur = 12;
+    ctx.shadowColor = color;
+
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+  }
+
+  function render() {
+    requestAnimationFrame(render);
+
+    clearFrame();
+
+    drawGrid();
+
+    drawWave();
+  }
+
+  render();
+
+  boot();
+</script>
+</file>
+
+<file path="src/lib/audio/AudioEngine.ts">
+// src/lib/audio/AudioEngine.ts
+// SS_SCOPE v4 Audio Engine
+
+export class AudioEngine {
+
+  audioCtx: AudioContext;
+
+  analyser: AnalyserNode;
+  frequencyAnalyser: AnalyserNode;
+
+  inputGain: GainNode;
+  monitorGain: GainNode;
+
+  filterNode: BiquadFilterNode;
+
+  distortionNode: WaveShaperNode;
+
+  delayNode: DelayNode;
+  delayGain: GainNode;
+
+  sourceNode?: MediaStreamAudioSourceNode;
+
+  stream?: MediaStream;
+
+  constructor() {
+
+    this.audioCtx =
+      new AudioContext();
+
+    /*
+    --------------------------------
+    ANALYSERS
+    --------------------------------
+    */
+
+    this.analyser =
+      this.audioCtx
+        .createAnalyser();
+
+    this.analyser.fftSize =
+      2048;
+
+    this.analyser.smoothingTimeConstant =
+      0.82;
+
+    this.frequencyAnalyser =
+      this.audioCtx
+        .createAnalyser();
+
+    this.frequencyAnalyser.fftSize =
+      4096;
+
+    this.frequencyAnalyser.smoothingTimeConstant =
+      0.86;
+
+    /*
+    --------------------------------
+    DSP NODES
+    --------------------------------
+    */
+
+    this.inputGain =
+      this.audioCtx
+        .createGain();
+
+    this.inputGain.gain.value = 1;
+
+    this.monitorGain =
+      this.audioCtx
+        .createGain();
+
+    // default mute
+    this.monitorGain.gain.value = 0;
+
+    this.filterNode =
+      this.audioCtx
+        .createBiquadFilter();
+
+    this.filterNode.type =
+      'lowpass';
+
+    this.filterNode.frequency.value =
+      20000;
+
+    this.filterNode.Q.value =
+      0.0001;
+
+    this.distortionNode =
+      this.audioCtx
+        .createWaveShaper();
+
+    this.distortionNode.curve =
+      this.makeDistortionCurve(0);
+
+    this.distortionNode.oversample =
+      '4x';
+
+    this.delayNode =
+      this.audioCtx
+        .createDelay(2.0);
+
+    this.delayNode.delayTime.value =
+      0.25;
+
+    this.delayGain =
+      this.audioCtx
+        .createGain();
+
+    this.delayGain.gain.value =
+      0;
+
+    /*
+    --------------------------------
+    AUDIO GRAPH
+    --------------------------------
+
+    INPUT
+      -> INPUT GAIN
+      -> DISTORTION
+      -> FILTER
+      -> DELAY
+      -> DELAY MIX
+      -> ANALYSERS
+      -> MONITOR
+      -> OUTPUT
+
+    --------------------------------
+    */
+
+    this.inputGain.connect(
+      this.distortionNode
+    );
+
+    this.distortionNode.connect(
+      this.filterNode
+    );
+
+    this.filterNode.connect(
+      this.delayNode
+    );
+
+    this.delayNode.connect(
+      this.delayGain
+    );
+
+    this.delayGain.connect(
+      this.analyser
+    );
+
+    this.delayGain.connect(
+      this.frequencyAnalyser
+    );
+
+    // dry path
+    this.filterNode.connect(
+      this.analyser
+    );
+
+    this.filterNode.connect(
+      this.frequencyAnalyser
+    );
+
+    // monitor routing
+    this.analyser.connect(
+      this.monitorGain
+    );
+
+    this.monitorGain.connect(
+      this.audioCtx.destination
+    );
+  }
+
+  /*
+  --------------------------------
+  INPUT INIT
+  --------------------------------
+  */
+
+  async initInput(
+    deviceId?: string
+  ) {
+
+    // cleanup previous stream
+
+    if (this.stream) {
+
+      this.stream
+        .getTracks()
+        .forEach(track => {
+          track.stop();
+        });
+    }
+
+    const constraints: MediaStreamConstraints = {
+      audio: {
+        echoCancellation: false,
+        noiseSuppression: false,
+        autoGainControl: false,
+        deviceId:
+          deviceId
+            ? { exact: deviceId }
+            : undefined
+      }
+    };
+
+    this.stream =
+      await navigator
+        .mediaDevices
+        .getUserMedia(
+          constraints
+        );
+
+    this.sourceNode =
+      this.audioCtx
+        .createMediaStreamSource(
+          this.stream
+        );
+
+    this.sourceNode.connect(
+      this.inputGain
+    );
+
+    if (
+      this.audioCtx.state ===
+      'suspended'
+    ) {
+      await this.audioCtx.resume();
+    }
+  }
+
+  /*
+  --------------------------------
+  INPUT DEVICES
+  --------------------------------
+  */
+
+  async getInputDevices() {
+
+    const devices =
+      await navigator
+        .mediaDevices
+        .enumerateDevices();
+
+    return devices.filter(
+      device =>
+        device.kind ===
+        'audioinput'
+    );
+  }
+
+  /*
+  --------------------------------
+  MONITOR
+  --------------------------------
+  */
+
+  setMonitorLevel(
+    level: number
+  ) {
+
+    this.monitorGain.gain.value =
+      level;
+  }
+
+  muteMonitor() {
+
+    this.monitorGain.gain.value =
+      0;
+  }
+
+  /*
+  --------------------------------
+  INPUT GAIN
+  --------------------------------
+  */
+
+  setInputGain(
+    amount: number
+  ) {
+
+    this.inputGain.gain.value =
+      amount;
+  }
+
+  /*
+  --------------------------------
+  FILTER
+  --------------------------------
+  */
+
+  setLPF(
+    frequency: number
+  ) {
+
+    this.filterNode.frequency.value =
+      frequency;
+  }
+
+  /*
+  --------------------------------
+  DELAY
+  --------------------------------
+  */
+
+  setDelayMix(
+    amount: number
+  ) {
+
+    this.delayGain.gain.value =
+      amount;
+  }
+
+  setDelayTime(
+    seconds: number
+  ) {
+
+    this.delayNode.delayTime.value =
+      seconds;
+  }
+
+  /*
+  --------------------------------
+  DISTORTION
+  --------------------------------
+  */
+
+  setDistortion(
+    amount: number
+  ) {
+
+    this.distortionNode.curve =
+      this.makeDistortionCurve(
+        amount * 100
+      );
+  }
+
+  makeDistortionCurve(
+    amount: number
+  ) {
+
+    const samples = 44100;
+
+    const curve =
+      new Float32Array(
+        samples
+      );
+
+    for (
+      let i = 0;
+      i < samples;
+      i++
+    ) {
+
+      const x =
+        (i * 2 / samples) - 1;
+
+      curve[i] =
+        ((3 + amount) *
+          x *
+          20 *
+          Math.PI /
+          180) /
+        (
+          Math.PI +
+          amount *
+          Math.abs(x)
+        );
+    }
+
+    return curve;
+  }
+
+  /*
+  --------------------------------
+  ANALYSIS DATA
+  --------------------------------
+  */
+
+  getTimeData() {
+
+    const data =
+      new Uint8Array(
+        this.analyser
+          .fftSize
+      );
+
+    this.analyser
+      .getByteTimeDomainData(
+        data
+      );
+
+    return data;
+  }
+
+  getFrequencyData() {
+
+    const data =
+      new Uint8Array(
+        this.frequencyAnalyser
+          .frequencyBinCount
+      );
+
+    this.frequencyAnalyser
+      .getByteFrequencyData(
+        data
+      );
+
+    return data;
+  }
+
+  /*
+  --------------------------------
+  RMS
+  --------------------------------
+  */
+
+  getRMS() {
+
+    const data =
+      this.getTimeData();
+
+    let sum = 0;
+
+    for (
+      let i = 0;
+      i < data.length;
+      i++
+    ) {
+
+      const v =
+        (data[i] - 128) /
+        128;
+
+      sum += v * v;
+    }
+
+    return Math.sqrt(
+      sum / data.length
+    );
+  }
+
+  getRMSdB() {
+
+    const rms =
+      this.getRMS();
+
+    return 20 * Math.log10(
+      rms || 0.0001
+    );
+  }
+
+  /*
+  --------------------------------
+  PEAK FREQUENCY
+  --------------------------------
+  */
+
+  getPeakFrequency() {
+
+    const freq =
+      this.getFrequencyData();
+
+    const peakIndex =
+      freq.indexOf(
+        Math.max(...freq)
+      );
+
+    return (
+      peakIndex *
+      this.audioCtx.sampleRate /
+      this.frequencyAnalyser
+        .fftSize
+    );
+  }
+}
+</file>
+
 <file path="src/styles/global.css">
 @import "tailwindcss";
 </file>
@@ -286,7 +943,7 @@ const { logs } = Astro.props;
 
 <file path="src/components/Header.astro">
 ---
-import Visualizer from './Visualizer.astro';
+import Visualizer from './VisualizerMini.astro';
 
 interface Props {
   name: string;
@@ -340,60 +997,543 @@ const { name, jpName } = Astro.props;
 
 <file path="src/pages/visualizer.astro">
 ---
-// visualizer.astro — Full-Screen Advanced Scope Page
+// src/pages/visualizer.astro
+// SS_SCOPE v4.0
+
 import '../styles/global.css';
 import Visualizer from '../components/Visualizer.astro';
 ---
+
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>SS_SCOPE v3.0 | Audio Visualizer</title>
+
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+
+    <title>SS_SCOPE v4.0 | CRT Audio Observatory</title>
+
+    <meta
+      name="theme-color"
+      content="#000000"
+    />
+
     <style>
-      *, *::before, *::after { box-sizing: border-box; }
-      html, body { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; }
-      .scope-wrap { width: 100vw; height: 100vh; position: relative; }
+      :root {
+        --bg: #000;
+        --text-dim: rgba(255,255,255,0.3);
+        --text: rgba(255,255,255,0.85);
 
-      /* Back link */
-      #back-link {
-        position: fixed; top: 16px; left: 16px; z-index: 100;
-        font-size: 9px; font-family: monospace; letter-spacing: 0.4em;
-        color: #444; text-decoration: none; text-transform: uppercase;
-        transition: color 0.2s;
+        --accent: #d8ff72;
+
+        --panel:
+          rgba(8,8,8,0.72);
+
+        --border:
+          rgba(255,255,255,0.08);
+
+        --blur: blur(20px);
       }
-      #back-link:hover { color: #ffff00; }
 
-      /* Panel collapse toggle */
-      #panel-toggle {
-        position: fixed; bottom: 16px; right: 16px; z-index: 200;
-        font-size: 8px; font-family: monospace; letter-spacing: 0.3em;
-        color: #444; background: transparent; border: 1px solid #222;
-        padding: 6px 12px; cursor: pointer; text-transform: uppercase;
-        transition: all 0.2s;
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
       }
-      #panel-toggle:hover { color: #ffff00; border-color: #ffff00; }
 
-      /* Hide panel */
-      body.panel-hidden #control-panel { transform: translateY(100%); transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
-      #control-panel { transition: transform 0.4s cubic-bezier(0.4,0,0.2,1); }
+      html,
+      body {
+        margin: 0;
+        padding: 0;
+
+        width: 100%;
+        height: 100%;
+
+        overflow: hidden;
+
+        background:
+          radial-gradient(
+            circle at center,
+            #0b0b0b 0%,
+            #000 70%
+          );
+
+        color: white;
+
+        font-family:
+          Inter,
+          system-ui,
+          sans-serif;
+
+        overscroll-behavior: none;
+      }
+
+      body {
+        position: relative;
+      }
+
+      .scope-wrap {
+        position: fixed;
+        inset: 0;
+
+        width: 100vw;
+        height: 100vh;
+
+        overflow: hidden;
+
+        isolation: isolate;
+      }
+
+      /*
+      ------------------------------------------------
+      OVERLAY FX
+      ------------------------------------------------
+      */
+
+      .scope-wrap::before {
+        content: "";
+
+        position: absolute;
+        inset: 0;
+
+        pointer-events: none;
+        z-index: 3;
+
+        background:
+          repeating-linear-gradient(
+            to bottom,
+            rgba(255,255,255,0.018) 0px,
+            rgba(255,255,255,0.018) 1px,
+            transparent 2px,
+            transparent 4px
+          );
+
+        mix-blend-mode: screen;
+
+        opacity: 0.25;
+      }
+
+      .scope-wrap::after {
+        content: "";
+
+        position: absolute;
+        inset: 0;
+
+        pointer-events: none;
+        z-index: 2;
+
+        background:
+          radial-gradient(
+            circle at center,
+            transparent 45%,
+            rgba(0,0,0,0.4) 100%
+          );
+
+        opacity: 0.9;
+      }
+
+      /*
+      ------------------------------------------------
+      TOP BAR
+      ------------------------------------------------
+      */
+
+      #topbar {
+        position: fixed;
+
+        top: 0;
+        left: 0;
+        right: 0;
+
+        height: 56px;
+
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+
+        padding:
+          env(safe-area-inset-top)
+          18px
+          0
+          18px;
+
+        z-index: 200;
+
+        pointer-events: none;
+      }
+
+      #topbar-left,
+      #topbar-right {
+        display: flex;
+        align-items: center;
+        gap: 14px;
+
+        pointer-events: auto;
+      }
+
+      .top-button {
+        appearance: none;
+
+        border: 1px solid var(--border);
+
+        background: var(--panel);
+        backdrop-filter: var(--blur);
+
+        color: var(--text-dim);
+
+        border-radius: 999px;
+
+        height: 34px;
+
+        padding: 0 14px;
+
+        display: flex;
+        align-items: center;
+        justify-content: center;
+
+        font-size: 10px;
+        font-family: monospace;
+
+        letter-spacing: 0.22em;
+        text-transform: uppercase;
+
+        cursor: pointer;
+
+        transition:
+          border-color .18s ease,
+          color .18s ease,
+          background .18s ease,
+          transform .18s ease;
+      }
+
+      .top-button:hover {
+        color: var(--accent);
+        border-color: rgba(216,255,114,0.3);
+
+        transform: translateY(-1px);
+      }
+
+      .top-button:active {
+        transform: translateY(0);
+      }
+
+      /*
+      ------------------------------------------------
+      HELP OVERLAY
+      ------------------------------------------------
+      */
+
+      #help {
+        position: fixed;
+
+        right: 20px;
+        top: 72px;
+
+        z-index: 300;
+
+        width: 240px;
+
+        padding: 14px;
+
+        border-radius: 18px;
+
+        background: rgba(0,0,0,0.72);
+        backdrop-filter: blur(18px);
+
+        border: 1px solid var(--border);
+
+        font-family: monospace;
+
+        transition:
+          opacity .2s ease,
+          transform .2s ease;
+      }
+
+      #help.hidden {
+        opacity: 0;
+        transform: translateY(-6px);
+        pointer-events: none;
+      }
+
+      #help-title {
+        font-size: 11px;
+        letter-spacing: 0.22em;
+
+        color: rgba(255,255,255,0.9);
+
+        margin-bottom: 12px;
+      }
+
+      .help-row {
+        display: flex;
+        justify-content: space-between;
+
+        font-size: 10px;
+
+        color: rgba(255,255,255,0.55);
+
+        margin-bottom: 8px;
+      }
+
+      .help-key {
+        color: rgba(255,255,255,0.95);
+      }
+
+      /*
+      ------------------------------------------------
+      PANEL HIDE STATE
+      ------------------------------------------------
+      */
+
+      body.panel-hidden #panel {
+        opacity: 0;
+        transform:
+          translateY(16px);
+
+        pointer-events: none;
+      }
+
+      /*
+      ------------------------------------------------
+      FADE-IN
+      ------------------------------------------------
+      */
+
+      body {
+        animation:
+          bootFade 0.8s ease;
+      }
+
+      @keyframes bootFade {
+        from {
+          opacity: 0;
+          filter: blur(12px);
+        }
+
+        to {
+          opacity: 1;
+          filter: blur(0px);
+        }
+      }
+
+      /*
+      ------------------------------------------------
+      MOBILE
+      ------------------------------------------------
+      */
+
+      @media (max-width: 700px) {
+        #help {
+          width: calc(100vw - 32px);
+          right: 16px;
+        }
+
+        .top-button {
+          font-size: 9px;
+          letter-spacing: 0.14em;
+        }
+      }
     </style>
   </head>
+
   <body>
-    <a id="back-link" href="/">← BACK</a>
-    <button id="panel-toggle">▲ PANEL</button>
-    <div class="scope-wrap">
-      <Visualizer isMini={false} color="#ffff00" />
+    <div id="topbar">
+      <div id="topbar-left">
+        <a
+          href="/"
+          class="top-button"
+        >
+          ← BACK
+        </a>
+      </div>
+
+      <div id="topbar-right">
+        <button
+          id="panel-toggle"
+          class="top-button"
+        >
+          PANEL
+        </button>
+
+        <button
+          id="help-toggle"
+          class="top-button"
+        >
+          HELP
+        </button>
+
+        <button
+          id="fullscreen-toggle"
+          class="top-button"
+        >
+          FULL
+        </button>
+      </div>
     </div>
+
+    <div id="help">
+      <div id="help-title">
+        SS_SCOPE SHORTCUTS
+      </div>
+
+      <div class="help-row">
+        <span>TAB</span>
+        <span class="help-key">TOGGLE PANEL</span>
+      </div>
+
+      <div class="help-row">
+        <span>H</span>
+        <span class="help-key">TOGGLE HELP</span>
+      </div>
+
+      <div class="help-row">
+        <span>F</span>
+        <span class="help-key">FULLSCREEN</span>
+      </div>
+
+      <div class="help-row">
+        <span>DBL CLICK</span>
+        <span class="help-key">RESET KNOB</span>
+      </div>
+
+      <div class="help-row">
+        <span>SHIFT</span>
+        <span class="help-key">FINE CONTROL</span>
+      </div>
+    </div>
+
+    <div class="scope-wrap">
+      <Visualizer />
+    </div>
+
     <script>
-      const toggle = document.getElementById('panel-toggle');
-      toggle?.addEventListener('click', () => {
-        document.body.classList.toggle('panel-hidden');
-        if (document.body.classList.contains('panel-hidden')) {
-          toggle.textContent = '▼ PANEL';
-        } else {
-          toggle.textContent = '▲ PANEL';
+      const body = document.body;
+
+      const panelToggle =
+        document.getElementById(
+          "panel-toggle"
+        );
+
+      const helpToggle =
+        document.getElementById(
+          "help-toggle"
+        );
+
+      const fullscreenToggle =
+        document.getElementById(
+          "fullscreen-toggle"
+        );
+
+      const help =
+        document.getElementById("help");
+
+      /*
+      ----------------------------------------
+      PANEL TOGGLE
+      ----------------------------------------
+      */
+
+      function togglePanel() {
+        body.classList.toggle(
+          "panel-hidden"
+        );
+      }
+
+      panelToggle?.addEventListener(
+        "click",
+        togglePanel
+      );
+
+      /*
+      ----------------------------------------
+      HELP
+      ----------------------------------------
+      */
+
+      helpToggle?.addEventListener(
+        "click",
+        () => {
+          help?.classList.toggle(
+            "hidden"
+          );
         }
-      });
+      );
+
+      /*
+      ----------------------------------------
+      FULLSCREEN
+      ----------------------------------------
+      */
+
+      fullscreenToggle?.addEventListener(
+        "click",
+        async () => {
+          if (!document.fullscreenElement) {
+            await document.documentElement
+              .requestFullscreen?.();
+          } else {
+            await document.exitFullscreen?.();
+          }
+        }
+      );
+
+      /*
+      ----------------------------------------
+      KEYBOARD
+      ----------------------------------------
+      */
+
+      window.addEventListener(
+        "keydown",
+        async (e) => {
+          if (e.key === "Tab") {
+            e.preventDefault();
+            togglePanel();
+          }
+
+          if (
+            e.key.toLowerCase() === "h"
+          ) {
+            help?.classList.toggle(
+              "hidden"
+            );
+          }
+
+          if (
+            e.key.toLowerCase() === "f"
+          ) {
+            if (!document.fullscreenElement) {
+              await document.documentElement
+                .requestFullscreen?.();
+            } else {
+              await document.exitFullscreen?.();
+            }
+          }
+        }
+      );
+
+      /*
+      ----------------------------------------
+      PREVENT GESTURE NAVIGATION
+      ----------------------------------------
+      */
+
+      window.addEventListener(
+        "gesturestart",
+        e => e.preventDefault()
+      );
+
+      /*
+      ----------------------------------------
+      INITIAL STATE
+      ----------------------------------------
+      */
+
+      setTimeout(() => {
+        help?.classList.add("hidden");
+      }, 6000);
     </script>
   </body>
 </html>
@@ -401,7 +1541,7 @@ import Visualizer from '../components/Visualizer.astro';
 
 <file path="src/components/Visualizer.astro">
 ---
-// Visualizer.astro — Advanced Oscilloscope + Synthesizer Engine
+// src/component/Visualizer.astro — SS_SCOPE v4.0
 interface Props {
   isMini?: boolean;
   color?: string;
@@ -410,879 +1550,1093 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
 ---
 
 <div
-  class={`visualizer-root relative w-full h-full ${isMini ? 'mini-mode' : 'fullscreen-mode'}`}
+  class={`visualizer-root ${isMini ? 'mini-mode' : 'fullscreen-mode'}`}
   data-mini={isMini ? 'true' : 'false'}
   data-color={color}
 >
-  <canvas id="visualizer-canvas" class="w-full h-full block"></canvas>
+  <canvas id="visualizer-canvas"></canvas>
 
   {!isMini && (
-    <div id="viz-ui" class="absolute inset-0 pointer-events-none">
-      <!-- HUD overlay: top bar -->
-      <div class="absolute top-0 left-0 right-0 flex justify-between items-center px-6 py-4 pointer-events-auto" style="background: linear-gradient(to bottom, rgba(0,0,0,0.8) 0%, transparent 100%);">
-        <div class="flex items-center gap-6">
-          <span id="hud-title" class="text-[10px] tracking-[0.5em] font-mono font-bold text-[#ffff00] uppercase">SS_SCOPE v3.0</span>
-          <div class="flex items-center gap-2">
-            <div id="status-dot" class="w-1.5 h-1.5 rounded-full bg-[#ffff00] animate-pulse"></div>
-            <span id="status-label" class="text-[9px] font-mono text-zinc-500 tracking-widest uppercase">STANDBY</span>
+    <div id="viz-ui">
+
+      <!-- ══ TOP HUD ══ -->
+      <div id="hud-bar">
+        <div id="hud-left">
+          <span id="hud-title">SS_SCOPE v4.0</span>
+          <div id="hud-status">
+            <div id="status-dot"></div>
+            <span id="status-label">STANDBY</span>
           </div>
         </div>
-        <div class="flex items-center gap-4 text-[9px] font-mono text-zinc-600">
+        <div id="hud-center">
           <span id="hud-freq">FREQ: ---Hz</span>
-          <span id="hud-rms">RMS: ---dB</span>
+          <span id="hud-rms">RMS: -∞dB</span>
           <span id="hud-mode-label">MODE: SCOPE</span>
         </div>
-      </div>
-
-      <!-- Bottom control panel -->
-      <div id="control-panel" class="absolute bottom-0 left-0 right-0 pointer-events-auto" style="background: linear-gradient(to top, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0.7) 70%, transparent 100%);">
-        <div class="px-6 pb-5 pt-8">
-
-          <!-- Mode selector -->
-          <div class="flex gap-2 mb-5">
-            {[
-              { id: 'scope',      label: 'OSCILLOSCOPE' },
-              { id: 'spectrum',   label: 'SPECTRUM' },
-              { id: 'lissajous',  label: 'LISSAJOUS' },
-              { id: 'radial',     label: 'RADIAL' },
-              { id: 'waterfall',  label: 'WATERFALL' },
-              { id: 'particle',   label: 'PARTICLE' },
-            ].map(m => (
-              <button
-                class="mode-btn text-[8px] tracking-[0.3em] font-mono px-3 py-1.5 border transition-all duration-200 uppercase"
-                data-mode={m.id}
-                style="border-color: #333; color: #555;"
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-
-          <!-- Controls grid -->
-          <div class="grid grid-cols-4 gap-6">
-
-            <!-- INPUT / GAIN -->
-            <div class="space-y-3">
-              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">Input</div>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">GAIN</span>
-                <input type="range" id="ctrl-gain" min="0.1" max="5" step="0.05" value="1" class="viz-slider" />
-                <span id="val-gain" class="text-[8px] font-mono text-zinc-400">1.00×</span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">THRESHOLD</span>
-                <input type="range" id="ctrl-threshold" min="0" max="100" step="1" value="0" class="viz-slider" />
-                <span id="val-threshold" class="text-[8px] font-mono text-zinc-400">0%</span>
-              </label>
-            </div>
-
-            <!-- SYNTH oscillator -->
-            <div class="space-y-3">
-              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">Synth Osc</div>
-              <div class="flex gap-1 flex-wrap">
-                {['OFF','SINE','SAW','SQR','TRI','NOISE'].map(t => (
-                  <button class="osc-btn text-[7px] font-mono px-1.5 py-0.5 border transition-all" data-osc={t} style="border-color:#333;color:#444;">
-                    {t}
-                  </button>
-                ))}
-              </div>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">FREQ</span>
-                <input type="range" id="ctrl-osc-freq" min="20" max="2000" step="1" value="440" class="viz-slider" />
-                <span id="val-osc-freq" class="text-[8px] font-mono text-zinc-400">440 Hz</span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">VOL</span>
-                <input type="range" id="ctrl-osc-vol" min="0" max="1" step="0.01" value="0.3" class="viz-slider" />
-                <span id="val-osc-vol" class="text-[8px] font-mono text-zinc-400">30%</span>
-              </label>
-            </div>
-
-            <!-- EFFECTS -->
-            <div class="space-y-3">
-              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">FX Chain</div>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">DISTORTION</span>
-                <input type="range" id="ctrl-dist" min="0" max="400" step="1" value="0" class="viz-slider" />
-                <span id="val-dist" class="text-[8px] font-mono text-zinc-400">0</span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">DELAY MIX</span>
-                <input type="range" id="ctrl-delay" min="0" max="1" step="0.01" value="0" class="viz-slider" />
-                <span id="val-delay" class="text-[8px] font-mono text-zinc-400">0%</span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">LPF CUTOFF</span>
-                <input type="range" id="ctrl-lpf" min="100" max="20000" step="10" value="20000" class="viz-slider" />
-                <span id="val-lpf" class="text-[8px] font-mono text-zinc-400">20kHz</span>
-              </label>
-            </div>
-
-            <!-- DISPLAY -->
-            <div class="space-y-3">
-              <div class="text-[8px] tracking-[0.4em] font-mono text-zinc-600 uppercase border-b border-zinc-900 pb-1">Display</div>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">TIMEBASE</span>
-                <input type="range" id="ctrl-zoom" min="0.5" max="8" step="0.1" value="1" class="viz-slider" />
-                <span id="val-zoom" class="text-[8px] font-mono text-zinc-400">1.0×</span>
-              </label>
-              <label class="flex flex-col gap-1">
-                <span class="text-[8px] font-mono text-zinc-500">PERSISTENCE</span>
-                <input type="range" id="ctrl-persist" min="0" max="0.95" step="0.01" value="0.15" class="viz-slider" />
-                <span id="val-persist" class="text-[8px] font-mono text-zinc-400">15%</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="ctrl-grid" checked class="accent-[#ffff00]" />
-                <span class="text-[8px] font-mono text-zinc-500">GRID</span>
-              </label>
-              <label class="flex items-center gap-2 cursor-pointer">
-                <input type="checkbox" id="ctrl-trigger" class="accent-[#ffff00]" />
-                <span class="text-[8px] font-mono text-zinc-500">TRIG SYNC</span>
-              </label>
-            </div>
-          </div>
-
-          <!-- Start button -->
-          <div class="mt-5 flex items-center gap-4">
-            <button id="start-btn" class="text-[9px] tracking-[0.4em] font-mono px-6 py-2 border border-[#ffff00] text-[#ffff00] hover:bg-[#ffff00] hover:text-black transition-all duration-200 uppercase">
-              ▶ ENGAGE MIC INPUT
-            </button>
-            <button id="stop-btn" class="hidden text-[9px] tracking-[0.4em] font-mono px-6 py-2 border border-zinc-700 text-zinc-500 hover:border-red-800 hover:text-red-500 transition-all duration-200 uppercase">
-              ■ DISCONNECT
-            </button>
-            <span id="init-hint" class="text-[8px] font-mono text-zinc-700 italic">— click to activate microphone input</span>
-          </div>
+        <div id="hud-right">
+          <button id="panel-toggle-btn" title="Toggle panel (Tab)">PANEL ▾</button>
         </div>
       </div>
-    </div>
+
+      <!-- ══ BOTTOM CONTROL PANEL ══ -->
+      <div id="control-panel">
+        <div id="panel-inner">
+
+          <!-- Mode row -->
+          <div id="mode-row">
+            <span class="section-label" style="border:none;margin:0;">DISPLAY</span>
+            <div class="btn-group">
+              {[
+                { id:'scope',      label:'OSCILLOSCOPE' },
+                { id:'spectrum',   label:'SPECTRUM' },
+                { id:'lissajous',  label:'LISSAJOUS' },
+                { id:'radial',     label:'RADIAL' },
+                { id:'waterfall',  label:'WATERFALL' },
+                { id:'particle',   label:'PARTICLE' },
+              ].map(m => (
+                <button class="mode-btn" data-mode={m.id}>{m.label}</button>
+              ))}
+            </div>
+            <div class="btn-group" style="margin-left:auto;">
+              <span class="section-label" style="border:none;margin:0;padding:0;">OVERLAY</span>
+              <button id="pixelmap-btn" class="toggle-btn" data-active="false">PIXEL MAP</button>
+            </div>
+          </div>
+
+          <!-- Main controls grid -->
+          <div id="controls-grid">
+
+            <!-- ── I/O ── -->
+            <div class="ctrl-section">
+              <div class="section-label">I / O</div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">INPUT</span>
+                <select id="input-select" class="viz-select">
+                  <option value="">— mic —</option>
+                </select>
+              </div>
+              <div class="ctrl-row" style="margin-top:6px;">
+                <span class="ctrl-label">OUTPUT</span>
+                <button id="output-toggle" class="toggle-btn" data-active="false">OFF</button>
+              </div>
+              <div class="ctrl-row" style="margin-top:10px;">
+                <span class="ctrl-label">OUT VOL</span>
+                <canvas class="knob-canvas" data-id="out-vol"  data-min="0"   data-max="1"     data-val="0.5"   data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="out-vol">50%</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">MIC GAIN</span>
+                <canvas class="knob-canvas" data-id="gain"     data-min="0.1" data-max="5"     data-val="1"     data-fmt="x2"></canvas>
+                <span class="knob-val" data-for="gain">1.00×</span>
+              </div>
+              <button id="start-btn">▶ ENGAGE</button>
+              <button id="stop-btn" class="hidden">■ STOP</button>
+              <span id="init-hint">mic standby</span>
+            </div>
+
+            <!-- ── SCOPE ── -->
+            <div class="ctrl-section">
+              <div class="section-label">SCOPE</div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">TIMEBASE</span>
+                <canvas class="knob-canvas" data-id="zoom"     data-min="0.5" data-max="8"     data-val="1"     data-fmt="x1"></canvas>
+                <span class="knob-val" data-for="zoom">1.0×</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">V/DIV</span>
+                <canvas class="knob-canvas" data-id="vdiv"     data-min="0.1" data-max="3"     data-val="1"     data-fmt="x1"></canvas>
+                <span class="knob-val" data-for="vdiv">1.0×</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">PERSIST</span>
+                <canvas class="knob-canvas" data-id="persist"  data-min="0"   data-max="0.95"  data-val="0.15"  data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="persist">15%</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">TRIG LVL</span>
+                <canvas class="knob-canvas" data-id="triglvl"  data-min="-1"  data-max="1"     data-val="0"     data-fmt="x1" data-bipolar="true"></canvas>
+                <span class="knob-val" data-for="triglvl">0.0×</span>
+              </div>
+              <div class="toggle-row">
+                <button class="toggle-btn" id="btn-grid"   data-active="true">GRID</button>
+                <button class="toggle-btn" id="btn-trig"   data-active="false">TRIG</button>
+                <button class="toggle-btn" id="btn-invert" data-active="false">INV</button>
+              </div>
+            </div>
+
+            <!-- ── SYNTH ── -->
+            <div class="ctrl-section">
+              <div class="section-label">SYNTH OSC</div>
+              <div class="btn-group" id="osc-btns" style="flex-wrap:wrap;margin-bottom:8px;">
+                {['OFF','SINE','SAW','SQR','TRI','NOISE'].map(t => (
+                  <button class="osc-btn" data-osc={t}>{t}</button>
+                ))}
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">FREQ</span>
+                <canvas class="knob-canvas" data-id="osc-freq"   data-min="20"  data-max="2000"  data-val="440"  data-fmt="hz" data-log="true"></canvas>
+                <span class="knob-val" data-for="osc-freq">440Hz</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">DETUNE</span>
+                <canvas class="knob-canvas" data-id="osc-detune" data-min="-100" data-max="100"  data-val="0"    data-fmt="ct" data-bipolar="true"></canvas>
+                <span class="knob-val" data-for="osc-detune">0¢</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">LEVEL</span>
+                <canvas class="knob-canvas" data-id="osc-vol"    data-min="0"   data-max="1"     data-val="0.3"  data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="osc-vol">30%</span>
+              </div>
+            </div>
+
+            <!-- ── FX ── -->
+            <div class="ctrl-section">
+              <div class="section-label">FX CHAIN</div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">DRIVE</span>
+                <canvas class="knob-canvas" data-id="dist"       data-min="0"   data-max="400"   data-val="0"    data-fmt="raw"></canvas>
+                <span class="knob-val" data-for="dist">0</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">DLY TIME</span>
+                <canvas class="knob-canvas" data-id="delay-time" data-min="0.01" data-max="1"    data-val="0.25" data-fmt="s"></canvas>
+                <span class="knob-val" data-for="delay-time">250ms</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">DLY MIX</span>
+                <canvas class="knob-canvas" data-id="delay-mix"  data-min="0"   data-max="1"     data-val="0"    data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="delay-mix">0%</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">LPF</span>
+                <canvas class="knob-canvas" data-id="lpf"        data-min="100" data-max="20000" data-val="20000" data-fmt="hz" data-log="true"></canvas>
+                <span class="knob-val" data-for="lpf">20kHz</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">HPF</span>
+                <canvas class="knob-canvas" data-id="hpf"        data-min="10"  data-max="5000"  data-val="10"   data-fmt="hz" data-log="true"></canvas>
+                <span class="knob-val" data-for="hpf">10Hz</span>
+              </div>
+            </div>
+
+            <!-- ── PIXEL MAP ── -->
+            <div class="ctrl-section">
+              <div class="section-label">PIXEL MAP</div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">SIZE</span>
+                <canvas class="knob-canvas" data-id="px-size"    data-min="2"   data-max="20"    data-val="4"    data-fmt="raw"></canvas>
+                <span class="knob-val" data-for="px-size">4px</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">THRESH</span>
+                <canvas class="knob-canvas" data-id="px-thresh"  data-min="0"   data-max="1"     data-val="0.15" data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="px-thresh">15%</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">OPACITY</span>
+                <canvas class="knob-canvas" data-id="px-opacity" data-min="0.1" data-max="1"     data-val="0.7"  data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="px-opacity">70%</span>
+              </div>
+              <div class="ctrl-row">
+                <span class="ctrl-label">GAP</span>
+                <canvas class="knob-canvas" data-id="px-gap"     data-min="0"   data-max="6"     data-val="1"    data-fmt="raw"></canvas>
+                <span class="knob-val" data-for="px-gap">1</span>
+              </div>
+            </div>
+
+          </div><!-- /controls-grid -->
+        </div><!-- /panel-inner -->
+      </div><!-- /control-panel -->
+
+    </div><!-- /viz-ui -->
   )}
 </div>
 
 <style>
-  .mini-mode canvas { cursor: pointer; }
-  .fullscreen-mode { background: #000; }
+  .visualizer-root { position:relative; width:100%; height:100%; }
+  .fullscreen-mode { background:#000; }
+  .mini-mode canvas { cursor:pointer; }
+  canvas#visualizer-canvas { display:block; width:100%; height:100%; }
 
-  .viz-slider {
-    -webkit-appearance: none;
-    appearance: none;
-    width: 100%;
-    height: 2px;
-    background: #222;
-    outline: none;
-    cursor: pointer;
+  #viz-ui { position:absolute; inset:0; pointer-events:none; font-family:'Courier New',monospace; }
+
+  /* ── HUD ── */
+  #hud-bar {
+    position:absolute; top:0; left:0; right:0;
+    display:flex; align-items:center; justify-content:space-between;
+    padding:10px 20px;
+    background:linear-gradient(to bottom,rgba(0,0,0,0.88) 0%,transparent 100%);
+    pointer-events:auto;
   }
-  .viz-slider::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: #ffff00;
-    cursor: pointer;
-    box-shadow: 0 0 6px rgba(255,255,0,0.5);
+  #hud-left  { display:flex; align-items:center; gap:16px; }
+  #hud-title { font-size:9px; letter-spacing:.5em; font-weight:700; color:#ffff00; text-transform:uppercase; }
+  #hud-status { display:flex; align-items:center; gap:6px; }
+  #status-dot { width:6px; height:6px; border-radius:50%; background:#ffff00; animation:blink 2s infinite; }
+  @keyframes blink { 0%,100%{opacity:1} 50%{opacity:.25} }
+  #status-label { font-size:8px; color:#555; letter-spacing:.4em; text-transform:uppercase; }
+  #hud-center { display:flex; gap:20px; font-size:9px; color:#555; letter-spacing:.1em; }
+  #hud-right  { pointer-events:auto; }
+
+  #panel-toggle-btn {
+    font-size:8px; font-family:inherit; letter-spacing:.3em; text-transform:uppercase;
+    color:#555; background:transparent; border:1px solid #2a2a2a;
+    padding:5px 12px; cursor:pointer; transition:all .2s;
   }
-  .viz-slider::-moz-range-thumb {
-    width: 10px; height: 10px;
-    border-radius: 50%;
-    background: #ffff00;
-    cursor: pointer;
-    border: none;
+  #panel-toggle-btn:hover, #panel-toggle-btn.panel-visible { color:#ffff00; border-color:#555; }
+
+  /* ── Panel ── */
+  #control-panel {
+    position:absolute; bottom:0; left:0; right:0;
+    background:linear-gradient(to top,rgba(0,0,0,.97) 0%,rgba(0,0,0,.82) 80%,transparent 100%);
+    pointer-events:auto;
+    transform:translateY(0);
+    transition:transform .35s cubic-bezier(.4,0,.2,1);
+  }
+  #control-panel.hidden { transform:translateY(100%); pointer-events:none; }
+  #panel-inner { padding:28px 20px 14px; }
+
+  /* Mode row */
+  #mode-row {
+    display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;
+  }
+  .btn-group { display:flex; gap:3px; flex-wrap:wrap; }
+  .section-label {
+    font-size:7px; letter-spacing:.4em; color:#3a3a3a; text-transform:uppercase;
+    border-bottom:1px solid #1c1c1c; padding-bottom:4px; margin-bottom:8px; display:block;
   }
 
-  .mode-btn.active {
-    border-color: #ffff00 !important;
-    color: #ffff00 !important;
-    background: rgba(255,255,0,0.05);
+  /* Buttons */
+  .mode-btn, .osc-btn, .toggle-btn {
+    font-size:7px; font-family:inherit; letter-spacing:.25em; text-transform:uppercase;
+    background:transparent; border:1px solid #252525; color:#3a3a3a;
+    padding:4px 8px; cursor:pointer; transition:all .15s;
   }
-  .osc-btn.active {
-    border-color: #ffff00 !important;
-    color: #000 !important;
-    background: #ffff00 !important;
+  .mode-btn:hover, .osc-btn:hover, .toggle-btn:hover { border-color:#555; color:#888; }
+  .mode-btn.active  { border-color:#ffff00; color:#ffff00; background:rgba(255,255,0,.04); }
+  .osc-btn.active   { border-color:#ffff00; color:#000;    background:#ffff00; }
+  .toggle-btn[data-active="true"] { border-color:#ffff00; color:#ffff00; background:rgba(255,255,0,.06); }
+
+  /* Controls grid */
+  #controls-grid {
+    display:grid; grid-template-columns:repeat(5,1fr); gap:0 18px;
   }
+  .ctrl-section { border-left:1px solid #181818; padding-left:14px; }
+  .ctrl-section:first-child { border-left:none; padding-left:0; }
+
+  .ctrl-row { display:flex; align-items:center; gap:8px; margin-bottom:8px; }
+  .ctrl-label { font-size:7px; color:#3a3a3a; letter-spacing:.2em; min-width:44px; text-transform:uppercase; }
+  .toggle-row { display:flex; gap:4px; margin-top:6px; }
+
+  /* Knobs */
+  .knob-canvas { width:36px !important; height:36px !important; cursor:ns-resize; flex-shrink:0; }
+  .knob-val    { font-size:8px; color:#555; letter-spacing:.08em; min-width:36px; }
+
+  /* Select */
+  .viz-select {
+    font-size:8px; font-family:inherit; background:#080808;
+    border:1px solid #222; color:#777; padding:3px 6px;
+    cursor:pointer; flex:1; max-width:140px;
+    letter-spacing:.05em; outline:none;
+  }
+  .viz-select:focus { border-color:#444; }
+  .viz-select option { background:#111; }
+
+  /* Engage/Stop */
+  #start-btn, #stop-btn {
+    font-size:8px; font-family:inherit; letter-spacing:.3em; text-transform:uppercase;
+    padding:6px 12px; cursor:pointer; border:1px solid #ffff00; color:#ffff00;
+    background:transparent; transition:all .2s; margin-top:8px; display:block;
+  }
+  #start-btn:hover { background:#ffff00; color:#000; }
+  #stop-btn { border-color:#333; color:#444; }
+  #stop-btn:hover { border-color:#a00; color:#a00; }
+  #stop-btn.hidden { display:none; }
+  #init-hint { font-size:7px; color:#2a2a2a; font-style:italic; margin-top:4px; display:block; }
 </style>
 
 <script>
-// ────────────────────────────────────────────────
-// SS_SCOPE v3.0 — Advanced Audio Visualizer Engine
-// ────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────
+//  SS_SCOPE v4.0  —  Audio Visualizer Engine
+// ─────────────────────────────────────────────────────────
+const ROOT    = document.querySelector('.visualizer-root') as HTMLElement;
+const canvas  = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
+const C       = canvas.getContext('2d')!;
+const IS_MINI = ROOT.dataset.mini === 'true';
+const ACCENT  = ROOT.dataset.color || '#ffff00';
 
-const ROOT     = document.querySelector('.visualizer-root') as HTMLElement;
-const canvas   = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
-const ctx2d    = canvas.getContext('2d')!;
-const IS_MINI  = ROOT?.dataset.mini === 'true';
-const ACCENT   = ROOT?.dataset.color || '#ffff00';
-
-// ── State ──────────────────────────────────────
-let audioCtx: AudioContext;
-let analyser: AnalyserNode;
-let gainNode: GainNode;
-let distNode: WaveShaperNode;
-let lpfNode: BiquadFilterNode;
-let delayNode: DelayNode;
-let delayGain: GainNode;
-let oscNode: OscillatorNode | null = null;
-let oscGain: GainNode;
-let noiseNode: AudioBufferSourceNode | null = null;
-let micStream: MediaStream | null = null;
-let micSource: MediaStreamAudioSourceNode | null = null;
-let running = false;
-
-let mode       = 'scope';
-let gain       = 1.0;
-let threshold  = 0;
-let zoom       = 1.0;
-let persist    = 0.15;
-let showGrid   = true;
-let trigSync   = false;
-let oscType: OscillatorType | 'off' | 'noise' = 'off';
-let oscFreq    = 440;
-let oscVol     = 0.3;
-let distAmt    = 0;
-let delayMix   = 0;
-let lpfFreq    = 20000;
-
-// Waterfall buffer
-const WATERFALL_ROWS = 120;
-let waterfallData: Uint8Array[] = [];
-
-// Lissajous history
-const LISSAJOUS_LEN = 512;
-let lissLeft: number[] = [];
-let lissRight: number[] = [];
-
-// Particle system
-interface Particle { x:number; y:number; vx:number; vy:number; life:number; maxLife:number; size:number; color:string; }
-let particles: Particle[] = [];
-
-// ── Resize ─────────────────────────────────────
+function dpr() { return window.devicePixelRatio || 1; }
 function resize() {
-  const dpr = window.devicePixelRatio || 1;
-  canvas.width  = canvas.clientWidth  * dpr;
-  canvas.height = canvas.clientHeight * dpr;
+  canvas.width  = canvas.clientWidth  * dpr();
+  canvas.height = canvas.clientHeight * dpr();
 }
 window.addEventListener('resize', resize);
 resize();
 
-// ── Audio init ─────────────────────────────────
-async function initAudio() {
-  if (running) return;
-  try {
-    micStream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, video: false });
-  } catch (e) {
-    console.warn('Mic unavailable, synth-only mode');
-  }
+// ── Audio nodes ──────────────────────────────────────────
+let audioCtx:    AudioContext;
+let analyser:    AnalyserNode;
+let gainNode:    GainNode;
+let distNode:    WaveShaperNode;
+let lpfNode:     BiquadFilterNode;
+let hpfNode:     BiquadFilterNode;
+let delayNode:   DelayNode;
+let delayGain:   GainNode;
+let outputGain:  GainNode;
+let oscGainNode: GainNode;
+let oscNode:     OscillatorNode | null = null;
+let noiseNode:   AudioBufferSourceNode | null = null;
+let micSource:   MediaStreamAudioSourceNode | null = null;
+let micStream:   MediaStream | null = null;
+let running = false;
 
-  audioCtx  = new AudioContext();
-  analyser  = audioCtx.createAnalyser();
+// ── Audio params ─────────────────────────────────────────
+let gain      = 1.0;
+let outVol    = 0.5;
+let outputOn  = false;
+let oscType: OscillatorType | 'off' | 'noise' = 'off';
+let oscFreq   = 440;
+let oscDetune = 0;
+let oscVol    = 0.3;
+let distAmt   = 0;
+let delayTime = 0.25;
+let delayMix  = 0;
+let lpfFreq   = 20000;
+let hpfFreq   = 10;
+
+// ── Vis params ───────────────────────────────────────────
+let mode      = 'scope';
+let zoom      = 1.0;
+let vdiv      = 1.0;
+let persist   = 0.15;
+let trigLvl   = 0.0;
+let showGrid  = true;
+let trigSync  = false;
+let invertSig = false;
+let pixelMapOn = false;
+let pxSize    = 4;
+let pxThresh  = 0.15;
+let pxOpacity = 0.7;
+let pxGap     = 1;
+
+// ── Buffers ──────────────────────────────────────────────
+const WATERFALL_ROWS = 150;
+let waterfallData: Uint8Array[] = [];
+const LISS_LEN = 1024;
+let lissX: number[] = [];
+let lissY: number[] = [];
+interface Ptcl { x:number;y:number;vx:number;vy:number;life:number;mLife:number;sz:number;hue:number }
+let particles: Ptcl[] = [];
+
+// ── Audio init ───────────────────────────────────────────
+async function initAudio(deviceId?: string) {
+  if (running) { await restartMic(deviceId); return; }
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false,
+               ...(deviceId ? { deviceId:{ exact:deviceId } } : {}) }
+    });
+  } catch(e) { console.warn('Mic unavail:', e); }
+
+  audioCtx    = new AudioContext();
+  analyser    = audioCtx.createAnalyser();
   analyser.fftSize = 4096;
   analyser.smoothingTimeConstant = 0.0;
 
-  gainNode  = audioCtx.createGain();
-  gainNode.gain.value = gain;
+  gainNode    = audioCtx.createGain();           gainNode.gain.value    = gain;
+  distNode    = audioCtx.createWaveShaper();     distNode.oversample    = '4x';
+  lpfNode     = audioCtx.createBiquadFilter();   lpfNode.type           = 'lowpass';   lpfNode.frequency.value  = lpfFreq;
+  hpfNode     = audioCtx.createBiquadFilter();   hpfNode.type           = 'highpass';  hpfNode.frequency.value  = hpfFreq;
+  delayNode   = audioCtx.createDelay(2.0);       delayNode.delayTime.value = delayTime;
+  delayGain   = audioCtx.createGain();           delayGain.gain.value   = 0;
+  // Output path — by default disconnected from destination (no feedback / howl)
+  outputGain  = audioCtx.createGain();           outputGain.gain.value  = 0;
+  oscGainNode = audioCtx.createGain();           oscGainNode.gain.value = 0;
 
-  distNode  = audioCtx.createWaveShaper();
-  distNode.oversample = '4x';
+  applyDistortion(distAmt);
 
-  lpfNode   = audioCtx.createBiquadFilter();
-  lpfNode.type = 'lowpass';
-  lpfNode.frequency.value = lpfFreq;
-
-  delayNode = audioCtx.createDelay(1.0);
-  delayNode.delayTime.value = 0.25;
-  delayGain = audioCtx.createGain();
-  delayGain.gain.value = 0;
-
-  oscGain   = audioCtx.createGain();
-  oscGain.gain.value = 0;
-
-  // Chain: source → gain → dist → lpf → (delay side-chain) → analyser → dest
+  // Signal chain:
+  // [mic|osc] → gainNode → distNode → hpfNode → lpfNode → analyser
+  //                                                        → delayNode → delayGain → analyser
+  //                                           → outputGain → destination   (only when outputOn)
   gainNode.connect(distNode);
-  distNode.connect(lpfNode);
+  distNode.connect(hpfNode);
+  hpfNode.connect(lpfNode);
   lpfNode.connect(analyser);
   lpfNode.connect(delayNode);
   delayNode.connect(delayGain);
   delayGain.connect(analyser);
-  analyser.connect(audioCtx.destination);
+  // outputGain is ONLY connected to destination when user enables output
+  analyser.connect(outputGain);
+  // Do NOT connect outputGain → destination yet (prevents howling)
 
-  oscGain.connect(gainNode);
+  oscGainNode.connect(gainNode);
 
   if (micStream) {
     micSource = audioCtx.createMediaStreamSource(micStream);
     micSource.connect(gainNode);
   }
 
-  applyDistortion(distAmt);
   running = true;
-
-  if (!IS_MINI) {
-    document.getElementById('status-label')!.textContent = 'ACTIVE';
-    document.getElementById('start-btn')!.classList.add('hidden');
-    document.getElementById('stop-btn')!.classList.remove('hidden');
-    document.getElementById('init-hint')!.textContent = micStream ? '— microphone connected' : '— synth-only (mic unavailable)';
-  }
+  setEngageUI(true);
   requestAnimationFrame(drawLoop);
 }
 
+async function restartMic(deviceId?: string) {
+  micStream?.getTracks().forEach(t => t.stop());
+  micSource?.disconnect();
+  try {
+    micStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation:false, noiseSuppression:false, autoGainControl:false,
+               ...(deviceId ? { deviceId:{ exact:deviceId } } : {}) }
+    });
+    micSource = audioCtx.createMediaStreamSource(micStream);
+    micSource.connect(gainNode);
+  } catch(e) { console.warn('Mic restart failed:', e); }
+}
+
 function stopAudio() {
-  if (!running) return;
-  oscNode?.stop(); oscNode = null;
+  oscNode?.stop();   oscNode   = null;
   noiseNode?.stop(); noiseNode = null;
   micStream?.getTracks().forEach(t => t.stop());
+  // Safely disconnect outputGain from destination if connected
+  try { outputGain?.disconnect(audioCtx.destination); } catch(_){}
   audioCtx?.close();
   running = false;
-  if (!IS_MINI) {
-    document.getElementById('status-label')!.textContent = 'STANDBY';
-    document.getElementById('start-btn')!.classList.remove('hidden');
-    document.getElementById('stop-btn')!.classList.add('hidden');
+  setEngageUI(false);
+}
+
+function setEngageUI(on: boolean) {
+  const sl = document.getElementById('status-label');
+  const sb = document.getElementById('start-btn');
+  const xb = document.getElementById('stop-btn');
+  const ih = document.getElementById('init-hint');
+  if (sl) sl.textContent = on ? 'ACTIVE' : 'STANDBY';
+  sb?.classList.toggle('hidden', on);
+  xb?.classList.toggle('hidden', !on);
+  if (ih && on) ih.textContent = micStream ? 'mic connected' : 'synth only';
+}
+
+// ── Output routing (howl-safe) ────────────────────────────
+function setOutputToggle(on: boolean) {
+  outputOn = on;
+  const btn = document.getElementById('output-toggle');
+  if (btn) { btn.textContent = on ? 'ON' : 'OFF'; btn.dataset.active = String(on); }
+  if (!audioCtx || !outputGain) return;
+  if (on) {
+    try { outputGain.connect(audioCtx.destination); } catch(_){}
+    outputGain.gain.setTargetAtTime(outVol, audioCtx.currentTime, 0.02);
+  } else {
+    outputGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
+    // Disconnect after fade
+    setTimeout(() => { try { outputGain.disconnect(audioCtx.destination); } catch(_){} }, 200);
   }
 }
 
-// ── Distortion curve ───────────────────────────
+function setOutputVol(v: number) {
+  outVol = v;
+  if (outputGain && outputOn) outputGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
+}
+
+// ── Distortion ───────────────────────────────────────────
 function makeDistCurve(amount: number): Float32Array {
-  const samples = 256;
-  const curve = new Float32Array(samples);
-  for (let i = 0; i < samples; ++i) {
-    const x = (i * 2) / samples - 1;
-    curve[i] = amount === 0 ? x : ((Math.PI + amount) * x) / (Math.PI + amount * Math.abs(x));
+  const n = 512; const curve = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const x = (i*2)/n - 1;
+    curve[i] = amount === 0 ? x : ((Math.PI+amount)*x)/(Math.PI+amount*Math.abs(x));
   }
   return curve;
 }
 function applyDistortion(v: number) { if (distNode) distNode.curve = makeDistCurve(v); }
 
-// ── Oscillator control ─────────────────────────
+// ── Oscillator ───────────────────────────────────────────
 function startOsc(type: typeof oscType) {
-  oscNode?.stop(); oscNode = null;
+  oscNode?.stop();   oscNode   = null;
   noiseNode?.stop(); noiseNode = null;
-  if (!audioCtx || type === 'off') return;
-
+  if (!audioCtx || type === 'off') { oscGainNode?.gain.setTargetAtTime(0, audioCtx?.currentTime||0, 0.01); return; }
   if (type === 'noise') {
-    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate * 2, audioCtx.sampleRate);
-    const data = buf.getChannelData(0);
-    for (let i = 0; i < data.length; i++) data[i] = Math.random() * 2 - 1;
+    const buf = audioCtx.createBuffer(1, audioCtx.sampleRate*2, audioCtx.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = Math.random()*2-1;
     noiseNode = audioCtx.createBufferSource();
-    noiseNode.buffer = buf;
-    noiseNode.loop = true;
-    noiseNode.connect(oscGain);
-    noiseNode.start();
+    noiseNode.buffer = buf; noiseNode.loop = true;
+    noiseNode.connect(oscGainNode); noiseNode.start();
   } else {
     oscNode = audioCtx.createOscillator();
     oscNode.type = type as OscillatorType;
     oscNode.frequency.value = oscFreq;
-    oscNode.connect(oscGain);
-    oscNode.start();
+    oscNode.detune.value    = oscDetune;
+    oscNode.connect(oscGainNode); oscNode.start();
   }
-  oscGain.gain.value = oscVol;
+  oscGainNode.gain.setTargetAtTime(oscVol, audioCtx.currentTime, 0.01);
 }
 
-// ── Domain data helpers ────────────────────────
-function getTimeDomain(): Uint8Array {
+// ── Device enumeration ───────────────────────────────────
+async function populateDevices() {
+  const sel = document.getElementById('input-select') as HTMLSelectElement;
+  if (!sel) return;
+  try {
+    // Trigger permission prompt
+    await navigator.mediaDevices.getUserMedia({audio:true}).then(s=>s.getTracks().forEach(t=>t.stop())).catch(()=>{});
+    const devs = await navigator.mediaDevices.enumerateDevices();
+    const ins  = devs.filter(d => d.kind === 'audioinput');
+    sel.innerHTML = ins.map((d,i) => `<option value="${d.deviceId}">${d.label||'Microphone '+(i+1)}</option>`).join('');
+  } catch { sel.innerHTML = '<option value="">— permission required —</option>'; }
+}
+
+// ── Data getters ─────────────────────────────────────────
+function getTime(): Uint8Array {
   const buf = new Uint8Array(analyser.fftSize);
   analyser.getByteTimeDomainData(buf);
+  if (invertSig) for (let i=0; i<buf.length; i++) buf[i] = 255-buf[i];
   return buf;
 }
-function getFreqDomain(): Uint8Array {
+function getFreq(): Uint8Array {
   const buf = new Uint8Array(analyser.frequencyBinCount);
   analyser.getByteFrequencyData(buf);
   return buf;
 }
-
-// ── Trigger sync (rising edge) ─────────────────
 function findTrigger(data: Uint8Array): number {
-  const mid = 128;
-  for (let i = 1; i < data.length - 1; i++) {
-    if (data[i - 1] < mid && data[i] >= mid) return i;
-  }
+  const mid = 128 + trigLvl*127;
+  for (let i=1; i<data.length-1; i++) if (data[i-1]<mid && data[i]>=mid) return i;
   return 0;
 }
-
-// ── RMS + peak freq ────────────────────────────
 function calcRMS(data: Uint8Array): number {
-  let sum = 0;
-  for (let i = 0; i < data.length; i++) { const v = (data[i] - 128) / 128; sum += v * v; }
-  return Math.sqrt(sum / data.length);
+  let s=0;
+  for (const v of data) { const n=(v-128)/128*gain; s+=n*n; }
+  return Math.sqrt(s/data.length);
 }
-function calcPeakFreq(freq: Uint8Array): number {
-  let maxIdx = 0;
-  for (let i = 1; i < freq.length; i++) if (freq[i] > freq[maxIdx]) maxIdx = i;
-  return (maxIdx / freq.length) * (audioCtx?.sampleRate ?? 44100) / 2;
+function peakIdx(freq: Uint8Array): number {
+  let mi=0; for (let i=1; i<freq.length; i++) if (freq[i]>freq[mi]) mi=i; return mi;
 }
+function idxToHz(i: number): number { return i*(audioCtx?.sampleRate??44100)/analyser.fftSize; }
 
-// ── Phosphor glow helper ───────────────────────
-function glowLine(c: CanvasRenderingContext2D, color: string, blur: number, lw: number) {
-  c.shadowBlur  = blur;
-  c.shadowColor = color;
-  c.strokeStyle = color;
-  c.lineWidth   = lw;
-}
-
-// ── Grid ───────────────────────────────────────
+// ── Grid ─────────────────────────────────────────────────
 function drawGrid(c: CanvasRenderingContext2D, W: number, H: number) {
   c.save();
-  c.strokeStyle = 'rgba(255,255,0,0.06)';
-  c.lineWidth = 0.5;
-  const cols = 10, rows = 8;
-  for (let i = 0; i <= cols; i++) {
-    const x = (W / cols) * i;
-    c.beginPath(); c.moveTo(x, 0); c.lineTo(x, H); c.stroke();
-  }
-  for (let i = 0; i <= rows; i++) {
-    const y = (H / rows) * i;
-    c.beginPath(); c.moveTo(0, y); c.lineTo(W, y); c.stroke();
-  }
-  // Center lines
-  c.strokeStyle = 'rgba(255,255,0,0.12)';
-  c.beginPath(); c.moveTo(0, H/2); c.lineTo(W, H/2); c.stroke();
-  c.beginPath(); c.moveTo(W/2, 0); c.lineTo(W/2, H); c.stroke();
+  c.strokeStyle='rgba(255,255,0,0.055)'; c.lineWidth=0.5;
+  for(let i=0;i<=10;i++){const x=W/10*i;c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
+  for(let j=0;j<=8;j++){const y=H/8*j;c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
+  c.strokeStyle='rgba(255,255,0,0.11)';
+  c.beginPath();c.moveTo(0,H/2);c.lineTo(W,H/2);c.stroke();
+  c.beginPath();c.moveTo(W/2,0);c.lineTo(W/2,H);c.stroke();
   c.restore();
 }
 
-// ── MODE: OSCILLOSCOPE ─────────────────────────
+// ── Pixel Map ────────────────────────────────────────────
+function drawPixelMap(c: CanvasRenderingContext2D, W: number, H: number) {
+  const cell = Math.max(2, Math.floor(pxSize)) + Math.max(0, Math.floor(pxGap));
+  let imgData: ImageData;
+  try { imgData = c.getImageData(0, 0, Math.floor(W), Math.floor(H)); } catch { return; }
+  const src = imgData.data;
+  const iW  = imgData.width;
+
+  // Clear canvas (we'll repaint as pixels)
+  c.clearRect(0, 0, W, H);
+
+  c.save();
+  c.globalAlpha = pxOpacity;
+  const dotSz = Math.max(1, pxSize - pxGap);
+  const cols = Math.ceil(W / cell);
+  const rows = Math.ceil(H / cell);
+
+  for (let row=0; row<rows; row++) {
+    for (let col=0; col<cols; col++) {
+      const sx = Math.floor(col*cell + cell/2);
+      const sy = Math.floor(row*cell + cell/2);
+      if (sx >= iW || sy >= imgData.height) continue;
+      const idx = (sy*iW + sx)*4;
+      const r=src[idx], g=src[idx+1], b=src[idx+2], a=src[idx+3];
+      const lum = (r*.299 + g*.587 + b*.114)/255 * (a/255);
+      if (lum < pxThresh) continue;
+      const t = Math.min(lum / 0.75, 1);
+      const pr = Math.round(t>0.5 ? 255 : t*2*255);
+      const pg = Math.round(Math.min(lum*1.6, 1)*255);
+      const pb = Math.round(t>0.88 ? (t-0.88)/0.12*200 : 0);
+      c.fillStyle = `rgb(${pr},${pg},${pb})`;
+      c.fillRect(col*cell, row*cell, dotSz, dotSz);
+    }
+  }
+  c.restore();
+}
+
+// ── SCOPE ────────────────────────────────────────────────
 function drawScope(c: CanvasRenderingContext2D, W: number, H: number) {
-  const data = getTimeDomain();
+  const data = getTime();
   if (showGrid) drawGrid(c, W, H);
-  const start = trigSync ? findTrigger(data) : 0;
-  const visLen = Math.floor(data.length / zoom);
-  const sliceW = W / visLen;
+  const start  = trigSync ? findTrigger(data) : 0;
+  const visLen = Math.max(2, Math.floor(data.length / zoom));
+  const sw     = W / visLen;
 
-  // Glow pass
-  c.save();
-  glowLine(c, ACCENT, 20, 3);
-  c.globalAlpha = 0.3;
-  c.beginPath();
-  for (let i = 0; i < visLen; i++) {
-    const idx = (start + i) % data.length;
-    const v = ((data[idx] / 128.0) - 1) * gain;
-    const y = H / 2 - v * (H / 2) * 0.85;
-    i === 0 ? c.moveTo(0, y) : c.lineTo(i * sliceW, y);
+  const wave = (lw: number, blur: number, alpha: number) => {
+    c.save(); c.lineWidth=lw; c.shadowBlur=blur; c.shadowColor=ACCENT;
+    c.strokeStyle=ACCENT; c.globalAlpha=alpha; c.beginPath();
+    for (let i=0; i<visLen; i++) {
+      const v = ((data[(start+i)%data.length]/128)-1)*gain*vdiv;
+      const y = H/2 - v*H*0.42;
+      i===0 ? c.moveTo(0,y) : c.lineTo(i*sw,y);
+    }
+    c.stroke(); c.restore();
+  };
+  wave(8, 32, 0.07);
+  wave(2.5, 14, 0.22);
+  wave(1.2, 5, 1.0);
+
+  if (trigSync) {
+    c.save(); c.strokeStyle='rgba(255,80,80,.4)'; c.setLineDash([4,4]);
+    c.lineWidth=.5; c.beginPath();
+    const ty = H/2 - trigLvl*H*0.42;
+    c.moveTo(0,ty); c.lineTo(W,ty); c.stroke(); c.restore();
   }
-  c.stroke();
-  c.restore();
-
-  // Main pass
-  c.save();
-  glowLine(c, ACCENT, 8, 1.5);
-  c.beginPath();
-  for (let i = 0; i < visLen; i++) {
-    const idx = (start + i) % data.length;
-    const v = ((data[idx] / 128.0) - 1) * gain;
-    const y = H / 2 - v * (H / 2) * 0.85;
-    i === 0 ? c.moveTo(0, y) : c.lineTo(i * sliceW, y);
-  }
-  c.stroke();
-  c.restore();
-
-  // HUD
-  const rms = calcRMS(data);
-  const db = rms > 0 ? (20 * Math.log10(rms)).toFixed(1) : '-∞';
-  const freq = getFreqDomain();
-  const pf = calcPeakFreq(freq);
-  updateHUD(pf, parseFloat(db as string));
+  const freq=getFreq(); const rms=calcRMS(data);
+  updateHUD(idxToHz(peakIdx(freq)), rms>0?20*Math.log10(rms):-Infinity);
 }
 
-// ── MODE: SPECTRUM ─────────────────────────────
+// ── SPECTRUM ─────────────────────────────────────────────
 function drawSpectrum(c: CanvasRenderingContext2D, W: number, H: number) {
-  const freq = getFreqDomain();
+  const freq = getFreq();
   if (showGrid) drawGrid(c, W, H);
-
-  const bins = Math.floor(freq.length / zoom);
-  const barW = W / bins;
-
-  for (let i = 0; i < bins; i++) {
-    const v = (freq[i] / 255) * gain;
-    const h = v * H;
-    const hue = (i / bins) * 60 + 40; // yellow-green sweep
-    const alpha = 0.6 + v * 0.4;
-    c.fillStyle = `hsla(${hue}, 100%, 55%, ${alpha})`;
-    c.shadowBlur = 10 * v;
-    c.shadowColor = `hsl(${hue}, 100%, 70%)`;
-    c.fillRect(i * barW, H - h, barW - 0.5, h);
+  const bins = Math.min(Math.floor(freq.length/zoom), freq.length);
+  const bw   = W / bins;
+  for (let i=0; i<bins; i++) {
+    const v = Math.min((freq[i]/255)*gain*vdiv, 1);
+    const h = v*H*.95;
+    const hue = (i/bins)*60+35;
+    c.fillStyle=`hsla(${hue},${80+v*20}%,55%,${0.4+v*0.6})`;
+    c.shadowBlur=8*v; c.shadowColor=`hsl(${hue},100%,70%)`;
+    c.fillRect(i*bw, H-h, Math.max(bw-.5,.5), h);
   }
-
-  // Peak hold line
-  c.save();
-  c.strokeStyle = 'rgba(255,255,255,0.3)';
-  c.lineWidth = 0.5;
-  c.beginPath();
-  for (let i = 0; i < bins; i++) {
-    const v = (freq[i] / 255) * gain;
-    const y = H - v * H;
-    i === 0 ? c.moveTo(i * barW, y) : c.lineTo(i * barW, y);
+  c.save(); c.strokeStyle='rgba(255,255,255,.2)'; c.lineWidth=.5; c.beginPath();
+  for (let i=0; i<bins; i++) {
+    const v=Math.min((freq[i]/255)*gain*vdiv,1);
+    i===0?c.moveTo(i*bw,H-v*H*.95):c.lineTo(i*bw,H-v*H*.95);
   }
-  c.stroke();
-  c.restore();
-
-  updateHUD(calcPeakFreq(freq), 0);
+  c.stroke(); c.restore();
+  updateHUD(idxToHz(peakIdx(freq)), 0);
 }
 
-// ── MODE: LISSAJOUS ────────────────────────────
+// ── LISSAJOUS (line) ─────────────────────────────────────
 function drawLissajous(c: CanvasRenderingContext2D, W: number, H: number) {
-  const data = getTimeDomain();
-  const step = Math.max(1, Math.floor(data.length / LISSAJOUS_LEN));
-  for (let i = 0; i < data.length - step; i += step) {
-    const l = ((data[i] / 128) - 1) * gain;
-    const r = ((data[i + step] / 128) - 1) * gain;
-    lissLeft.push(l);
-    lissRight.push(r);
+  const data = getTime();
+  const step = Math.max(1, Math.floor(data.length/LISS_LEN));
+  for (let i=0; i<data.length-step; i+=step) {
+    lissX.push(((data[i]/128)-1)*gain*vdiv);
+    lissY.push(((data[i+step]/128)-1)*gain*vdiv);
   }
-  while (lissLeft.length > LISSAJOUS_LEN) { lissLeft.shift(); lissRight.shift(); }
+  while (lissX.length > LISS_LEN) { lissX.shift(); lissY.shift(); }
 
   if (showGrid) {
-    c.save();
-    c.strokeStyle = 'rgba(255,255,0,0.06)';
-    c.lineWidth = 0.5;
-    [-0.5,0,0.5].forEach(v => {
-      const px = W/2 + v * W * 0.45;
-      const py = H/2 + v * H * 0.45;
-      c.beginPath(); c.moveTo(px,0); c.lineTo(px,H); c.stroke();
-      c.beginPath(); c.moveTo(0,py); c.lineTo(W,py); c.stroke();
-    });
-    c.restore();
+    c.save(); c.strokeStyle='rgba(255,255,0,0.05)'; c.lineWidth=.5;
+    [-0.5,0,0.5].forEach(v=>{
+      c.beginPath();c.moveTo(W/2+v*W*.44,0);c.lineTo(W/2+v*W*.44,H);c.stroke();
+      c.beginPath();c.moveTo(0,H/2+v*H*.44);c.lineTo(W,H/2+v*H*.44);c.stroke();
+    }); c.restore();
   }
 
-  c.save();
-  for (let i = 0; i < lissLeft.length; i++) {
-    const alpha = i / lissLeft.length;
-    const x = W/2 + lissLeft[i]  * W * 0.45;
-    const y = H/2 + lissRight[i] * H * 0.45;
-    const hue = alpha * 60 + 40;
-    c.fillStyle = `hsla(${hue}, 100%, 60%, ${alpha * 0.8})`;
-    c.shadowBlur = 6;
-    c.shadowColor = `hsl(${hue}, 100%, 70%)`;
+  const n = lissX.length;
+  if (n < 2) return;
+  for (let i=1; i<n; i++) {
+    const t = i/n;
+    c.save();
+    c.strokeStyle=`hsla(${t*55+35},100%,60%,${t*.9})`;
+    c.lineWidth=1.2; c.shadowBlur=6*t; c.shadowColor=`hsl(${t*55+35},100%,70%)`;
     c.beginPath();
-    c.arc(x, y, 1.5, 0, Math.PI * 2);
-    c.fill();
+    c.moveTo(W/2+lissX[i-1]*W*.44, H/2+lissY[i-1]*H*.44);
+    c.lineTo(W/2+lissX[i]  *W*.44, H/2+lissY[i]  *H*.44);
+    c.stroke(); c.restore();
   }
-  c.restore();
+  if (n>0) {
+    c.save(); c.fillStyle=ACCENT; c.shadowBlur=14; c.shadowColor=ACCENT;
+    c.beginPath(); c.arc(W/2+lissX[n-1]*W*.44, H/2+lissY[n-1]*H*.44, 3, 0, Math.PI*2);
+    c.fill(); c.restore();
+  }
 }
 
-// ── MODE: RADIAL ───────────────────────────────
+// ── RADIAL ───────────────────────────────────────────────
 function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
-  const data = getTimeDomain();
-  const freq = getFreqDomain();
-  const cx = W / 2, cy = H / 2;
-  const baseR = Math.min(W, H) * 0.28;
-
+  const data=getTime(), freq=getFreq();
+  const cx=W/2, cy=H/2, baseR=Math.min(W,H)*.26;
   if (showGrid) {
     c.save();
-    for (let ring = 1; ring <= 3; ring++) {
-      c.beginPath();
-      c.arc(cx, cy, baseR * ring * 0.5, 0, Math.PI * 2);
-      c.strokeStyle = 'rgba(255,255,0,0.05)';
-      c.lineWidth = 0.5;
-      c.stroke();
-    }
-    c.restore();
+    [.5,1,1.5,2].forEach(s=>{
+      c.beginPath();c.arc(cx,cy,baseR*s*.55,0,Math.PI*2);
+      c.strokeStyle='rgba(255,255,0,0.04)';c.lineWidth=.5;c.stroke();
+    }); c.restore();
   }
-
-  const bins = Math.min(data.length, 512);
-  const step = (Math.PI * 2) / bins;
-
-  // Outer waveform
+  const fBins=Math.min(freq.length,128);
   c.save();
-  glowLine(c, ACCENT, 15, 1.5);
-  c.beginPath();
-  for (let i = 0; i < bins; i++) {
-    const v = ((data[i] / 128) - 1) * gain;
-    const r = baseR + v * baseR * 0.6;
-    const angle = i * step - Math.PI / 2;
-    const x = cx + Math.cos(angle) * r;
-    const y = cy + Math.sin(angle) * r;
-    i === 0 ? c.moveTo(x, y) : c.lineTo(x, y);
-  }
-  c.closePath();
-  c.stroke();
-  c.restore();
-
-  // Inner freq bars
-  const freqBins = Math.min(freq.length, 128);
-  const fStep = (Math.PI * 2) / freqBins;
-  c.save();
-  for (let i = 0; i < freqBins; i++) {
-    const v = (freq[i] / 255) * gain;
-    const angle = i * fStep - Math.PI / 2;
-    const r1 = baseR * 0.15;
-    const r2 = r1 + v * baseR * 0.7;
-    const hue = (i / freqBins) * 60 + 30;
-    c.strokeStyle = `hsla(${hue}, 100%, 60%, 0.6)`;
-    c.shadowColor = `hsl(${hue}, 100%, 70%)`;
-    c.shadowBlur = 8 * v;
-    c.lineWidth = 1;
+  for (let i=0;i<fBins;i++) {
+    const v=Math.min((freq[i]/255)*gain*vdiv,1);
+    const ang=i*(Math.PI*2/fBins)-Math.PI/2;
+    const hue=(i/fBins)*60+30;
+    c.strokeStyle=`hsla(${hue},100%,58%,${.4+v*.6})`;
+    c.shadowColor=`hsl(${hue},100%,70%)`;c.shadowBlur=8*v;c.lineWidth=1.5;
     c.beginPath();
-    c.moveTo(cx + Math.cos(angle) * r1, cy + Math.sin(angle) * r1);
-    c.lineTo(cx + Math.cos(angle) * r2, cy + Math.sin(angle) * r2);
+    c.moveTo(cx+Math.cos(ang)*baseR*.12, cy+Math.sin(ang)*baseR*.12);
+    c.lineTo(cx+Math.cos(ang)*(baseR*.12+v*baseR*.65), cy+Math.sin(ang)*(baseR*.12+v*baseR*.65));
     c.stroke();
-  }
-  c.restore();
+  } c.restore();
 
-  // Center dot
-  c.save();
-  const rms = calcRMS(data);
-  c.beginPath();
-  c.arc(cx, cy, 4 + rms * 20, 0, Math.PI * 2);
-  c.fillStyle = ACCENT;
-  c.shadowBlur = 20;
-  c.shadowColor = ACCENT;
-  c.fill();
-  c.restore();
+  const wBins=Math.min(data.length,512), wStep=Math.PI*2/wBins;
+  const ring=(lw:number,blur:number,alpha:number)=>{
+    c.save();c.strokeStyle=ACCENT;c.lineWidth=lw;c.shadowBlur=blur;c.shadowColor=ACCENT;c.globalAlpha=alpha;
+    c.beginPath();
+    for(let i=0;i<wBins;i++){
+      const v=((data[i]/128)-1)*gain*vdiv;
+      const r=baseR+v*baseR*.55, ang=i*wStep-Math.PI/2;
+      i===0?c.moveTo(cx+Math.cos(ang)*r,cy+Math.sin(ang)*r):c.lineTo(cx+Math.cos(ang)*r,cy+Math.sin(ang)*r);
+    }
+    c.closePath();c.stroke();c.restore();
+  };
+  ring(6,28,.1); ring(1.5,8,1);
+  const rms=calcRMS(data);
+  c.save();c.beginPath();c.arc(cx,cy,3+rms*18,0,Math.PI*2);
+  c.fillStyle=ACCENT;c.shadowBlur=20;c.shadowColor=ACCENT;c.fill();c.restore();
+  updateHUD(idxToHz(peakIdx(freq)),0);
 }
 
-// ── MODE: WATERFALL ────────────────────────────
+// ── WATERFALL ────────────────────────────────────────────
 function drawWaterfall(c: CanvasRenderingContext2D, W: number, H: number) {
-  const freq = getFreqDomain();
+  const freq=getFreq();
   waterfallData.unshift(new Uint8Array(freq));
-  if (waterfallData.length > WATERFALL_ROWS) waterfallData.pop();
-
-  const rowH = H / WATERFALL_ROWS;
-  const bins = freq.length;
-
-  for (let row = 0; row < waterfallData.length; row++) {
-    const d = waterfallData[row];
-    const y = row * rowH;
-    for (let i = 0; i < bins; i++) {
-      const v = (d[i] / 255) * gain;
-      const clamped = Math.min(v, 1);
-      // Hot colormap: black → red → orange → yellow → white
-      let r = 0, g = 0, b = 0;
-      if (clamped < 0.25)      { r = clamped * 4 * 180; }
-      else if (clamped < 0.5)  { r = 180 + (clamped - 0.25) * 4 * 75; g = (clamped - 0.25) * 4 * 120; }
-      else if (clamped < 0.75) { r = 255; g = 120 + (clamped - 0.5) * 4 * 135; }
-      else                     { r = 255; g = 255; b = (clamped - 0.75) * 4 * 255; }
-      c.fillStyle = `rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
-      c.fillRect((i / bins) * W, y, W / bins + 0.5, rowH + 0.5);
+  if (waterfallData.length>WATERFALL_ROWS) waterfallData.pop();
+  const rH=H/WATERFALL_ROWS, bins=freq.length;
+  for (let row=0;row<waterfallData.length;row++) {
+    const d=waterfallData[row];
+    for (let i=0;i<bins;i++) {
+      const v=Math.min((d[i]/255)*gain*vdiv,1);
+      let r=0,g=0,b=0;
+      if(v<.25){r=v*4*160;}
+      else if(v<.5){r=160+(v-.25)*4*95;g=(v-.25)*4*130;}
+      else if(v<.75){r=255;g=130+(v-.5)*4*125;}
+      else{r=255;g=255;b=(v-.75)*4*255;}
+      c.fillStyle=`rgb(${Math.floor(r)},${Math.floor(g)},${Math.floor(b)})`;
+      c.fillRect((i/bins)*W, row*rH, W/bins+.5, rH+.5);
     }
   }
-
-  // Frequency axis labels
-  c.save();
-  c.fillStyle = 'rgba(255,255,255,0.4)';
-  c.font = `${9 * window.devicePixelRatio}px monospace`;
-  const sr = audioCtx?.sampleRate ?? 44100;
-  [100, 500, 1000, 5000, 10000].forEach(hz => {
-    const x = (hz / (sr / 2)) * W;
-    c.fillText(`${hz >= 1000 ? hz/1000+'k' : hz}Hz`, x + 2, 14 * window.devicePixelRatio);
-  });
-  c.restore();
+  const sr=audioCtx?.sampleRate??44100;
+  c.save();c.fillStyle='rgba(255,255,255,.3)';c.font='9px monospace';
+  [100,500,1000,5000,10000].forEach(hz=>{
+    const x=(hz/(sr/2))*W;if(x<W-30)c.fillText(hz>=1000?`${hz/1000}k`:`${hz}`,x+2,12);
+  });c.restore();
+  updateHUD(idxToHz(peakIdx(freq)),0);
 }
 
-// ── MODE: PARTICLE ─────────────────────────────
-function spawnParticles(rms: number, freq: Uint8Array, W: number, H: number) {
-  const count = Math.floor(rms * 30);
-  for (let i = 0; i < count; i++) {
-    const angle = Math.random() * Math.PI * 2;
-    const speed = 1 + Math.random() * 4 * rms;
-    const hue = 40 + Math.random() * 40;
-    particles.push({
-      x: W / 2 + (Math.random() - 0.5) * W * 0.3,
-      y: H / 2 + (Math.random() - 0.5) * H * 0.3,
-      vx: Math.cos(angle) * speed,
-      vy: Math.sin(angle) * speed,
-      life: 1.0,
-      maxLife: 0.5 + Math.random() * 1.0,
-      size: 1 + Math.random() * 3 * rms,
-      color: `hsl(${hue}, 100%, 65%)`,
-    });
-  }
-}
-
+// ── PARTICLE ─────────────────────────────────────────────
 function drawParticles(c: CanvasRenderingContext2D, W: number, H: number) {
-  const data = getTimeDomain();
-  const freq = getFreqDomain();
-  const rms  = calcRMS(data);
-
-  if (showGrid) drawGrid(c, W, H);
-  spawnParticles(rms, freq, W, H);
-
-  // Update + draw
-  particles = particles.filter(p => p.life > 0);
-  for (const p of particles) {
-    p.x += p.vx;
-    p.y += p.vy;
-    p.vy += 0.05; // gravity
-    p.life -= 0.016 / p.maxLife;
-    const a = Math.max(0, p.life);
-    c.save();
-    c.globalAlpha = a;
-    c.beginPath();
-    c.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-    c.fillStyle = p.color;
-    c.shadowBlur = 10;
-    c.shadowColor = p.color;
-    c.fill();
-    c.restore();
+  const data=getTime(), freq=getFreq(), rms=calcRMS(data);
+  if (showGrid) drawGrid(c,W,H);
+  const count=Math.floor(rms*40);
+  for(let i=0;i<count;i++){
+    const ang=Math.random()*Math.PI*2, sp=1+Math.random()*5*rms;
+    particles.push({x:W/2+(Math.random()-.5)*W*.4,y:H/2+(Math.random()-.5)*H*.4,
+      vx:Math.cos(ang)*sp,vy:Math.sin(ang)*sp,life:1,mLife:.4+Math.random()*1.2,
+      sz:1+Math.random()*3*rms,hue:35+Math.random()*50});
   }
-
-  // Background waveform
-  c.save();
-  glowLine(c, 'rgba(255,255,0,0.3)', 8, 1);
-  c.globalAlpha = 0.4;
-  c.beginPath();
-  const bins = data.length;
-  for (let i = 0; i < bins; i++) {
-    const v = ((data[i] / 128) - 1) * gain;
-    const y = H / 2 - v * H * 0.4;
-    i === 0 ? c.moveTo(0, y) : c.lineTo((i / bins) * W, y);
+  particles=particles.filter(p=>p.life>0);
+  for(const p of particles){
+    p.x+=p.vx;p.y+=p.vy;p.vy+=.06;p.life-=.016/p.mLife;
+    c.save();c.globalAlpha=Math.max(0,p.life);c.beginPath();c.arc(p.x,p.y,p.sz,0,Math.PI*2);
+    c.fillStyle=`hsl(${p.hue},100%,65%)`;c.shadowBlur=10;c.shadowColor=`hsl(${p.hue},100%,70%)`;
+    c.fill();c.restore();
   }
-  c.stroke();
-  c.restore();
+  c.save();c.strokeStyle='rgba(255,255,0,.2)';c.lineWidth=1;c.shadowBlur=6;c.shadowColor=ACCENT;c.beginPath();
+  for(let i=0;i<data.length;i++){
+    const v=((data[i]/128)-1)*gain*vdiv;
+    const y=H/2-v*H*.38;i===0?c.moveTo(0,y):c.lineTo((i/data.length)*W,y);
+  }c.stroke();c.restore();
+  updateHUD(idxToHz(peakIdx(freq)),0);
 }
 
-// ── HUD update ─────────────────────────────────
+// ── HUD ──────────────────────────────────────────────────
 function updateHUD(peakHz: number, rmsDb: number) {
-  const fEl = document.getElementById('hud-freq');
-  const rEl = document.getElementById('hud-rms');
-  if (fEl) fEl.textContent = `FREQ: ${peakHz >= 1000 ? (peakHz/1000).toFixed(1)+'k' : Math.round(peakHz)}Hz`;
-  if (rEl) rEl.textContent = `RMS: ${isFinite(rmsDb) ? rmsDb.toFixed(1) : '-∞'}dB`;
+  const hz=(h:number)=>h>=1000?`${(h/1000).toFixed(1)}k`:`${Math.round(h)}`;
+  const fe=document.getElementById('hud-freq');
+  const re=document.getElementById('hud-rms');
+  if(fe) fe.textContent=`FREQ: ${hz(peakHz)}Hz`;
+  if(re) re.textContent=`RMS: ${isFinite(rmsDb)?rmsDb.toFixed(1):'-∞'}dB`;
 }
 
-// ── Main draw loop ─────────────────────────────
+// ── DRAW LOOP ────────────────────────────────────────────
 function drawLoop() {
   if (!running) return;
   requestAnimationFrame(drawLoop);
-
-  const W = canvas.width;
-  const H = canvas.height;
-  const dpr = window.devicePixelRatio || 1;
+  const W=canvas.width, H=canvas.height, D=dpr(), Wl=W/D, Hl=H/D;
 
   if (IS_MINI) {
-    // Mini: thin waveform only
-    ctx2d.clearRect(0, 0, W, H);
+    C.clearRect(0,0,W,H);
     if (!analyser) return;
-    const data = getTimeDomain();
-    ctx2d.save();
-    ctx2d.lineWidth = 1 * dpr;
-    ctx2d.strokeStyle = ACCENT;
-    ctx2d.shadowBlur = 4;
-    ctx2d.shadowColor = ACCENT;
-    ctx2d.beginPath();
-    const sw = W / data.length;
-    for (let i = 0; i < data.length; i++) {
-      const v = (data[i] / 128.0) - 1;
-      const y = H / 2 - v * (H / 2) * 0.8 * gain;
-      i === 0 ? ctx2d.moveTo(0, y) : ctx2d.lineTo(i * sw, y);
-    }
-    ctx2d.stroke();
-    ctx2d.restore();
+    const d=getTime();
+    C.save();C.scale(D,D);C.lineWidth=1;C.strokeStyle=ACCENT;C.shadowBlur=4;C.shadowColor=ACCENT;C.beginPath();
+    for(let i=0;i<d.length;i++){
+      const v=((d[i]/128)-1)*gain*vdiv;
+      const y=Hl/2-v*Hl*.42;i===0?C.moveTo(0,y):C.lineTo((i/d.length)*Wl,y);
+    }C.stroke();C.restore();
     return;
   }
 
-  // Persistence (phosphor decay)
-  ctx2d.save();
-  ctx2d.globalCompositeOperation = 'source-over';
-  ctx2d.fillStyle = `rgba(0,0,0,${1 - persist})`;
-  ctx2d.fillRect(0, 0, W, H);
-  ctx2d.restore();
+  // Phosphor persistence
+  C.fillStyle=`rgba(0,0,0,${1-persist})`;C.fillRect(0,0,W,H);
 
-  ctx2d.save();
-  ctx2d.scale(dpr, dpr);
-  const Wl = W / dpr, Hl = H / dpr;
-
-  switch (mode) {
-    case 'scope':     drawScope(ctx2d, Wl, Hl);     break;
-    case 'spectrum':  drawSpectrum(ctx2d, Wl, Hl);  break;
-    case 'lissajous': drawLissajous(ctx2d, Wl, Hl); break;
-    case 'radial':    drawRadial(ctx2d, Wl, Hl);    break;
-    case 'waterfall': drawWaterfall(ctx2d, Wl, Hl); break;
-    case 'particle':  drawParticles(ctx2d, Wl, Hl); break;
+  C.save();C.scale(D,D);
+  switch(mode){
+    case'scope':     drawScope(C,Wl,Hl);     break;
+    case'spectrum':  drawSpectrum(C,Wl,Hl);  break;
+    case'lissajous': drawLissajous(C,Wl,Hl); break;
+    case'radial':    drawRadial(C,Wl,Hl);    break;
+    case'waterfall': drawWaterfall(C,Wl,Hl); break;
+    case'particle':  drawParticles(C,Wl,Hl); break;
   }
-  ctx2d.restore();
+  if (pixelMapOn) drawPixelMap(C,Wl,Hl);
+  C.restore();
 }
 
-// ── Demo mode (no audio) ───────────────────────
-let demoT = 0;
-function demoLoop() {
-  if (running) return;
+// ── DEMO LOOP ────────────────────────────────────────────
+let demoT=0;
+function demoLoop(){
+  if(running) return;
   requestAnimationFrame(demoLoop);
-  const W = canvas.width, H = canvas.height;
-  const dpr = window.devicePixelRatio || 1;
-  const Wl = W / dpr, Hl = H / dpr;
-  demoT += 0.02;
-
-  ctx2d.fillStyle = 'rgba(0,0,0,0.3)';
-  ctx2d.fillRect(0, 0, W, H);
-  ctx2d.save();
-  ctx2d.scale(dpr, dpr);
-  if (!IS_MINI && showGrid) drawGrid(ctx2d, Wl, Hl);
-  ctx2d.save();
-  glowLine(ctx2d, ACCENT, 10, IS_MINI ? 1 : 1.5);
-  ctx2d.beginPath();
-  const pts = IS_MINI ? 200 : 800;
-  for (let i = 0; i < pts; i++) {
-    const x = (i / pts) * Wl;
-    const t = demoT + i * 0.04;
-    const y = Hl / 2 + Math.sin(t) * Hl * 0.3 + Math.sin(t * 3.1) * Hl * 0.08;
-    i === 0 ? ctx2d.moveTo(x, y) : ctx2d.lineTo(x, y);
-  }
-  ctx2d.stroke();
-  ctx2d.restore();
-  ctx2d.restore();
+  const W=canvas.width,H=canvas.height,D=dpr(),Wl=W/D,Hl=H/D;
+  demoT+=.018;
+  C.fillStyle='rgba(0,0,0,.25)';C.fillRect(0,0,W,H);
+  C.save();C.scale(D,D);
+  if(!IS_MINI&&showGrid) drawGrid(C,Wl,Hl);
+  C.strokeStyle=ACCENT;C.shadowBlur=8;C.shadowColor=ACCENT;C.lineWidth=IS_MINI?1:1.4;
+  C.beginPath();
+  const pts=IS_MINI?200:1024;
+  for(let i=0;i<pts;i++){
+    const t=demoT+i*.035;
+    const y=Hl/2+Math.sin(t)*Hl*.28+Math.sin(t*2.7+.5)*Hl*.07+Math.sin(t*7.1)*Hl*.02;
+    i===0?C.moveTo(0,y):C.lineTo((i/pts)*Wl,y);
+  }C.stroke();
+  if(!IS_MINI&&pixelMapOn) drawPixelMap(C,Wl,Hl);
+  C.restore();
 }
 
-// ── UI wiring (fullscreen only) ───────────────
+// ─────────────────────────────────────────────────────────
+// KNOB ENGINE
+// ─────────────────────────────────────────────────────────
+interface KnobState{min:number;max:number;val:number;fmt:string;log:boolean;bipolar:boolean}
+const knobs=new Map<string,KnobState>();
+
+function fmtKnob(id:string,v:number,fmt:string):string{
+  switch(fmt){
+    case'pct':return`${Math.round(v*100)}%`;
+    case'x1': return`${v.toFixed(1)}×`;
+    case'x2': return`${v.toFixed(2)}×`;
+    case'hz':return v>=1000?`${(v/1000).toFixed(1)}kHz`:`${Math.round(v)}Hz`;
+    case's':  return v>=1?`${v.toFixed(2)}s`:`${Math.round(v*1000)}ms`;
+    case'raw':return`${Math.round(v)}`;
+    case'ct': return`${v>0?'+':''}${Math.round(v)}¢`;
+    default:  return v.toFixed(2);
+  }
+}
+
+function drawKnob(kc:HTMLCanvasElement, s:KnobState){
+  const sz=36, D=dpr();
+  kc.width=kc.height=sz*D;
+  kc.style.width=kc.style.height=sz+'px';
+  const ctx=kc.getContext('2d')!;
+  ctx.clearRect(0,0,sz*D,sz*D);
+  ctx.scale(D,D);
+  const cx=sz/2, cy=sz/2, r=sz/2-3.5;
+  const START=Math.PI*.75, SWEEP=Math.PI*1.5;
+
+  let norm: number;
+  if(s.log&&s.min>0){
+    norm=Math.log(s.val/s.min)/Math.log(s.max/s.min);
+  }else{
+    norm=(s.val-s.min)/(s.max-s.min);
+  }
+  norm=Math.max(0,Math.min(1,norm));
+  const angle=START+norm*SWEEP;
+
+  // Track background
+  ctx.beginPath();ctx.arc(cx,cy,r,START,START+SWEEP);
+  ctx.strokeStyle='#1a1a1a';ctx.lineWidth=3;ctx.lineCap='round';ctx.stroke();
+
+  // Track fill
+  const fillStart=s.bipolar?START+SWEEP*.5:START;
+  const fillEnd=angle;
+  if(s.bipolar&&norm<.5){
+    ctx.beginPath();ctx.arc(cx,cy,r,fillEnd,fillStart);
+  }else{
+    ctx.beginPath();ctx.arc(cx,cy,r,fillStart,fillEnd);
+  }
+  ctx.strokeStyle=ACCENT;ctx.lineWidth=3;ctx.lineCap='round';
+  ctx.shadowBlur=6;ctx.shadowColor=ACCENT;ctx.stroke();
+
+  // Tick marks (12 divisions)
+  ctx.shadowBlur=0;
+  for(let i=0;i<=12;i++){
+    const a=START+i*(SWEEP/12);
+    const inner=r-5, outer=r+1;
+    ctx.beginPath();
+    ctx.moveTo(cx+Math.cos(a)*inner,cy+Math.sin(a)*inner);
+    ctx.lineTo(cx+Math.cos(a)*outer,cy+Math.sin(a)*outer);
+    ctx.strokeStyle=i%3===0?'#333':'#1e1e1e';ctx.lineWidth=.5;ctx.stroke();
+  }
+
+  // Pointer dot
+  ctx.beginPath();ctx.arc(cx+Math.cos(angle)*r,cy+Math.sin(angle)*r,2.5,0,Math.PI*2);
+  ctx.fillStyle='#fff';ctx.shadowBlur=5;ctx.shadowColor='#fff';ctx.fill();
+
+  // Center circle
+  ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(cx,cy,r*.3,0,Math.PI*2);
+  ctx.strokeStyle='#252525';ctx.lineWidth=1;ctx.stroke();
+}
+
+function initKnobs(){
+  document.querySelectorAll('.knob-canvas').forEach(el=>{
+    const kc=el as HTMLCanvasElement;
+    const id=kc.dataset.id!;
+    const s:KnobState={
+      min:parseFloat(kc.dataset.min||'0'),
+      max:parseFloat(kc.dataset.max||'1'),
+      val:parseFloat(kc.dataset.val||'0'),
+      fmt:kc.dataset.fmt||'raw',
+      log:kc.dataset.log==='true',
+      bipolar:kc.dataset.bipolar==='true',
+    };
+    knobs.set(id,s);
+    drawKnob(kc,s);
+    const lbl=document.querySelector(`.knob-val[data-for="${id}"]`) as HTMLElement;
+    if(lbl) lbl.textContent=fmtKnob(id,s.val,s.fmt);
+
+    let startY=0, startVal=0, dragging=false;
+
+    const onMove=(clientY:number)=>{
+      const dy=startY-clientY;
+      const range=s.max-s.min;
+      let newVal:number;
+      if(s.log&&s.min>0){
+        const logR=Math.log(s.max/s.min);
+        newVal=startVal*Math.exp(dy*.005*logR);
+      }else{
+        newVal=startVal+dy*range*.004;
+      }
+      newVal=Math.max(s.min,Math.min(s.max,newVal));
+      s.val=newVal;
+      drawKnob(kc,s);
+      if(lbl) lbl.textContent=fmtKnob(id,s.val,s.fmt);
+      applyKnob(id,newVal);
+    };
+
+    kc.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startVal=s.val;e.preventDefault();});
+    window.addEventListener('mousemove',e=>{if(dragging)onMove(e.clientY);});
+    window.addEventListener('mouseup',()=>{dragging=false;});
+    kc.addEventListener('touchstart',e=>{dragging=true;startY=e.touches[0].clientY;startVal=s.val;e.preventDefault();},{passive:false});
+    window.addEventListener('touchmove',e=>{if(dragging)onMove(e.touches[0].clientY);});
+    window.addEventListener('touchend',()=>{dragging=false;});
+    kc.addEventListener('wheel',e=>{
+      e.preventDefault();
+      const delta=-Math.sign(e.deltaY)*(s.max-s.min)*.025;
+      s.val=Math.max(s.min,Math.min(s.max,s.val+delta));
+      drawKnob(kc,s);
+      if(lbl) lbl.textContent=fmtKnob(id,s.val,s.fmt);
+      applyKnob(id,s.val);
+    },{passive:false});
+  });
+}
+
+function applyKnob(id:string,v:number){
+  const t=audioCtx?.currentTime||0;
+  const ramp=(n:AudioParam,val:number)=>n.setTargetAtTime(val,t,.01);
+  switch(id){
+    case'gain':       gain=v;     if(gainNode)    ramp(gainNode.gain,v);          break;
+    case'out-vol':    setOutputVol(v);                                             break;
+    case'zoom':       zoom=v;                                                      break;
+    case'vdiv':       vdiv=v;                                                      break;
+    case'persist':    persist=v;                                                   break;
+    case'triglvl':    trigLvl=v;                                                   break;
+    case'osc-freq':   oscFreq=v;   if(oscNode)    ramp(oscNode.frequency,v);       break;
+    case'osc-detune': oscDetune=v; if(oscNode)    ramp(oscNode.detune,v);          break;
+    case'osc-vol':    oscVol=v;    if(oscGainNode) ramp(oscGainNode.gain,v);       break;
+    case'dist':       distAmt=v;   applyDistortion(v);                             break;
+    case'delay-time': delayTime=v; if(delayNode)  ramp(delayNode.delayTime,v);    break;
+    case'delay-mix':  delayMix=v;  if(delayGain)  ramp(delayGain.gain,v*.7);      break;
+    case'lpf':        lpfFreq=v;   if(lpfNode)    ramp(lpfNode.frequency,v);      break;
+    case'hpf':        hpfFreq=v;   if(hpfNode)    ramp(hpfNode.frequency,v);      break;
+    case'px-size':    pxSize=v;                                                    break;
+    case'px-thresh':  pxThresh=v;                                                  break;
+    case'px-opacity': pxOpacity=v;                                                 break;
+    case'px-gap':     pxGap=v;                                                     break;
+  }
+}
+
+// ── PANEL TOGGLE ─────────────────────────────────────────
+function togglePanel(){
+  const panel=document.getElementById('control-panel');
+  const btn=document.getElementById('panel-toggle-btn');
+  if(!panel||!btn) return;
+  const hidden=panel.classList.toggle('hidden');
+  btn.textContent=hidden?'PANEL ▴':'PANEL ▾';
+  btn.classList.toggle('panel-visible',!hidden);
+}
+
+// ── UI WIRING ────────────────────────────────────────────
 if (!IS_MINI) {
-  const $ = (id: string) => document.getElementById(id);
+  initKnobs();
+  populateDevices();
 
-  $('start-btn')?.addEventListener('click', initAudio);
-  $('stop-btn')?.addEventListener('click', stopAudio);
+  document.getElementById('panel-toggle-btn')?.addEventListener('click',togglePanel);
+  document.addEventListener('keydown',e=>{ if(e.key==='Tab'){e.preventDefault();togglePanel();} });
 
-  // Mode buttons
-  document.querySelectorAll('.mode-btn').forEach(btn => {
-    (btn as HTMLElement).addEventListener('click', () => {
-      mode = (btn as HTMLElement).dataset.mode!;
-      document.querySelectorAll('.mode-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('start-btn')?.addEventListener('click',async()=>{
+    const sel=document.getElementById('input-select') as HTMLSelectElement;
+    await initAudio(sel?.value||undefined);
+  });
+  document.getElementById('stop-btn')?.addEventListener('click',stopAudio);
+
+  document.getElementById('input-select')?.addEventListener('change',async e=>{
+    const id=(e.target as HTMLSelectElement).value;
+    if(running) await restartMic(id);
+  });
+
+  document.getElementById('output-toggle')?.addEventListener('click',()=>setOutputToggle(!outputOn));
+
+  document.querySelectorAll('.mode-btn').forEach(btn=>{
+    (btn as HTMLElement).addEventListener('click',()=>{
+      mode=(btn as HTMLElement).dataset.mode!;
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      ($('hud-mode-label') as HTMLElement).textContent = `MODE: ${mode.toUpperCase()}`;
-      waterfallData = [];
-      lissLeft = []; lissRight = [];
-      particles = [];
+      const lbl=document.getElementById('hud-mode-label');
+      if(lbl) lbl.textContent=`MODE: ${mode.toUpperCase()}`;
+      waterfallData=[];lissX=[];lissY=[];particles=[];
     });
   });
   (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
 
-  // Osc buttons
-  document.querySelectorAll('.osc-btn').forEach(btn => {
-    (btn as HTMLElement).addEventListener('click', () => {
-      document.querySelectorAll('.osc-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.osc-btn').forEach(btn=>{
+    (btn as HTMLElement).addEventListener('click',()=>{
+      document.querySelectorAll('.osc-btn').forEach(b=>b.classList.remove('active'));
       btn.classList.add('active');
-      const t = (btn as HTMLElement).dataset.osc!.toLowerCase() as typeof oscType;
-      oscType = t;
-      if (running) startOsc(oscType);
+      oscType=(btn as HTMLElement).dataset.osc!.toLowerCase() as typeof oscType;
+      if(running) startOsc(oscType);
     });
   });
   (document.querySelector('[data-osc="OFF"]') as HTMLElement)?.classList.add('active');
 
-  // Sliders
-  function bindSlider(id: string, valId: string, fmt: (v: number) => string, cb: (v: number) => void) {
-    const el = $(id) as HTMLInputElement;
-    const ve = $(valId);
-    if (!el) return;
-    el.addEventListener('input', () => {
-      const v = parseFloat(el.value);
-      if (ve) ve.textContent = fmt(v);
-      cb(v);
+  document.getElementById('pixelmap-btn')?.addEventListener('click',e=>{
+    pixelMapOn=!pixelMapOn;
+    const b=e.currentTarget as HTMLElement;
+    b.dataset.active=String(pixelMapOn);
+  });
+
+  const mkToggle=(id:string,cb:(v:boolean)=>void)=>{
+    document.getElementById(id)?.addEventListener('click',e=>{
+      const b=e.currentTarget as HTMLElement;
+      const next=b.dataset.active!=='true';
+      b.dataset.active=String(next); cb(next);
     });
-  }
-
-  bindSlider('ctrl-gain', 'val-gain', v => `${v.toFixed(2)}×`, v => { gain = v; gainNode?.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01); });
-  bindSlider('ctrl-threshold', 'val-threshold', v => `${Math.round(v)}%`, v => { threshold = v; });
-  bindSlider('ctrl-zoom', 'val-zoom', v => `${v.toFixed(1)}×`, v => { zoom = v; });
-  bindSlider('ctrl-persist', 'val-persist', v => `${Math.round(v*100)}%`, v => { persist = v; });
-  bindSlider('ctrl-osc-freq', 'val-osc-freq', v => `${Math.round(v)} Hz`, v => {
-    oscFreq = v;
-    if (oscNode) oscNode.frequency.setTargetAtTime(v, audioCtx.currentTime, 0.01);
-  });
-  bindSlider('ctrl-osc-vol', 'val-osc-vol', v => `${Math.round(v*100)}%`, v => {
-    oscVol = v;
-    if (oscGain) oscGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
-  });
-  bindSlider('ctrl-dist', 'val-dist', v => `${Math.round(v)}`, v => { distAmt = v; applyDistortion(v); });
-  bindSlider('ctrl-delay', 'val-delay', v => `${Math.round(v*100)}%`, v => { delayMix = v; delayGain?.gain.setTargetAtTime(v * 0.6, audioCtx?.currentTime||0, 0.01); });
-  bindSlider('ctrl-lpf', 'val-lpf', v => v >= 1000 ? `${(v/1000).toFixed(1)}kHz` : `${Math.round(v)}Hz`, v => { lpfFreq = v; lpfNode?.frequency.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01); });
-
-  ($('ctrl-grid') as HTMLInputElement)?.addEventListener('change', e => { showGrid = (e.target as HTMLInputElement).checked; });
-  ($('ctrl-trigger') as HTMLInputElement)?.addEventListener('change', e => { trigSync = (e.target as HTMLInputElement).checked; });
-} else {
-  canvas.addEventListener('click', initAudio, { once: true });
+  };
+  mkToggle('btn-grid',  v=>{showGrid=v;});
+  mkToggle('btn-trig',  v=>{trigSync=v;});
+  mkToggle('btn-invert',v=>{invertSig=v;});
 }
 
-// Start demo
+if(IS_MINI) canvas.addEventListener('click',()=>initAudio(),{once:true});
+
 demoLoop();
 </script>
 </file>
