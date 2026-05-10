@@ -1,157 +1,232 @@
 ---
-// Visualizer.astro
-// Advanced CRT Audio Visualizer
-// Astro + WebAudio + Canvas2D
+// src/components/Visualizer.astro
+// Advanced Fullscreen Visualizer
 
 const {
-  mini = false
+  color = "#d8ff72"
 } = Astro.props;
 ---
 
-<div id="viz-root" class:list={[mini ? "mini" : "fullscreen"]}>
+<div id="viz-root">
   <canvas id="viz"></canvas>
 
   <div id="hud">
     <div class="left">
-      <div class="mode">OSCILLOSCOPE</div>
+      <div id="mode-label">
+        OSCILLOSCOPE
+      </div>
+
       <div class="stats">
-        <span id="peakFreq">0 Hz</span>
-        <span id="rms">-∞ dB</span>
+        <span id="peakFreq">
+          0 Hz
+        </span>
+
+        <span id="rms">
+          -∞ dB
+        </span>
       </div>
     </div>
 
     <div class="right">
-      <span>INPUT</span>
-      <span id="inputName">NONE</span>
+      <span id="inputLabel">
+        NO INPUT
+      </span>
     </div>
   </div>
 
+  <button id="panel-toggle">
+    PANEL
+  </button>
+
   <div id="panel" class="visible">
-    <div class="panel-section">
-      <div class="section-title">INPUT</div>
+
+    <div class="group">
+      <div class="title">
+        INPUT
+      </div>
 
       <label>
         DEVICE
-        <select id="inputDevice"></select>
+
+        <select id="inputDevice">
+        </select>
       </label>
 
-      <label class="toggle">
-        MONITOR
-        <input type="checkbox" id="monitorToggle" />
+      <label class="inline">
+        <span>MONITOR</span>
+
+        <input
+          type="checkbox"
+          id="monitorEnabled"
+        />
       </label>
 
       <label>
         MONITOR LEVEL
-        <input type="range" id="monitorLevel" min="0" max="1" step="0.001" value="0" />
+
+        <input
+          type="range"
+          id="monitorLevel"
+          min="0"
+          max="1"
+          step="0.001"
+          value="0"
+        />
       </label>
     </div>
 
-    <div class="panel-section">
-      <div class="section-title">VISUAL</div>
+    <div class="group">
+      <div class="title">
+        DISPLAY
+      </div>
 
       <label>
         MODE
+
         <select id="mode">
-          <option>OSCILLOSCOPE</option>
-          <option>SPECTRUM</option>
-          <option>LISSAJOUS</option>
-          <option>RADIAL</option>
-          <option>WATERFALL</option>
+          <option>
+            OSCILLOSCOPE
+          </option>
+
+          <option>
+            SPECTRUM
+          </option>
+
+          <option>
+            LISSAJOUS
+          </option>
+
+          <option>
+            RADIAL
+          </option>
+
+          <option>
+            WATERFALL
+          </option>
         </select>
+      </label>
+
+      <label class="inline">
+        <span>PIXEL MAP</span>
+
+        <input
+          type="checkbox"
+          id="pixelMap"
+          checked
+        />
       </label>
 
       <label>
-        RENDER
-        <select id="renderer">
-          <option>LINE</option>
-          <option>PIXEL</option>
-          <option>PHOSPHOR</option>
-          <option>HEATMAP</option>
-        </select>
+        PERSISTENCE
+
+        <input
+          type="range"
+          id="persistence"
+          min="0"
+          max="0.98"
+          step="0.001"
+          value="0.84"
+        />
       </label>
 
       <label>
-        COLOR LUT
-        <select id="palette">
-          <option>GREEN</option>
-          <option>AMBER</option>
-          <option>ICE</option>
-          <option>INFERNO</option>
-        </select>
+        GAIN
+
+        <input
+          type="range"
+          id="gain"
+          min="0.2"
+          max="6"
+          step="0.01"
+          value="1"
+        />
+      </label>
+
+      <label>
+        BEAM
+
+        <input
+          type="range"
+          id="beam"
+          min="1"
+          max="8"
+          step="0.1"
+          value="2"
+        />
       </label>
     </div>
 
-    <div class="panel-section knobs">
-      <div class="section-title">DISPLAY</div>
-
-      <div class="knob-wrap">
-        <canvas class="knob" data-param="gain"></canvas>
-        <span>GAIN</span>
+    <div class="group">
+      <div class="title">
+        FX
       </div>
-
-      <div class="knob-wrap">
-        <canvas class="knob" data-param="zoom"></canvas>
-        <span>TIMEBASE</span>
-      </div>
-
-      <div class="knob-wrap">
-        <canvas class="knob" data-param="persistence"></canvas>
-        <span>PERSIST</span>
-      </div>
-
-      <div class="knob-wrap">
-        <canvas class="knob" data-param="beam"></canvas>
-        <span>BEAM</span>
-      </div>
-    </div>
-
-    <div class="panel-section">
-      <div class="section-title">FX</div>
 
       <label>
         DISTORTION
-        <input type="range" id="distortion" min="0" max="1" step="0.001" value="0" />
+
+        <input
+          type="range"
+          id="distortion"
+          min="0"
+          max="1"
+          step="0.001"
+          value="0"
+        />
       </label>
 
       <label>
         LPF
-        <input type="range" id="lpf" min="100" max="20000" step="1" value="20000" />
+
+        <input
+          type="range"
+          id="lpf"
+          min="100"
+          max="20000"
+          step="1"
+          value="20000"
+        />
       </label>
 
       <label>
         DELAY
-        <input type="range" id="delayMix" min="0" max="1" step="0.001" value="0" />
+
+        <input
+          type="range"
+          id="delayMix"
+          min="0"
+          max="1"
+          step="0.001"
+          value="0"
+        />
       </label>
     </div>
+
   </div>
 </div>
 
 <style>
-  :root {
-    --bg: #060606;
-    --panel: rgba(10,10,10,0.88);
-    --border: rgba(255,255,255,0.08);
-    --text: rgba(255,255,255,0.88);
-  }
-
   #viz-root {
     position: relative;
+
     width: 100%;
     height: 100%;
+
     overflow: hidden;
+
     background: black;
-    user-select: none;
   }
 
-  canvas#viz {
+  #viz {
     position: absolute;
     inset: 0;
+
     width: 100%;
     height: 100%;
   }
 
   #hud {
     position: absolute;
+
     top: 16px;
     left: 16px;
     right: 16px;
@@ -159,44 +234,86 @@ const {
     display: flex;
     justify-content: space-between;
 
-    font-family: monospace;
+    z-index: 50;
+
     color: rgba(255,255,255,0.75);
-    z-index: 20;
+
+    font-family: monospace;
+
     pointer-events: none;
   }
 
-  #hud .mode {
+  #mode-label {
     font-size: 18px;
     letter-spacing: 0.14em;
   }
 
-  #hud .stats {
-    margin-top: 4px;
-    font-size: 12px;
+  .stats {
     display: flex;
-    gap: 12px;
+    gap: 14px;
+
+    margin-top: 6px;
+
+    font-size: 11px;
+  }
+
+  #panel-toggle {
+    position: absolute;
+
+    right: 20px;
+    bottom: 20px;
+
+    z-index: 100;
+
+    background: rgba(0,0,0,0.72);
+
+    border:
+      1px solid
+      rgba(255,255,255,0.08);
+
+    color:
+      rgba(255,255,255,0.7);
+
+    padding:
+      10px 14px;
+
+    border-radius: 12px;
+
+    font-size: 10px;
+    letter-spacing: 0.18em;
+
+    cursor: pointer;
+
+    backdrop-filter: blur(12px);
   }
 
   #panel {
     position: absolute;
-    bottom: 24px;
-    left: 24px;
 
-    width: 460px;
+    left: 20px;
+    bottom: 20px;
 
-    background: var(--panel);
-    backdrop-filter: blur(24px);
-
-    border: 1px solid var(--border);
-    border-radius: 20px;
+    width: 420px;
 
     padding: 20px;
+
+    border-radius: 20px;
+
+    background:
+      rgba(0,0,0,0.72);
+
+    border:
+      1px solid
+      rgba(255,255,255,0.08);
+
+    backdrop-filter:
+      blur(18px);
 
     display: flex;
     flex-direction: column;
     gap: 20px;
 
-    z-index: 40;
+    z-index: 80;
 
     transition:
       opacity .25s ease,
@@ -206,20 +323,25 @@ const {
   #panel.hidden {
     opacity: 0;
     transform: translateY(10px);
+
     pointer-events: none;
   }
 
-  .panel-section {
+  .group {
     display: flex;
     flex-direction: column;
     gap: 12px;
   }
 
-  .section-title {
-    font-size: 11px;
+  .title {
+    font-size: 10px;
+
+    letter-spacing: 0.22em;
+
+    color:
+      rgba(255,255,255,0.45);
+
     font-family: monospace;
-    letter-spacing: 0.18em;
-    color: rgba(255,255,255,0.4);
   }
 
   label {
@@ -227,9 +349,17 @@ const {
     flex-direction: column;
     gap: 6px;
 
-    font-size: 11px;
-    letter-spacing: 0.08em;
-    color: rgba(255,255,255,0.75);
+    font-size: 10px;
+    letter-spacing: 0.1em;
+
+    color:
+      rgba(255,255,255,0.72);
+  }
+
+  .inline {
+    flex-direction: row;
+    justify-content: space-between;
+    align-items: center;
   }
 
   select,
@@ -238,278 +368,195 @@ const {
   }
 
   select {
-    background: rgba(255,255,255,0.05);
+    background:
+      rgba(255,255,255,0.05);
+
     color: white;
-    border: 1px solid rgba(255,255,255,0.08);
+
+    border:
+      1px solid
+      rgba(255,255,255,0.08);
+
     border-radius: 10px;
+
     padding: 10px;
-  }
-
-  .knobs {
-    flex-direction: row;
-    flex-wrap: wrap;
-    gap: 18px;
-  }
-
-  .knob-wrap {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .knob {
-    width: 72px;
-    height: 72px;
-    cursor: ns-resize;
-  }
-
-  .knob-wrap span {
-    font-size: 10px;
-    letter-spacing: 0.12em;
-    color: rgba(255,255,255,0.7);
-  }
-
-  .mini #panel,
-  .mini #hud {
-    display: none;
   }
 </style>
 
-<script>
-  const canvas = document.getElementById("viz");
-  const ctx = canvas.getContext("2d");
+<script define:vars={{ color }}>
+  import { AudioEngine }
+  from "../lib/audio/AudioEngine";
 
-  const panel = document.getElementById("panel");
+  const canvas =
+    document.getElementById("viz");
 
-  const peakFreqEl = document.getElementById("peakFreq");
-  const rmsEl = document.getElementById("rms");
-  const inputNameEl = document.getElementById("inputName");
+  const ctx =
+    canvas.getContext("2d");
 
-  const modeEl = document.getElementById("mode");
-  const rendererEl = document.getElementById("renderer");
-  const paletteEl = document.getElementById("palette");
+  const engine =
+    new AudioEngine();
 
-  const deviceEl = document.getElementById("inputDevice");
+  const modeEl =
+    document.getElementById("mode");
 
-  const monitorToggle = document.getElementById("monitorToggle");
-  const monitorLevel = document.getElementById("monitorLevel");
+  const pixelMapEl =
+    document.getElementById("pixelMap");
+
+  const persistenceEl =
+    document.getElementById(
+      "persistence"
+    );
+
+  const gainEl =
+    document.getElementById("gain");
+
+  const beamEl =
+    document.getElementById("beam");
+
+  const peakFreqEl =
+    document.getElementById(
+      "peakFreq"
+    );
+
+  const rmsEl =
+    document.getElementById("rms");
+
+  const panel =
+    document.getElementById(
+      "panel"
+    );
+
+  const panelToggle =
+    document.getElementById(
+      "panel-toggle"
+    );
+
+  const inputLabel =
+    document.getElementById(
+      "inputLabel"
+    );
 
   let width = 0;
   let height = 0;
 
-  let audioCtx;
-  let analyser;
-  let freqAnalyser;
-
-  let sourceNode;
-  let monitorGain;
-
-  let distortionNode;
-  let filterNode;
-  let delayNode;
-  let delayGain;
-
-  let stream;
-
   let mode = "OSCILLOSCOPE";
-  let renderer = "PIXEL";
-  let palette = "GREEN";
 
-  const params = {
-    gain: 1,
-    zoom: 1,
-    persistence: 0.82,
-    beam: 1
-  };
+  let pixelMap = true;
 
-  const density = [];
+  let persistence = 0.84;
+
+  let gain = 1;
+
+  let beam = 2;
 
   function resize() {
-    width = canvas.width = window.innerWidth * devicePixelRatio;
-    height = canvas.height = window.innerHeight * devicePixelRatio;
+    width =
+      canvas.width =
+      window.innerWidth *
+      devicePixelRatio;
+
+    height =
+      canvas.height =
+      window.innerHeight *
+      devicePixelRatio;
   }
 
   resize();
-  window.addEventListener("resize", resize);
 
-  async function initAudio(deviceId = null) {
-    if (!audioCtx) {
-      audioCtx = new AudioContext();
-    }
+  window.addEventListener(
+    "resize",
+    resize
+  );
 
-    if (stream) {
-      stream.getTracks().forEach(t => t.stop());
-    }
-
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        deviceId: deviceId
-          ? { exact: deviceId }
-          : undefined
-      }
-    });
-
-    sourceNode = audioCtx.createMediaStreamSource(stream);
-
-    analyser = audioCtx.createAnalyser();
-    analyser.fftSize = 2048;
-
-    freqAnalyser = audioCtx.createAnalyser();
-    freqAnalyser.fftSize = 4096;
-
-    distortionNode = audioCtx.createWaveShaper();
-    filterNode = audioCtx.createBiquadFilter();
-    filterNode.type = "lowpass";
-
-    delayNode = audioCtx.createDelay();
-    delayNode.delayTime.value = 0.25;
-
-    delayGain = audioCtx.createGain();
-
-    monitorGain = audioCtx.createGain();
-    monitorGain.gain.value = 0;
-
-    sourceNode.connect(distortionNode);
-    distortionNode.connect(filterNode);
-    filterNode.connect(delayNode);
-
-    delayNode.connect(delayGain);
-
-    delayGain.connect(analyser);
-    delayGain.connect(freqAnalyser);
-
-    analyser.connect(monitorGain);
-    monitorGain.connect(audioCtx.destination);
-
-    inputNameEl.textContent =
-      stream.getAudioTracks()[0]?.label || "UNKNOWN";
-  }
-
-  async function populateDevices() {
+  async function init() {
     const devices =
-      await navigator.mediaDevices.enumerateDevices();
+      await engine.getInputDevices();
 
-    const inputs = devices.filter(
-      d => d.kind === "audioinput"
-    );
+    const deviceSelect =
+      document.getElementById(
+        "inputDevice"
+      );
 
-    deviceEl.innerHTML = "";
+    devices.forEach(device => {
+      const option =
+        document.createElement(
+          "option"
+        );
 
-    inputs.forEach(d => {
-      const option = document.createElement("option");
-      option.value = d.deviceId;
-      option.textContent = d.label || "INPUT";
-      deviceEl.appendChild(option);
+      option.value =
+        device.deviceId;
+
+      option.textContent =
+        device.label ||
+        "INPUT";
+
+      deviceSelect.appendChild(
+        option
+      );
     });
-  }
 
-  function distortionCurve(amount) {
-    const samples = 44100;
-    const curve = new Float32Array(samples);
+    await engine.initInput();
 
-    for (let i = 0; i < samples; i++) {
-      const x = (i * 2 / samples) - 1;
-      curve[i] =
-        ((3 + amount) * x * 20 * Math.PI / 180) /
-        (Math.PI + amount * Math.abs(x));
-    }
-
-    return curve;
+    inputLabel.textContent =
+      engine.stream
+        ?.getAudioTracks()[0]
+        ?.label || "INPUT";
   }
 
   function clearFrame() {
     ctx.fillStyle =
-      `rgba(0,0,0,${1 - params.persistence})`;
+      `rgba(0,0,0,${
+        1 - persistence
+      })`;
 
-    ctx.fillRect(0, 0, width, height);
-  }
-
-  function paletteColor(v) {
-    if (palette === "GREEN") {
-      return `rgba(120,255,160,${v})`;
-    }
-
-    if (palette === "AMBER") {
-      return `rgba(255,180,80,${v})`;
-    }
-
-    if (palette === "ICE") {
-      return `rgba(120,220,255,${v})`;
-    }
-
-    return `rgba(255,120,80,${v})`;
-  }
-
-  function drawPixel(x, y, alpha = 1) {
-    ctx.fillStyle = paletteColor(alpha);
     ctx.fillRect(
-      x,
-      y,
-      2 * params.beam,
-      2 * params.beam
+      0,
+      0,
+      width,
+      height
     );
   }
 
-  function drawOscilloscope(data) {
-    const len = data.length;
+  function drawPixel(
+    x,
+    y,
+    alpha = 1
+  ) {
+    ctx.fillStyle =
+      `rgba(216,255,114,${alpha})`;
 
-    if (renderer === "LINE") {
+    ctx.fillRect(
+      x,
+      y,
+      beam,
+      beam
+    );
+  }
+
+  function drawOscilloscope(
+    data
+  ) {
+    if (!pixelMap) {
       ctx.beginPath();
-
-      for (let i = 0; i < len; i++) {
-        const x = (i / len) * width;
-        const y =
-          height / 2 +
-          ((data[i] - 128) / 128) *
-          height *
-          0.35;
-
-        if (i === 0) {
-          ctx.moveTo(x, y);
-        } else {
-          ctx.lineTo(x, y);
-        }
-      }
-
-      ctx.strokeStyle = paletteColor(0.85);
-      ctx.lineWidth = params.beam * 1.5;
-      ctx.stroke();
-
-      return;
     }
 
-    for (let i = 0; i < len; i++) {
-      const x = (i / len) * width;
+    for (
+      let i = 0;
+      i < data.length;
+      i++
+    ) {
+      const x =
+        (i / data.length) * width;
 
       const y =
         height / 2 +
         ((data[i] - 128) / 128) *
         height *
-        0.35;
+        0.32 *
+        gain;
 
-      drawPixel(x, y, 0.9);
-    }
-  }
-
-  function drawLissajous(dataL, dataR) {
-    ctx.beginPath();
-
-    for (let i = 0; i < dataL.length; i++) {
-      const x =
-        width / 2 +
-        ((dataL[i] - 128) / 128) *
-        width *
-        0.35;
-
-      const y =
-        height / 2 +
-        ((dataR[i] - 128) / 128) *
-        height *
-        0.35;
-
-      if (renderer === "PIXEL") {
-        drawPixel(x, y, 0.7);
+      if (pixelMap) {
+        drawPixel(x, y, 0.9);
       } else {
         if (i === 0) {
           ctx.moveTo(x, y);
@@ -519,25 +566,94 @@ const {
       }
     }
 
-    if (renderer !== "PIXEL") {
-      ctx.strokeStyle = paletteColor(0.55);
-      ctx.lineWidth = params.beam;
+    if (!pixelMap) {
+      ctx.strokeStyle = color;
+
+      ctx.lineWidth = beam;
+
+      ctx.shadowBlur = 12;
+      ctx.shadowColor = color;
+
       ctx.stroke();
+
+      ctx.shadowBlur = 0;
     }
   }
 
-  function drawSpectrum(freq) {
+  function drawLissajous(
+    data
+  ) {
+    ctx.beginPath();
+
+    for (
+      let i = 0;
+      i < data.length;
+      i++
+    ) {
+      const x =
+        width / 2 +
+        ((data[i] - 128) / 128) *
+        width *
+        0.3;
+
+      const y =
+        height / 2 +
+        ((data[
+          (i + 64) %
+          data.length
+        ] - 128) / 128) *
+        height *
+        0.3;
+
+      ctx.lineTo(x, y);
+
+      if (pixelMap) {
+        drawPixel(x, y, 0.6);
+      }
+    }
+
+    ctx.strokeStyle = color;
+
+    ctx.lineWidth = beam;
+
+    ctx.shadowBlur = 10;
+    ctx.shadowColor = color;
+
+    ctx.stroke();
+
+    ctx.shadowBlur = 0;
+  }
+
+  function drawSpectrum(
+    freq
+  ) {
     const bars = 160;
-    const step = Math.floor(freq.length / bars);
 
-    for (let i = 0; i < bars; i++) {
-      const v = freq[i * step] / 255;
+    const step =
+      Math.floor(
+        freq.length / bars
+      );
 
-      const h = v * height * 0.5;
+    for (
+      let i = 0;
+      i < bars;
+      i++
+    ) {
+      const value =
+        freq[i * step] / 255;
 
-      const x = (i / bars) * width;
+      const h =
+        value *
+        height *
+        0.45;
 
-      ctx.fillStyle = paletteColor(0.85);
+      const x =
+        (i / bars) * width;
+
+      ctx.fillStyle =
+        `rgba(216,255,114,${
+          0.4 + value
+        })`;
 
       ctx.fillRect(
         x,
@@ -551,59 +667,101 @@ const {
   function render() {
     requestAnimationFrame(render);
 
-    if (!analyser) return;
-
     clearFrame();
 
-    const timeData = new Uint8Array(
-      analyser.fftSize
-    );
+    mode =
+      modeEl.value;
 
-    const freqData = new Uint8Array(
-      freqAnalyser.frequencyBinCount
-    );
+    pixelMap =
+      pixelMapEl.checked;
 
-    analyser.getByteTimeDomainData(timeData);
-    freqAnalyser.getByteFrequencyData(freqData);
+    persistence =
+      Number(
+        persistenceEl.value
+      );
 
-    mode = modeEl.value;
-    renderer = rendererEl.value;
-    palette = paletteEl.value;
+    gain =
+      Number(
+        gainEl.value
+      );
 
-    if (mode === "OSCILLOSCOPE") {
-      drawOscilloscope(timeData);
+    beam =
+      Number(
+        beamEl.value
+      );
+
+    const timeData =
+      engine.getTimeData();
+
+    const freqData =
+      engine.getFrequencyData();
+
+    if (
+      mode ===
+      "OSCILLOSCOPE"
+    ) {
+      drawOscilloscope(
+        timeData
+      );
     }
 
-    if (mode === "LISSAJOUS") {
-      drawLissajous(timeData, timeData);
+    if (
+      mode ===
+      "LISSAJOUS"
+    ) {
+      drawLissajous(
+        timeData
+      );
     }
 
-    if (mode === "SPECTRUM") {
-      drawSpectrum(freqData);
+    if (
+      mode ===
+      "SPECTRUM"
+    ) {
+      drawSpectrum(
+        freqData
+      );
     }
 
     const peakIndex =
-      freqData.indexOf(Math.max(...freqData));
+      freqData.indexOf(
+        Math.max(...freqData)
+      );
 
     const peakFreq =
       peakIndex *
-      audioCtx.sampleRate /
-      freqAnalyser.fftSize;
+      engine.audioCtx
+        .sampleRate /
+      engine
+        .frequencyAnalyser
+        .fftSize;
 
     peakFreqEl.textContent =
       `${peakFreq.toFixed(0)} Hz`;
 
     let rms = 0;
 
-    for (let i = 0; i < timeData.length; i++) {
-      const v = (timeData[i] - 128) / 128;
+    for (
+      let i = 0;
+      i < timeData.length;
+      i++
+    ) {
+      const v =
+        (timeData[i] - 128) /
+        128;
+
       rms += v * v;
     }
 
-    rms = Math.sqrt(rms / timeData.length);
+    rms = Math.sqrt(
+      rms / timeData.length
+    );
 
     const db =
-      20 * Math.log10(rms || 0.0001);
+      20 *
+      Math.log10(
+        rms || 0.0001
+      );
 
     rmsEl.textContent =
       `${db.toFixed(1)} dB`;
@@ -611,148 +769,130 @@ const {
 
   render();
 
-  deviceEl.addEventListener("change", () => {
-    initAudio(deviceEl.value);
-  });
-
-  monitorToggle.addEventListener("change", () => {
-    monitorGain.gain.value =
-      monitorToggle.checked
-        ? Number(monitorLevel.value)
-        : 0;
-  });
-
-  monitorLevel.addEventListener("input", () => {
-    if (monitorToggle.checked) {
-      monitorGain.gain.value =
-        Number(monitorLevel.value);
+  panelToggle.addEventListener(
+    "click",
+    () => {
+      panel.classList.toggle(
+        "hidden"
+      );
     }
-  });
+  );
 
-  document
-    .getElementById("distortion")
-    .addEventListener("input", e => {
-      const v = Number(e.target.value) * 100;
-      distortionNode.curve =
-        distortionCurve(v);
-    });
+  window.addEventListener(
+    "keydown",
+    e => {
+      if (e.key === "Tab") {
+        e.preventDefault();
 
-  document
-    .getElementById("lpf")
-    .addEventListener("input", e => {
-      filterNode.frequency.value =
-        Number(e.target.value);
-    });
-
-  document
-    .getElementById("delayMix")
-    .addEventListener("input", e => {
-      delayGain.gain.value =
-        Number(e.target.value);
-    });
-
-  window.addEventListener("keydown", e => {
-    if (e.key === "Tab") {
-      e.preventDefault();
-      panel.classList.toggle("hidden");
-    }
-
-    if (e.key.toLowerCase() === "f") {
-      document.body.requestFullscreen?.();
-    }
-  });
-
-  document.querySelectorAll(".knob").forEach(knob => {
-    const kctx = knob.getContext("2d");
-
-    const param =
-      knob.dataset.param;
-
-    let dragging = false;
-    let lastY = 0;
-
-    function drawKnob() {
-      const w = knob.width = 72;
-      const h = knob.height = 72;
-
-      kctx.clearRect(0,0,w,h);
-
-      kctx.beginPath();
-      kctx.arc(36,36,28,0,Math.PI*2);
-
-      kctx.fillStyle = "#111";
-      kctx.fill();
-
-      kctx.strokeStyle =
-        "rgba(255,255,255,0.08)";
-
-      kctx.lineWidth = 2;
-      kctx.stroke();
-
-      const value =
-        Math.min(
-          Math.max(params[param],0),
-          1
+        panel.classList.toggle(
+          "hidden"
         );
-
-      const angle =
-        (-0.75 + value * 1.5) * Math.PI;
-
-      const x =
-        36 + Math.cos(angle) * 20;
-
-      const y =
-        36 + Math.sin(angle) * 20;
-
-      kctx.beginPath();
-      kctx.moveTo(36,36);
-      kctx.lineTo(x,y);
-
-      kctx.strokeStyle =
-        "rgba(255,255,255,0.9)";
-
-      kctx.lineWidth = 3;
-      kctx.stroke();
+      }
     }
+  );
 
-    drawKnob();
+  document
+    .getElementById(
+      "monitorEnabled"
+    )
+    .addEventListener(
+      "change",
+      e => {
+        if (!e.target.checked) {
+          engine.setMonitorLevel(
+            0
+          );
+        } else {
+          engine.setMonitorLevel(
+            Number(
+              document
+                .getElementById(
+                  "monitorLevel"
+                ).value
+            )
+          );
+        }
+      }
+    );
 
-    knob.addEventListener("mousedown", e => {
-      dragging = true;
-      lastY = e.clientY;
-    });
+  document
+    .getElementById(
+      "monitorLevel"
+    )
+    .addEventListener(
+      "input",
+      e => {
+        if (
+          document.getElementById(
+            "monitorEnabled"
+          ).checked
+        ) {
+          engine.setMonitorLevel(
+            Number(
+              e.target.value
+            )
+          );
+        }
+      }
+    );
 
-    window.addEventListener("mousemove", e => {
-      if (!dragging) return;
-
-      const delta =
-        (lastY - e.clientY) * 0.005;
-
-      lastY = e.clientY;
-
-      params[param] += delta;
-
-      params[param] =
-        Math.max(
-          0,
-          Math.min(1, params[param])
+  document
+    .getElementById(
+      "inputDevice"
+    )
+    .addEventListener(
+      "change",
+      async e => {
+        await engine.initInput(
+          e.target.value
         );
+      }
+    );
 
-      drawKnob();
-    });
+  document
+    .getElementById(
+      "distortion"
+    )
+    .addEventListener(
+      "input",
+      e => {
+        engine.setDistortion(
+          Number(
+            e.target.value
+          )
+        );
+      }
+    );
 
-    window.addEventListener("mouseup", () => {
-      dragging = false;
-    });
+  document
+    .getElementById(
+      "lpf"
+    )
+    .addEventListener(
+      "input",
+      e => {
+        engine.setLPF(
+          Number(
+            e.target.value
+          )
+        );
+      }
+    );
 
-    knob.addEventListener("dblclick", () => {
-      params[param] = 0.5;
-      drawKnob();
-    });
-  });
+  document
+    .getElementById(
+      "delayMix"
+    )
+    .addEventListener(
+      "input",
+      e => {
+        engine.setDelayMix(
+          Number(
+            e.target.value
+          )
+        );
+      }
+    );
 
-  (async () => {
-    await populateDevices();
-    await initAudio();
-  })();
+  init();
 </script>
