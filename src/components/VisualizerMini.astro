@@ -1,77 +1,145 @@
+差し替えるファイル：
+
+```txt id="h7l2xq"
+src/components/VisualizerMini.astro
+```
+
+原因はほぼ確実に：
+
+```txt id="q2v9mr"
+AudioContext resumeされてない
+```
+
+か、
+
+```txt id="k1m8pd"
+getUserMedia後に描画loopだけ走ってる
+```
+
+。
+
+ヘッダー側は：
+
+```txt id="n5c3wa"
+「軽量版」
+```
+
+なので、
+
+* AudioEngine未使用
+* interaction不足
+* autoplay policy
+
+のどれかで止まりやすい。
+
+以下へ丸ごと差し替え。
+
+---
+
+```astro id="u4f8zn"
 ---
 // src/components/VisualizerMini.astro
-// Lightweight Header Scope
 
 const {
-  color = "#d8ff72",
-  height = 72
+  color = "#d8ff72"
 } = Astro.props;
 ---
 
-<div
-  class="mini-viz"
-  style={`height:${height}px`}
->
-  <canvas id="mini-scope"></canvas>
+<div id="mini-viz-wrap">
+
+  <canvas id="mini-viz"></canvas>
+
+  <button id="mini-start">
+    ENABLE AUDIO
+  </button>
+
 </div>
 
 <style>
-  .mini-viz {
+
+  #mini-viz-wrap {
+
     position: relative;
 
     width: 100%;
+    height: 64px;
+
     overflow: hidden;
-
-    pointer-events: none;
-
-    background:
-      linear-gradient(
-        to bottom,
-        rgba(255,255,255,0.012),
-        rgba(255,255,255,0)
-      );
   }
 
-  #mini-scope {
-    position: absolute;
-    inset: 0;
+  #mini-viz {
 
     width: 100%;
     height: 100%;
 
     display: block;
   }
+
+  #mini-start {
+
+    position: absolute;
+
+    inset: 0;
+
+    border: none;
+
+    background:
+      rgba(0,0,0,0.0);
+
+    color:
+      rgba(255,255,255,0.45);
+
+    font-size: 10px;
+
+    letter-spacing: 0.18em;
+
+    cursor: pointer;
+
+    transition:
+      opacity .25s ease;
+
+    backdrop-filter:
+      blur(2px);
+  }
+
+  #mini-start.hidden {
+
+    opacity: 0;
+
+    pointer-events: none;
+  }
+
 </style>
 
 <script define:vars={{ color }}>
-  import { AudioEngine }
-  from "../lib/audio/AudioEngine";
 
   const canvas =
     document.getElementById(
-      "mini-scope"
+      "mini-viz"
     );
 
   const ctx =
     canvas.getContext("2d");
 
+  const startButton =
+    document.getElementById(
+      "mini-start"
+    );
+
   let width = 0;
   let height = 0;
 
-  const engine =
-    new AudioEngine();
-
   function resize() {
-    const rect =
-      canvas.getBoundingClientRect();
 
     width =
       canvas.width =
-      rect.width * devicePixelRatio;
+      canvas.clientWidth *
+      devicePixelRatio;
 
     height =
       canvas.height =
-      rect.height * devicePixelRatio;
+      canvas.clientHeight *
+      devicePixelRatio;
   }
 
   resize();
@@ -81,13 +149,99 @@ const {
     resize
   );
 
-  async function boot() {
-    await engine.initInput();
+  let analyser;
+  let data;
+
+  let initialized = false;
+
+  async function initAudio() {
+
+    if (initialized)
+      return;
+
+    initialized = true;
+
+    const audioCtx =
+      new AudioContext();
+
+    await audioCtx.resume();
+
+    const stream =
+      await navigator
+        .mediaDevices
+        .getUserMedia({
+          audio: {
+            echoCancellation: false,
+            noiseSuppression: false,
+            autoGainControl: false
+          }
+        });
+
+    const source =
+      audioCtx
+        .createMediaStreamSource(
+          stream
+        );
+
+    analyser =
+      audioCtx
+        .createAnalyser();
+
+    analyser.fftSize =
+      2048;
+
+    analyser.smoothingTimeConstant =
+      0.82;
+
+    source.connect(
+      analyser
+    );
+
+    // keepalive
+
+    const keepAlive =
+      audioCtx
+        .createGain();
+
+    keepAlive.gain.value =
+      0.00001;
+
+    analyser.connect(
+      keepAlive
+    );
+
+    keepAlive.connect(
+      audioCtx.destination
+    );
+
+    data =
+      new Uint8Array(
+        analyser.fftSize
+      );
+
+    startButton.classList.add(
+      "hidden"
+    );
+
+    render();
   }
 
-  function clearFrame() {
+  function render() {
+
+    requestAnimationFrame(
+      render
+    );
+
+    if (!analyser)
+      return;
+
+    analyser
+      .getByteTimeDomainData(
+        data
+      );
+
     ctx.fillStyle =
-      "rgba(0,0,0,0.08)";
+      "rgba(0,0,0,0.18)";
 
     ctx.fillRect(
       0,
@@ -95,33 +249,6 @@ const {
       width,
       height
     );
-  }
-
-  function drawGrid() {
-    ctx.strokeStyle =
-      "rgba(255,255,255,0.025)";
-
-    ctx.lineWidth = 1;
-
-    const step = width / 8;
-
-    for (
-      let x = 0;
-      x < width;
-      x += step
-    ) {
-      ctx.beginPath();
-
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-
-      ctx.stroke();
-    }
-  }
-
-  function drawWave() {
-    const data =
-      engine.getTimeData();
 
     ctx.beginPath();
 
@@ -130,45 +257,46 @@ const {
       i < data.length;
       i++
     ) {
+
       const x =
-        (i / data.length) * width;
+        (i / data.length) *
+        width;
 
       const y =
         height / 2 +
         ((data[i] - 128) / 128) *
         height *
-        0.3;
+        0.38;
 
       if (i === 0) {
+
         ctx.moveTo(x, y);
+
       } else {
+
         ctx.lineTo(x, y);
       }
     }
 
-    ctx.strokeStyle = color;
+    ctx.strokeStyle =
+      color;
 
     ctx.lineWidth = 2;
 
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = color;
+    ctx.shadowBlur = 10;
+
+    ctx.shadowColor =
+      color;
 
     ctx.stroke();
 
     ctx.shadowBlur = 0;
   }
 
-  function render() {
-    requestAnimationFrame(render);
+  startButton.addEventListener(
+    "click",
+    initAudio
+  );
 
-    clearFrame();
-
-    drawGrid();
-
-    drawWave();
-  }
-
-  render();
-
-  boot();
 </script>
+```
