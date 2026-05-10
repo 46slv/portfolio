@@ -162,12 +162,33 @@ export class AudioEngine {
 
     // monitor routing
     this.analyser.connect(
-      this.monitorGain
-    );
+  // silent keepalive
 
-    this.monitorGain.connect(
-      this.audioCtx.destination
-    );
+  const silentGain =
+    this.audioCtx.createGain();
+
+  silentGain.gain.value =
+    0.00001;
+
+  // analyser chain
+
+  this.analyser.connect(
+    silentGain
+  );
+
+  silentGain.connect(
+    this.audioCtx.destination
+  );
+
+  // monitor chain
+
+  this.analyser.connect(
+    this.monitorGain
+  );
+
+  this.monitorGain.connect(
+    this.audioCtx.destination
+  );
   }
 
   /*
