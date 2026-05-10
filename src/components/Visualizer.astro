@@ -2,25 +2,21 @@
 // Visualizer.astro
 interface Props {
   isMini?: boolean;
+  color?: string;
 }
-const { isMini = false } = Astro.props;
+const { isMini = false, color = "#ffff00" } = Astro.props;
 ---
-<div class={`visualizer-container relative w-full h-full ${isMini ? 'min-h-[60px]' : 'min-h-[200px]'}`}>
+<div class={`visualizer-container relative w-full h-full ${isMini ? 'min-h-[40px]' : 'min-h-[200px]'}`}>
   <canvas id="visualizer-canvas" class="w-full h-full"></canvas>
+  <input type="hidden" id="vis-color" value={color} />
   
   {!isMini && (
-    <div id="vis-controls" class="absolute bottom-4 left-4 flex gap-4 z-20 bg-black/80 p-2 border border-zinc-800">
-      <div class="flex flex-col gap-1">
-        <label class="text-[8px] text-zinc-500 uppercase">Input Device</label>
-        <select id="audio-input" class="bg-transparent text-[10px] text-zinc-300 outline-none w-40"></select>
-      </div>
-      <div class="flex flex-col gap-1">
-        <label class="text-[8px] text-zinc-500 uppercase">Mode</label>
-        <select id="vis-mode" class="bg-transparent text-[10px] text-zinc-300 outline-none">
-          <option value="waveform">Waveform</option>
-          <option value="oscilloscope">Oscilloscope</option>
-        </select>
-      </div>
+    <div id="vis-controls" class="absolute bottom-4 left-4 flex gap-4 z-20 bg-black/80 p-2 border border-zinc-800 text-[10px] uppercase tracking-widest">
+      <select id="audio-input" class="bg-transparent text-zinc-300 outline-none w-32 border-none cursor-pointer"></select>
+      <select id="vis-mode" class="bg-transparent text-zinc-300 outline-none border-none cursor-pointer">
+        <option value="waveform">Waveform</option>
+        <option value="oscilloscope">Oscilloscope</option>
+      </select>
     </div>
   )}
 </div>
@@ -34,6 +30,7 @@ const { isMini = false } = Astro.props;
   const ctx = canvas.getContext('2d')!;
   const inputSelect = document.getElementById('audio-input') as HTMLSelectElement;
   const modeSelect = document.getElementById('vis-mode') as HTMLSelectElement;
+  const color = (document.getElementById('vis-color') as HTMLInputElement).value;
 
   function resize() {
     canvas.width = canvas.clientWidth * window.devicePixelRatio;
@@ -64,8 +61,10 @@ const { isMini = false } = Astro.props;
     const mode = modeSelect?.value || 'waveform';
 
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.lineWidth = 2 * window.devicePixelRatio;
-    ctx.strokeStyle = '#d0e2f8';
+    ctx.lineWidth = 1.5 * window.devicePixelRatio;
+    ctx.strokeStyle = color;
+    ctx.shadowBlur = 8;
+    ctx.shadowColor = color;
     ctx.beginPath();
 
     if (mode === 'waveform') {
@@ -79,9 +78,8 @@ const { isMini = false } = Astro.props;
         else ctx.lineTo(x, y);
         x += sliceWidth;
       }
-    } else if (mode === 'oscilloscope') {
+    } else {
       analyser.getByteTimeDomainData(dataArray);
-      // X-Y表示のシミュレーション
       for (let i = 0; i < bufferLength; i += 2) {
         const x = (dataArray[i] / 128.0 - 1) * canvas.width * 0.4 + canvas.width / 2;
         const y = (dataArray[i+1] / 128.0 - 1) * canvas.height * 0.4 + canvas.height / 2;

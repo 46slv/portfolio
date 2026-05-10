@@ -6,15 +6,15 @@ import Visualizer from '../components/Visualizer.astro';
 <html lang="ja">
   <head>
     <meta charset="utf-8" />
-    <title>Audio Visualizer | Fullscreen</title>
+    <title>Audio Visualizer | Fullscreen Scope</title>
     <style>
-      body { background: transparent; margin: 0; overflow: hidden; }
-      .full-screen { width: 100vw; height: 100vh; }
+      body { background: #000; margin: 0; overflow: hidden; }
+      .full-screen { width: 100vw; height: 100vh; display: flex; align-items: center; justify-content: center; }
     </style>
   </head>
   <body>
     <div class="full-screen">
-      <Visualizer />
+      <Visualizer color="#ffff00" />
     </div>
   </body>
 </html>

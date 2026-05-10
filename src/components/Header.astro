@@ -1,5 +1,6 @@
 ---
 // Header.astro
+import Visualizer from './Visualizer.astro';
 interface Props {
   name: string;
   jpName: string;
@@ -7,7 +8,19 @@ interface Props {
 const { name, jpName } = Astro.props;
 ---
 <header class="flex justify-between items-start mb-12 animate-fade-slide">
-  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">SS_Portfolio v2.05</div>
+  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50">
+    SS_Portfolio v2.05
+  </div>
+
+  <div class="flex-grow mx-8 h-8 border-b border-zinc-900 overflow-hidden relative group">
+    <a href="/visualizer" class="block w-full h-full cursor-pointer">
+      <Visualizer isMini={true} color="#ffff00" />
+      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
+        <span class="text-[8px] text-white tracking-[0.5em] font-bold">FULLSCREEN SCOPE</span>
+      </div>
+    </a>
+  </div>
+
   <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
     <div>Status: <span class="text-green-500 animate-pulse">ONLINE</span></div>
     <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
