@@ -73,14 +73,10 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
                   <option value="">— mic —</option>
                 </select>
               </div>
-              <div class="ctrl-row" style="margin-top:6px;">
-                <span class="ctrl-label">OUTPUT</span>
-                <button id="output-toggle" class="toggle-btn" data-active="false">OFF</button>
-              </div>
               <div class="ctrl-row" style="margin-top:10px;">
                 <span class="ctrl-label">OUT VOL</span>
-                <canvas class="knob-canvas" data-id="out-vol"  data-min="0"   data-max="1"     data-val="0.5"   data-fmt="pct"></canvas>
-                <span class="knob-val" data-for="out-vol">50%</span>
+                <canvas class="knob-canvas" data-id="out-vol"  data-min="0"   data-max="1"     data-val="0"     data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="out-vol">0%</span>
               </div>
               <div class="ctrl-row">
                 <span class="ctrl-label">MIC GAIN</span>
@@ -349,8 +345,7 @@ let running = false;
 
 // ── Audio params ─────────────────────────────────────────
 let gain      = 1.0;
-let outVol    = 0.5;
-let outputOn  = false;
+let outVol    = 0;
 let oscType: OscillatorType | 'off' | 'noise' = 'off';
 let oscFreq   = 440;
 let oscDetune = 0;
@@ -406,7 +401,7 @@ async function initAudio(deviceId?: string) {
   hpfNode     = audioCtx.createBiquadFilter();   hpfNode.type           = 'highpass';  hpfNode.frequency.value  = hpfFreq;
   delayNode   = audioCtx.createDelay(2.0);       delayNode.delayTime.value = delayTime;
   delayGain   = audioCtx.createGain();           delayGain.gain.value   = 0;
-  // Output path — by default disconnected from destination (no feedback / howl)
+  // Output path starts muted. OUT VOL controls this gain directly.
   outputGain  = audioCtx.createGain();           outputGain.gain.value  = 0;
   oscGainNode = audioCtx.createGain();           oscGainNode.gain.value = 0;
 
@@ -415,7 +410,7 @@ async function initAudio(deviceId?: string) {
   // Signal chain:
   // [mic|osc] → gainNode → distNode → hpfNode → lpfNode → analyser
   //                                                        → delayNode → delayGain → analyser
-  //                                           → outputGain → destination   (only when outputOn)
+  //                                           → outputGain → destination
   gainNode.connect(distNode);
   distNode.connect(hpfNode);
   hpfNode.connect(lpfNode);
@@ -423,9 +418,8 @@ async function initAudio(deviceId?: string) {
   lpfNode.connect(delayNode);
   delayNode.connect(delayGain);
   delayGain.connect(analyser);
-  // outputGain is ONLY connected to destination when user enables output
   analyser.connect(outputGain);
-  // Do NOT connect outputGain → destination yet (prevents howling)
+  outputGain.connect(audioCtx.destination);
 
   oscGainNode.connect(gainNode);
 
@@ -474,25 +468,9 @@ function setEngageUI(on: boolean) {
   if (ih && on) ih.textContent = micStream ? 'mic connected' : 'synth only';
 }
 
-// ── Output routing (howl-safe) ────────────────────────────
-function setOutputToggle(on: boolean) {
-  outputOn = on;
-  const btn = document.getElementById('output-toggle');
-  if (btn) { btn.textContent = on ? 'ON' : 'OFF'; btn.dataset.active = String(on); }
-  if (!audioCtx || !outputGain) return;
-  if (on) {
-    try { outputGain.connect(audioCtx.destination); } catch(_){}
-    outputGain.gain.setTargetAtTime(outVol, audioCtx.currentTime, 0.02);
-  } else {
-    outputGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
-    // Disconnect after fade
-    setTimeout(() => { try { outputGain.disconnect(audioCtx.destination); } catch(_){} }, 200);
-  }
-}
-
 function setOutputVol(v: number) {
   outVol = v;
-  if (outputGain && outputOn) outputGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
+  if (outputGain) outputGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
 }
 
 // ── Distortion ───────────────────────────────────────────
@@ -1050,8 +1028,6 @@ if (!IS_MINI) {
     const id=(e.target as HTMLSelectElement).value;
     if(running) await restartMic(id);
   });
-
-  document.getElementById('output-toggle')?.addEventListener('click',()=>setOutputToggle(!outputOn));
 
   document.querySelectorAll('.mode-btn').forEach(btn=>{
     (btn as HTMLElement).addEventListener('click',()=>{
