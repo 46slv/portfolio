@@ -393,10 +393,10 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
 </div>
 
 <style>
-  .visualizer-root { position:relative; width:100%; height:100%; }
+  .visualizer-root { position:relative; width:100%; height:100%; min-height:100dvh; overflow:hidden; }
   .fullscreen-mode { background:#000; }
   .mini-mode canvas { cursor:pointer; }
-  canvas#visualizer-canvas { display:block; width:100%; height:100%; }
+  canvas#visualizer-canvas { display:block; width:100%; height:100%; touch-action:none; }
 
   #viz-ui { position:absolute; inset:0; pointer-events:none; font-family:'Courier New',monospace; }
 
@@ -431,14 +431,28 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
     pointer-events:auto;
     transform:translateY(0);
     transition:transform .35s cubic-bezier(.4,0,.2,1);
+    max-height:calc(100dvh - env(safe-area-inset-top) - 18px);
+    overflow:hidden;
   }
   #control-panel.hidden { transform:translateY(100%); pointer-events:none; }
-  #panel-inner { padding:28px 20px 14px; }
+  #panel-inner {
+    padding:28px 20px calc(14px + env(safe-area-inset-bottom));
+    max-height:inherit;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    scrollbar-width:thin;
+    scrollbar-color:#333 transparent;
+  }
+  #panel-inner::-webkit-scrollbar { width:6px; }
+  #panel-inner::-webkit-scrollbar-track { background:transparent; }
+  #panel-inner::-webkit-scrollbar-thumb { background:#222; border-radius:999px; }
   #mode-row, #perf-row, #controls-grid { display:none !important; }
 
   #design-panel {
     display:grid; grid-template-columns:minmax(0,1.7fr) minmax(240px,.9fr) minmax(180px,.55fr) minmax(220px,.7fr);
-    gap:14px; align-items:start; max-height:min(44vh,400px); overflow-y:auto; padding-right:4px;
+    gap:14px; align-items:start; padding-right:4px;
     scrollbar-width:thin; scrollbar-color:#333 transparent;
   }
   #design-panel::-webkit-scrollbar { width:6px; }
@@ -457,7 +471,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
     display:grid; grid-template-columns:repeat(3,minmax(74px,1fr)); gap:12px 14px;
   }
   .design-knob-wrap { display:grid; justify-items:center; gap:4px; min-width:0; }
-  .design-knob { width:58px !important; height:58px !important; cursor:ns-resize; }
+  .design-knob { width:58px !important; height:58px !important; cursor:ns-resize; touch-action:none; }
   .design-label { font-size:10px; color:#666; letter-spacing:.14em; text-transform:uppercase; text-align:center; }
   .design-value { font-size:11px; color:#9a9a9a; letter-spacing:.08em; min-height:13px; }
   .mode-panel, .color-grid, #advanced-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
@@ -525,6 +539,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
     border:1px solid #222; color:#777; padding:3px 6px;
     cursor:pointer; flex:1; max-width:140px;
     letter-spacing:.05em; outline:none;
+    min-height:28px;
   }
   .viz-select:focus { border-color:#444; }
   .viz-select option { background:#111; }
@@ -555,18 +570,49 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   .visualizer-root.scope-only canvas#visualizer-canvas { background:#000; }
 
   @media (max-width: 900px) {
-    #panel-inner { padding:24px 14px calc(14px + env(safe-area-inset-bottom)); }
-    #design-panel { grid-template-columns:1fr; max-height:58vh; }
+    #control-panel {
+      max-height:min(72dvh, 620px);
+      border-top:1px solid rgba(255,255,0,.08);
+    }
+    #panel-inner { padding:22px 14px calc(16px + env(safe-area-inset-bottom)); }
+    #design-panel { grid-template-columns:1fr; }
     .panel-section { border-left:none; padding-left:0; border-top:1px solid #181818; padding-top:12px; }
     .panel-section:first-child { border-top:none; padding-top:0; }
     .primary-grid { grid-template-columns:repeat(3,minmax(80px,1fr)); }
     .design-knob { width:64px !important; height:64px !important; }
-    .mode-btn, .osc-btn, .toggle-btn { font-size:8px; padding:6px 9px; }
+    .mode-btn, .osc-btn, .toggle-btn { font-size:8px; padding:8px 10px; min-height:34px; }
+    .viz-select { min-height:34px; font-size:9px; }
   }
 
   @media (max-width: 560px) {
-    .primary-grid { grid-template-columns:repeat(2,minmax(96px,1fr)); }
+    #hud-bar { display:none; }
+    #hud-title { font-size:8px; letter-spacing:.32em; }
+    #status-label { font-size:7px; letter-spacing:.24em; }
+    #panel-toggle-btn { font-size:8px; padding:6px 9px; }
+    #control-panel { max-height:76dvh; }
+    .primary-grid { grid-template-columns:repeat(2,minmax(118px,1fr)); gap:14px 10px; }
     #hud-center { display:none; }
+    .panel-section summary { font-size:10px; margin-bottom:10px; }
+    .design-label { font-size:10px; }
+    .design-value { font-size:11px; }
+    .mode-panel, .color-grid, #advanced-grid, .utility-strip { gap:9px; }
+    .compact-select { max-width:100%; min-width:112px; }
+    #design-start-btn, #design-stop-btn { min-height:36px; font-size:9px; padding:7px 12px; }
+  }
+
+  @media (max-width: 380px) {
+    .primary-grid { grid-template-columns:1fr 1fr; }
+    .design-knob { width:60px !important; height:60px !important; }
+    .mode-btn, .osc-btn, .toggle-btn { letter-spacing:.16em; }
+  }
+
+  @media (max-height: 560px) and (orientation: landscape) {
+    #control-panel { max-height:64dvh; }
+    #panel-inner { padding-top:16px; }
+    #design-panel { grid-template-columns:minmax(0,1.25fr) minmax(220px,.9fr) minmax(180px,.7fr); }
+    .primary-grid { grid-template-columns:repeat(3,minmax(70px,1fr)); }
+    .design-knob { width:50px !important; height:50px !important; }
+    .panel-section summary { font-size:9px; margin-bottom:8px; }
   }
 </style>
 
