@@ -2,18 +2,6 @@ import { defineCollection } from 'astro:content';
 import { glob } from 'astro/loaders';
 import { z } from 'astro/zod';
 
-const logs = defineCollection({
-  loader: glob({
-    pattern: '*.md',
-    base: './src/content/logs',
-    retainBody: true
-  }),
-  schema: z.object({
-    date: z.string(),
-    url: z.url()
-  })
-});
-
 const gear = defineCollection({
   loader: glob({
     pattern: '*.md',
@@ -29,6 +17,5 @@ const gear = defineCollection({
 });
 
 export const collections = {
-  logs,
   gear
 };

@@ -1,17 +1,5 @@
 ---
-import { getCollection } from 'astro:content';
-
-const allLogs =
-  await getCollection('logs');
-
-const logs =
-  allLogs
-    .sort((a, b) => b.data.date.localeCompare(a.data.date))
-    .map(log => ({
-      date: log.data.date,
-      content: (log.body ?? '').trim(),
-      url: log.data.url
-    }));
+import { logs } from '../data/logs';
 ---
 
 <section class="animate-fade-slide delay-300">
