@@ -13,6 +13,7 @@ export class AudioEngine {
   monitorGain: GainNode;
 
   filterNode: BiquadFilterNode;
+  highpassNode: BiquadFilterNode;
 
   distortionNode: WaveShaperNode;
 
@@ -107,6 +108,19 @@ export class AudioEngine {
     this.filterNode.Q.value =
       0.0001;
 
+    this.highpassNode =
+      this.audioCtx
+        .createBiquadFilter();
+
+    this.highpassNode.type =
+      'highpass';
+
+    this.highpassNode.frequency.value =
+      10;
+
+    this.highpassNode.Q.value =
+      0.0001;
+
     this.distortionNode =
       this.audioCtx
         .createWaveShaper();
@@ -162,6 +176,10 @@ export class AudioEngine {
     // delay send
 
     this.filterNode.connect(
+      this.highpassNode
+    );
+
+    this.highpassNode.connect(
       this.delayNode
     );
 
@@ -171,7 +189,7 @@ export class AudioEngine {
 
     // dry path
 
-    this.filterNode.connect(
+    this.highpassNode.connect(
       this.outputGain
     );
 
@@ -351,6 +369,26 @@ export class AudioEngine {
       frequency;
   }
 
+  setHPF(
+    frequency: number
+  ) {
+
+    this.highpassNode.frequency.value =
+      frequency;
+  }
+
+  setFftSize(
+    timeFftSize: number,
+    frequencyFftSize = timeFftSize * 2
+  ) {
+
+    this.analyser.fftSize =
+      timeFftSize;
+
+    this.frequencyAnalyser.fftSize =
+      frequencyFftSize;
+  }
+
   /*
   --------------------------------
   DELAY
@@ -447,6 +485,16 @@ export class AudioEngine {
     return data;
   }
 
+  fillTimeData(
+    target: Uint8Array<ArrayBufferLike>
+  ) {
+
+    this.analyser
+      .getByteTimeDomainData(
+        target as unknown as Uint8Array<ArrayBuffer>
+      );
+  }
+
   getFrequencyData() {
 
     const data =
@@ -463,6 +511,16 @@ export class AudioEngine {
     return data;
   }
 
+  fillFrequencyData(
+    target: Uint8Array<ArrayBufferLike>
+  ) {
+
+    this.frequencyAnalyser
+      .getByteFrequencyData(
+        target as unknown as Uint8Array<ArrayBuffer>
+      );
+  }
+
   /*
   --------------------------------
   RMS
@@ -472,7 +530,14 @@ export class AudioEngine {
   getRMS() {
 
     const data =
-      this.getTimeData();
+      new Uint8Array(
+        this.analyser
+          .fftSize
+      );
+
+    this.fillTimeData(
+      data
+    );
 
     let sum = 0;
 
@@ -515,10 +580,27 @@ export class AudioEngine {
     const freq =
       this.getFrequencyData();
 
-    const peakIndex =
-      freq.indexOf(
-        Math.max(...freq)
-      );
+    let peakIndex = 0;
+    let peakValue = 0;
+
+    for (
+      let i = 0;
+      i < freq.length;
+      i++
+    ) {
+
+      if (
+        freq[i] >
+        peakValue
+      ) {
+
+        peakValue =
+          freq[i];
+
+        peakIndex =
+          i;
+      }
+    }
 
     return (
       peakIndex *
@@ -526,5 +608,35 @@ export class AudioEngine {
       this.frequencyAnalyser
         .fftSize
     );
+  }
+
+  stopInput() {
+
+    if (this.sourceNode) {
+
+      this.sourceNode.disconnect();
+
+      this.sourceNode =
+        undefined;
+    }
+
+    if (this.stream) {
+
+      this.stream
+        .getTracks()
+        .forEach(track => {
+          track.stop();
+        });
+
+      this.stream =
+        undefined;
+    }
+  }
+
+  async close() {
+
+    this.stopInput();
+
+    await this.audioCtx.close();
   }
 }

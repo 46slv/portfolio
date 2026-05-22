@@ -5,15 +5,24 @@ interface Props {
   name: string;
   jpName: string;
 }
-const { name, jpName } = Astro.props;
+
+const {
+  name,
+  jpName
+} = Astro.props;
 ---
+
 <header class="flex justify-between items-end mb-12 animate-fade-slide">
   <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50 pb-1">
     SS_Portfolio v2.05
   </div>
 
   <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative overflow-hidden">
-    <a href="/visualizer" class="block w-36 h-6 mx-auto cursor-default opacity-55 transition-opacity duration-300 hover:opacity-70" aria-label="Open scope">
+    <a
+      href="/visualizer"
+      class="block w-36 h-6 mx-auto cursor-default opacity-55 transition-opacity duration-300 hover:opacity-70"
+      aria-label="Open scope"
+    >
       <Visualizer isMini={true} />
     </a>
   </div>
@@ -22,7 +31,14 @@ const { name, jpName } = Astro.props;
     <div class="flex items-center justify-end gap-2">
       Status: <span class="text-green-500 animate-pulse">ONLINE</span>
     </div>
-    <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
+    <a
+      id="sys-time"
+      href="/clock"
+      class="block text-zinc-500 no-underline hover:text-zinc-400 transition-colors cursor-default"
+      aria-label="Open clock"
+    >
+      TIME: --:--:--
+    </a>
     <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
   </div>
 </header>
@@ -35,14 +51,33 @@ const { name, jpName } = Astro.props;
 </div>
 
 <script>
-  // 時刻とロード時間の更新ロジック
-  setInterval(() => {
-    const el = document.getElementById('sys-time');
-    if (el) el.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
-  }, 1000);
-  
-  window.addEventListener('load', () => {
-    const el = document.getElementById('load-time');
-    if (el) el.innerText = `LOAD: ${Math.round(performance.now())}ms`;
-  });
+  const updateSystemTime = () => {
+    const el =
+      document.getElementById('sys-time');
+
+    if (el) {
+      el.innerText =
+        `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false, timeZone: 'Asia/Tokyo' })} JST`;
+    }
+  };
+
+  updateSystemTime();
+
+  window.setInterval(
+    updateSystemTime,
+    1000
+  );
+
+  window.addEventListener(
+    'load',
+    () => {
+      const el =
+        document.getElementById('load-time');
+
+      if (el) {
+        el.innerText =
+          `LOAD: ${Math.round(performance.now())}ms`;
+      }
+    }
+  );
 </script>

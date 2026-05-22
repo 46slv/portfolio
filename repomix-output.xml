@@ -274,183 +274,6 @@ const { logs } = Astro.props;
 </script>
 </file>
 
-<file path="src/components/VisualizerMini.astro">
----
-// src/components/VisualizerMini.astro
-// Lightweight Header Scope
-
-const {
-  color = "#d8ff72",
-  height = 72
-} = Astro.props;
----
-
-<div
-  class="mini-viz"
-  style={`height:${height}px`}
->
-  <canvas id="mini-scope"></canvas>
-</div>
-
-<style>
-  .mini-viz {
-    position: relative;
-
-    width: 100%;
-    overflow: hidden;
-
-    pointer-events: none;
-
-    background:
-      linear-gradient(
-        to bottom,
-        rgba(255,255,255,0.012),
-        rgba(255,255,255,0)
-      );
-  }
-
-  #mini-scope {
-    position: absolute;
-    inset: 0;
-
-    width: 100%;
-    height: 100%;
-
-    display: block;
-  }
-</style>
-
-<script define:vars={{ color }}>
-  import { AudioEngine }
-  from "../lib/audio/AudioEngine";
-
-  const canvas =
-    document.getElementById(
-      "mini-scope"
-    );
-
-  const ctx =
-    canvas.getContext("2d");
-
-  let width = 0;
-  let height = 0;
-
-  const engine =
-    new AudioEngine();
-
-  function resize() {
-    const rect =
-      canvas.getBoundingClientRect();
-
-    width =
-      canvas.width =
-      rect.width * devicePixelRatio;
-
-    height =
-      canvas.height =
-      rect.height * devicePixelRatio;
-  }
-
-  resize();
-
-  window.addEventListener(
-    "resize",
-    resize
-  );
-
-  async function boot() {
-    await engine.initInput();
-  }
-
-  function clearFrame() {
-    ctx.fillStyle =
-      "rgba(0,0,0,0.08)";
-
-    ctx.fillRect(
-      0,
-      0,
-      width,
-      height
-    );
-  }
-
-  function drawGrid() {
-    ctx.strokeStyle =
-      "rgba(255,255,255,0.025)";
-
-    ctx.lineWidth = 1;
-
-    const step = width / 8;
-
-    for (
-      let x = 0;
-      x < width;
-      x += step
-    ) {
-      ctx.beginPath();
-
-      ctx.moveTo(x, 0);
-      ctx.lineTo(x, height);
-
-      ctx.stroke();
-    }
-  }
-
-  function drawWave() {
-    const data =
-      engine.getTimeData();
-
-    ctx.beginPath();
-
-    for (
-      let i = 0;
-      i < data.length;
-      i++
-    ) {
-      const x =
-        (i / data.length) * width;
-
-      const y =
-        height / 2 +
-        ((data[i] - 128) / 128) *
-        height *
-        0.3;
-
-      if (i === 0) {
-        ctx.moveTo(x, y);
-      } else {
-        ctx.lineTo(x, y);
-      }
-    }
-
-    ctx.strokeStyle = color;
-
-    ctx.lineWidth = 2;
-
-    ctx.shadowBlur = 12;
-    ctx.shadowColor = color;
-
-    ctx.stroke();
-
-    ctx.shadowBlur = 0;
-  }
-
-  function render() {
-    requestAnimationFrame(render);
-
-    clearFrame();
-
-    drawGrid();
-
-    drawWave();
-  }
-
-  render();
-
-  boot();
-</script>
-</file>
-
 <file path="src/styles/global.css">
 @import "tailwindcss";
 </file>
@@ -463,57 +286,174 @@ const {
 }
 </file>
 
-<file path="src/components/Header.astro">
+<file path="src/components/VisualizerMini.astro">
 ---
-import Visualizer from './VisualizerMini.astro';
+// src/components/VisualizerMini.astro
 
-interface Props {
-  name: string;
-  jpName: string;
-}
-const { name, jpName } = Astro.props;
+const {
+  color = "#d8ff72"
+} = Astro.props;
 ---
-<header class="flex justify-between items-end mb-12 animate-fade-slide">
-  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50 pb-1">
-    SS_Portfolio v2.05
-  </div>
 
-  <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative group overflow-hidden">
-    <a href="/visualizer" class="block w-full h-full" title="Open Fullscreen Scope">
-      <Visualizer isMini={true} />
-      <div class="absolute inset-0 bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity duration-300">
-        <span class="text-[8px] text-[#ffff00] tracking-[0.5em] font-bold">CLICK TO EXPAND SCOPE</span>
-      </div>
-    </a>
-  </div>
+<canvas class="mini-viz" aria-hidden="true"></canvas>
 
-  <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
-    <div class="flex items-center justify-end gap-2">
-      Status: <span class="text-green-500 animate-pulse">ONLINE</span>
-    </div>
-    <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
-    <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
-  </div>
-</header>
+<style>
+  .mini-viz {
+    width: 100%;
+    height: 100%;
+    display: block;
+    opacity: 0.72;
+  }
+</style>
 
-<div class="border-b border-zinc-900 pb-8 mb-12 animate-fade-slide delay-100">
-  <h1 class="text-4xl md:text-6xl font-bold text-white mb-6">
-    {name}
-    <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">{jpName}</span>
-  </h1>
-</div>
+<script define:vars={{ color }}>
+  const previous =
+    document.currentScript
+      ?.previousElementSibling;
 
-<script>
-  // 時刻とロード時間の更新ロジック
-  setInterval(() => {
-    const el = document.getElementById('sys-time');
-    if (el) el.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
-  }, 1000);
-  
-  window.addEventListener('load', () => {
-    const el = document.getElementById('load-time');
-    if (el) el.innerText = `LOAD: ${Math.round(performance.now())}ms`;
-  });
+  const canvas =
+    previous instanceof HTMLCanvasElement
+      ? previous
+      : document.querySelector(
+          ".mini-viz"
+        );
+
+  if (canvas instanceof HTMLCanvasElement) {
+    const ctx =
+      canvas.getContext("2d");
+
+    let width = 0;
+    let height = 0;
+    let tick = 0;
+
+    const dpr = () =>
+      window.devicePixelRatio || 1;
+
+    function resize() {
+      const scale = dpr();
+
+      width =
+        canvas.clientWidth *
+        scale;
+
+      height =
+        canvas.clientHeight *
+        scale;
+
+      canvas.width =
+        width;
+
+      canvas.height =
+        height;
+    }
+
+    function draw() {
+      if (!ctx)
+        return;
+
+      tick += 0.022;
+
+      ctx.clearRect(
+        0,
+        0,
+        width,
+        height
+      );
+
+      ctx.save();
+
+      ctx.globalAlpha =
+        0.16;
+
+      ctx.strokeStyle =
+        color;
+
+      ctx.lineWidth =
+        Math.max(
+          1,
+          dpr()
+        );
+
+      ctx.beginPath();
+      ctx.moveTo(0, height / 2);
+      ctx.lineTo(width, height / 2);
+      ctx.stroke();
+
+      ctx.globalAlpha =
+        0.92;
+
+      ctx.lineWidth =
+        Math.max(
+          1.15,
+          1.35 * dpr()
+        );
+
+      ctx.shadowBlur =
+        7 * dpr();
+
+      ctx.shadowColor =
+        color;
+
+      ctx.beginPath();
+
+      const points = 96;
+
+      for (
+        let i = 0;
+        i <= points;
+        i++
+      ) {
+        const ratio =
+          i / points;
+
+        const x =
+          ratio *
+          width;
+
+        const envelope =
+          Math.sin(
+            Math.PI * ratio
+          );
+
+        const wave =
+          Math.sin(
+            ratio * Math.PI * 8 +
+            tick * 3.2
+          ) * 0.62 +
+          Math.sin(
+            ratio * Math.PI * 17 -
+            tick * 2.1
+          ) * 0.22;
+
+        const y =
+          height / 2 +
+          wave *
+          envelope *
+          height *
+          0.28;
+
+        if (i === 0) {
+          ctx.moveTo(x, y);
+        } else {
+          ctx.lineTo(x, y);
+        }
+      }
+
+      ctx.stroke();
+      ctx.restore();
+
+      requestAnimationFrame(draw);
+    }
+
+    resize();
+
+    window.addEventListener(
+      "resize",
+      resize
+    );
+
+    requestAnimationFrame(draw);
+  }
 </script>
 </file>
 
@@ -1050,6 +990,57 @@ export class AudioEngine {
 }
 </file>
 
+<file path="src/components/Header.astro">
+---
+import Visualizer from './VisualizerMini.astro';
+
+interface Props {
+  name: string;
+  jpName: string;
+}
+const { name, jpName } = Astro.props;
+---
+<header class="flex justify-between items-end mb-12 animate-fade-slide">
+  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50 pb-1">
+    SS_Portfolio v2.05
+  </div>
+
+  <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative overflow-hidden">
+    <a href="/visualizer" class="block w-36 h-6 mx-auto cursor-default opacity-55 transition-opacity duration-300 hover:opacity-70" aria-label="Open scope">
+      <Visualizer isMini={true} />
+    </a>
+  </div>
+
+  <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
+    <div class="flex items-center justify-end gap-2">
+      Status: <span class="text-green-500 animate-pulse">ONLINE</span>
+    </div>
+    <div id="sys-time" class="text-zinc-500">TIME: --:--:--</div>
+    <div id="load-time" class="text-zinc-600">LOAD: ---ms</div>
+  </div>
+</header>
+
+<div class="border-b border-zinc-900 pb-8 mb-12 animate-fade-slide delay-100">
+  <h1 class="text-4xl md:text-6xl font-bold text-white mb-6">
+    {name}
+    <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">{jpName}</span>
+  </h1>
+</div>
+
+<script>
+  // 時刻とロード時間の更新ロジック
+  setInterval(() => {
+    const el = document.getElementById('sys-time');
+    if (el) el.innerText = `TIME: ${new Date().toLocaleTimeString('ja-JP', { hour12: false })} JST`;
+  }, 1000);
+  
+  window.addEventListener('load', () => {
+    const el = document.getElementById('load-time');
+    if (el) el.innerText = `LOAD: ${Math.round(performance.now())}ms`;
+  });
+</script>
+</file>
+
 <file path="src/pages/visualizer.astro">
 ---
 // src/pages/visualizer.astro
@@ -1105,6 +1096,7 @@ import Visualizer from '../components/Visualizer.astro';
 
         width: 100%;
         height: 100%;
+        min-height: 100dvh;
 
         overflow: hidden;
 
@@ -1135,6 +1127,7 @@ import Visualizer from '../components/Visualizer.astro';
 
         width: 100vw;
         height: 100vh;
+        height: 100dvh;
 
         overflow: hidden;
 
@@ -1202,7 +1195,7 @@ import Visualizer from '../components/Visualizer.astro';
         left: 0;
         right: 0;
 
-        height: 56px;
+        min-height: 56px;
 
         display: flex;
         align-items: center;
@@ -1210,9 +1203,9 @@ import Visualizer from '../components/Visualizer.astro';
 
         padding:
           env(safe-area-inset-top)
-          18px
+          max(12px, env(safe-area-inset-right))
           0
-          18px;
+          max(12px, env(safe-area-inset-left));
 
         z-index: 200;
 
@@ -1257,10 +1250,13 @@ import Visualizer from '../components/Visualizer.astro';
         cursor: pointer;
 
         transition:
+          opacity .18s ease,
           border-color .18s ease,
           color .18s ease,
           background .18s ease,
           transform .18s ease;
+
+        opacity: 0.42;
       }
 
       .top-button:hover {
@@ -1268,6 +1264,7 @@ import Visualizer from '../components/Visualizer.astro';
         border-color: rgba(216,255,114,0.3);
 
         transform: translateY(-1px);
+        opacity: 1;
       }
 
       .top-button:active {
@@ -1310,6 +1307,19 @@ import Visualizer from '../components/Visualizer.astro';
         opacity: 0;
         transform: translateY(-6px);
         pointer-events: none;
+      }
+
+      body.scope-only #topbar,
+      body.scope-only #help,
+      body.scope-only .scope-wrap::before,
+      body.scope-only .scope-wrap::after {
+        opacity: 0;
+        pointer-events: none;
+      }
+
+      body.scope-only .scope-wrap::before,
+      body.scope-only .scope-wrap::after {
+        display: none;
       }
 
       #help-title {
@@ -1380,14 +1390,46 @@ import Visualizer from '../components/Visualizer.astro';
       */
 
       @media (max-width: 700px) {
+        #topbar {
+          align-items: flex-start;
+          padding-top:
+            calc(env(safe-area-inset-top) + 8px);
+        }
+
+        #topbar-left,
+        #topbar-right {
+          gap: 8px;
+        }
+
+        #help-toggle,
+        #fullscreen-toggle {
+          display: none;
+        }
+
         #help {
           width: calc(100vw - 32px);
           right: 16px;
+          top:
+            calc(env(safe-area-inset-top) + 56px);
         }
 
         .top-button {
           font-size: 9px;
           letter-spacing: 0.14em;
+          height: 32px;
+          padding: 0 10px;
+        }
+      }
+
+      @media (max-width: 430px) {
+        #topbar-right {
+          gap: 6px;
+        }
+
+        .top-button {
+          font-size: 8px;
+          letter-spacing: 0.1em;
+          padding: 0 8px;
         }
       }
     </style>
@@ -1435,7 +1477,7 @@ import Visualizer from '../components/Visualizer.astro';
 
       <div class="help-row">
         <span>TAB</span>
-        <span class="help-key">TOGGLE PANEL</span>
+        <span class="help-key">WAVE ONLY</span>
       </div>
 
       <div class="help-row">
@@ -1491,8 +1533,8 @@ import Visualizer from '../components/Visualizer.astro';
       */
 
       function togglePanel() {
-        body.classList.toggle(
-          "panel-hidden"
+        document.dispatchEvent(
+          new CustomEvent("ss-toggle-panel")
         );
       }
 
@@ -1545,7 +1587,6 @@ import Visualizer from '../components/Visualizer.astro';
         async (e) => {
           if (e.key === "Tab") {
             e.preventDefault();
-            togglePanel();
           }
 
           if (
@@ -1588,7 +1629,17 @@ import Visualizer from '../components/Visualizer.astro';
 
       setTimeout(() => {
         help?.classList.add("hidden");
-      }, 6000);
+      }, 1200);
+
+      document.addEventListener(
+        "ss-scope-only",
+        (event) => {
+          body.classList.toggle(
+            "scope-only",
+            Boolean(event.detail?.active)
+          );
+        }
+      );
     </script>
   </body>
 </html>
@@ -1610,6 +1661,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   data-color={color}
 >
   <canvas id="visualizer-canvas"></canvas>
+  {!isMini && <div id="perf-overlay"></div>}
 
   {!isMini && (
     <div id="viz-ui">
@@ -1627,6 +1679,7 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
           <span id="hud-freq">FREQ: ---Hz</span>
           <span id="hud-rms">RMS: -∞dB</span>
           <span id="hud-mode-label">MODE: SCOPE</span>
+          <span id="hud-perf">FPS: --/60 | --ms | DROP 0</span>
         </div>
         <div id="hud-right">
           <button id="panel-toggle-btn" title="Toggle panel (Tab)">PANEL ▾</button>
@@ -1636,6 +1689,136 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
       <!-- ══ BOTTOM CONTROL PANEL ══ -->
       <div id="control-panel">
         <div id="panel-inner">
+
+          <div id="design-panel">
+            <details class="panel-section primary-section" open>
+              <summary>Primary</summary>
+              <div class="primary-grid">
+                {[
+                  { id:'design-volume', label:'Volume', value:'0', min:'0', max:'1', fmt:'pct' },
+                  { id:'design-speed', label:'Speed', value:'1', min:'0.5', max:'8', fmt:'x1' },
+                  { id:'design-scale', label:'Scale', value:'1', min:'0.1', max:'3', fmt:'x1' },
+                  { id:'design-beam', label:'Beam', value:'1', min:'0.4', max:'3', fmt:'x1' },
+                  { id:'design-intensity', label:'Intensity', value:'1', min:'0.2', max:'2', fmt:'x1' },
+                  { id:'design-afterglow', label:'Afterglow', value:'0.15', min:'0', max:'0.95', fmt:'pct' },
+                  { id:'design-x', label:'↔ Expand', value:'1', min:'0.5', max:'2', fmt:'x1' },
+                  { id:'design-y', label:'↕ Expand', value:'1', min:'0.5', max:'2', fmt:'x1' },
+                  { id:'design-rotate', label:'Rotate', value:'0', min:'-180', max:'180', fmt:'deg', bipolar:'true' },
+                ].map(k => (
+                  <div class="design-knob-wrap">
+                    <canvas
+                      class="design-knob"
+                      data-id={k.id}
+                      data-min={k.min}
+                      data-max={k.max}
+                      data-val={k.value}
+                      data-fmt={k.fmt}
+                      data-bipolar={k.bipolar}
+                    ></canvas>
+                    <span class="design-label">{k.label}</span>
+                    <span class="design-value" data-for={k.id}></span>
+                  </div>
+                ))}
+              </div>
+            </details>
+
+            <details class="panel-section" open>
+              <summary>Mode</summary>
+              <div class="mode-panel">
+                <div class="btn-group mode-selector">
+                  {[
+                    { id:'scope', label:'OSC' },
+                    { id:'spectrum', label:'SPECTRUM' },
+                    { id:'lissajous', label:'LISSAJOUS' },
+                    { id:'radial', label:'RADIAL' },
+                    { id:'waterfall', label:'WATERFALL' },
+                  ].map(m => (
+                    <button class="mode-btn design-mode-btn" data-mode={m.id}>{m.label}</button>
+                  ))}
+                </div>
+                <div class="mode-tools">
+                  <button id="design-pixelmap" class="toggle-btn visual-toggle" data-active="false">PIXEL MAP</button>
+                  <button id="design-hud" class="toggle-btn visual-toggle" data-active="true">HUD</button>
+                  <button id="design-wave-only" class="toggle-btn visual-toggle" data-active="false">WAVE ONLY</button>
+                  <button id="design-reset" class="toggle-btn visual-toggle">RESET</button>
+                </div>
+                <div class="utility-strip">
+                  <select id="design-input-select" class="viz-select">
+                    <option value="">— mic —</option>
+                  </select>
+                  <button id="design-start-btn">▶ ENGAGE</button>
+                  <button id="design-stop-btn" class="hidden">■ STOP</button>
+                  <span id="design-init-hint">mic standby</span>
+                </div>
+              </div>
+            </details>
+
+            <details class="panel-section">
+              <summary>Color</summary>
+              <div class="color-grid">
+                <label>Preset
+                  <select id="design-color-select" class="viz-select compact-select">
+                    <option value="#36ff72" selected>VECTOR GREEN</option>
+                    <option value="#ffb000">AMBER CRT</option>
+                    <option value="#7fd8ff">ICE BLUE</option>
+                    <option value="#ff4dff">LASER MAGENTA</option>
+                    <option value="#ffff00">ACID YELLOW</option>
+                    <option value="#f4f4f4">TERMINAL WHITE</option>
+                  </select>
+                </label>
+                <div class="design-knob-wrap compact-knob">
+                  <canvas class="design-knob" data-id="design-hue" data-min="0" data-max="360" data-val="60" data-fmt="deg"></canvas>
+                  <span class="design-label">Hue</span>
+                  <span class="design-value" data-for="design-hue"></span>
+                </div>
+              </div>
+            </details>
+
+            <details class="panel-section">
+              <summary>Advanced</summary>
+              <div id="advanced-grid">
+                <label>FPS
+                  <select id="design-fps-select" class="viz-select compact-select">
+                    {[15,24,30,60,120].map(v => <option value={v} selected={v === 60}>{v}</option>)}
+                  </select>
+                </label>
+                <label>Quality
+                  <select id="design-glow-select" class="viz-select compact-select">
+                    <option value="off">OFF</option>
+                    <option value="low" selected>LOW</option>
+                    <option value="high">HIGH</option>
+                  </select>
+                </label>
+                <label>FFT
+                  <select id="design-fft-select" class="viz-select compact-select">
+                    <option value="auto" selected>AUTO</option>
+                    <option value="512">512</option>
+                    <option value="1024">1024</option>
+                    <option value="2048">2048</option>
+                    <option value="4096">4096</option>
+                  </select>
+                </label>
+                <label>Density
+                  <select id="design-sample-select" class="viz-select compact-select">
+                    <option value="1" selected>1:1</option>
+                    <option value="2">1:2</option>
+                    <option value="4">1:4</option>
+                    <option value="8">1:8</option>
+                  </select>
+                </label>
+                <label>Render
+                  <select id="design-scale-select" class="viz-select compact-select">
+                    <option value="1" selected>1.0</option>
+                    <option value="0.75">0.75</option>
+                    <option value="0.5">0.5</option>
+                  </select>
+                </label>
+                <button id="design-adaptive" class="toggle-btn" data-active="false">ADAPT</button>
+                <button id="design-stats" class="toggle-btn" data-active="false">STATS</button>
+                <button id="design-ultra" class="toggle-btn" data-active="false">ULTRA</button>
+              </div>
+            </details>
+          </div>
 
           <!-- Mode row -->
           <div id="mode-row">
@@ -1658,6 +1841,60 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
             </div>
           </div>
 
+          <div id="perf-row">
+            <span class="section-label" style="border:none;margin:0;padding:0;">PERF</span>
+            <label>FPS
+              <select id="fps-select" class="viz-select compact-select">
+                {[15,24,30,60,120].map(v => <option value={v} selected={v === 60}>{v}</option>)}
+              </select>
+            </label>
+            <label>SCALE
+              <select id="scale-select" class="viz-select compact-select">
+                <option value="1" selected>1.0</option>
+                <option value="0.75">0.75</option>
+                <option value="0.5">0.5</option>
+              </select>
+            </label>
+            <label>SAMPLE
+              <select id="sample-select" class="viz-select compact-select">
+                <option value="1" selected>1:1</option>
+                <option value="2">1:2</option>
+                <option value="4">1:4</option>
+                <option value="8">1:8</option>
+              </select>
+            </label>
+            <label>FFT
+              <select id="fft-select" class="viz-select compact-select">
+                <option value="auto" selected>AUTO</option>
+                <option value="512">512</option>
+                <option value="1024">1024</option>
+                <option value="2048">2048</option>
+                <option value="4096">4096</option>
+              </select>
+            </label>
+            <label>GLOW
+              <select id="glow-select" class="viz-select compact-select">
+                <option value="off">OFF</option>
+                <option value="low" selected>LOW</option>
+                <option value="high">HIGH</option>
+              </select>
+            </label>
+            <label>COLOR
+              <select id="color-select" class="viz-select compact-select">
+                <option value="#36ff72" selected>VECTOR</option>
+                <option value="#ffb000">AMBER</option>
+                <option value="#7fd8ff">ICE</option>
+                <option value="#ff4dff">MAGENTA</option>
+                <option value="#ffff00">ACID</option>
+                <option value="#f4f4f4">WHITE</option>
+              </select>
+            </label>
+            <button id="adaptive-btn" class="toggle-btn" data-active="false">ADAPT</button>
+            <button id="perf-overlay-btn" class="toggle-btn" data-active="false">STATS</button>
+            <button id="scope-only-btn" class="toggle-btn" data-active="false">SCOPE ONLY</button>
+            <button id="ultra-btn" class="toggle-btn" data-active="false">ULTRA</button>
+          </div>
+
           <!-- Main controls grid -->
           <div id="controls-grid">
 
@@ -1670,14 +1907,10 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
                   <option value="">— mic —</option>
                 </select>
               </div>
-              <div class="ctrl-row" style="margin-top:6px;">
-                <span class="ctrl-label">OUTPUT</span>
-                <button id="output-toggle" class="toggle-btn" data-active="false">OFF</button>
-              </div>
               <div class="ctrl-row" style="margin-top:10px;">
                 <span class="ctrl-label">OUT VOL</span>
-                <canvas class="knob-canvas" data-id="out-vol"  data-min="0"   data-max="1"     data-val="0.5"   data-fmt="pct"></canvas>
-                <span class="knob-val" data-for="out-vol">50%</span>
+                <canvas class="knob-canvas" data-id="out-vol"  data-min="0"   data-max="1"     data-val="0"     data-fmt="pct"></canvas>
+                <span class="knob-val" data-for="out-vol">0%</span>
               </div>
               <div class="ctrl-row">
                 <span class="ctrl-label">MIC GAIN</span>
@@ -1808,10 +2041,10 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
 </div>
 
 <style>
-  .visualizer-root { position:relative; width:100%; height:100%; }
+  .visualizer-root { position:relative; width:100%; height:100%; min-height:100dvh; overflow:hidden; }
   .fullscreen-mode { background:#000; }
   .mini-mode canvas { cursor:pointer; }
-  canvas#visualizer-canvas { display:block; width:100%; height:100%; }
+  canvas#visualizer-canvas { display:block; width:100%; height:100%; touch-action:none; }
 
   #viz-ui { position:absolute; inset:0; pointer-events:none; font-family:'Courier New',monospace; }
 
@@ -1846,14 +2079,76 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
     pointer-events:auto;
     transform:translateY(0);
     transition:transform .35s cubic-bezier(.4,0,.2,1);
+    max-height:calc(100dvh - env(safe-area-inset-top) - 18px);
+    overflow:hidden;
   }
   #control-panel.hidden { transform:translateY(100%); pointer-events:none; }
-  #panel-inner { padding:28px 20px 14px; }
+  #panel-inner {
+    padding:28px 20px calc(14px + env(safe-area-inset-bottom));
+    max-height:inherit;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    -webkit-overflow-scrolling:touch;
+    touch-action:pan-y;
+    scrollbar-width:thin;
+    scrollbar-color:#333 transparent;
+  }
+  #panel-inner::-webkit-scrollbar { width:6px; }
+  #panel-inner::-webkit-scrollbar-track { background:transparent; }
+  #panel-inner::-webkit-scrollbar-thumb { background:#222; border-radius:999px; }
+  #mode-row, #perf-row, #controls-grid { display:none !important; }
+
+  #design-panel {
+    display:grid; grid-template-columns:minmax(0,1.7fr) minmax(240px,.9fr) minmax(180px,.55fr) minmax(220px,.7fr);
+    gap:14px; align-items:start; padding-right:4px;
+    scrollbar-width:thin; scrollbar-color:#333 transparent;
+  }
+  #design-panel::-webkit-scrollbar { width:6px; }
+  #design-panel::-webkit-scrollbar-track { background:transparent; }
+  #design-panel::-webkit-scrollbar-thumb { background:#222; border-radius:999px; }
+  .panel-section { border-left:1px solid #181818; padding-left:14px; min-width:0; }
+  .panel-section:first-child { border-left:none; padding-left:0; }
+  .panel-section summary {
+    cursor:pointer; list-style:none; font-size:10px; letter-spacing:.34em; color:#777;
+    text-transform:uppercase; margin-bottom:12px; user-select:none;
+  }
+  .panel-section summary::-webkit-details-marker { display:none; }
+  .panel-section summary::before { content:'▾'; display:inline-block; margin-right:8px; color:#ffff00; }
+  .panel-section:not([open]) summary::before { content:'▸'; }
+  .primary-grid {
+    display:grid; grid-template-columns:repeat(3,minmax(74px,1fr)); gap:12px 14px;
+  }
+  .design-knob-wrap { display:grid; justify-items:center; gap:4px; min-width:0; }
+  .design-knob { width:58px !important; height:58px !important; cursor:ns-resize; touch-action:none; }
+  .design-label { font-size:10px; color:#666; letter-spacing:.14em; text-transform:uppercase; text-align:center; }
+  .design-value { font-size:11px; color:#9a9a9a; letter-spacing:.08em; min-height:13px; }
+  .mode-panel, .color-grid, #advanced-grid { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
+  .mode-selector { gap:5px; }
+  .mode-tools { display:flex; flex-wrap:wrap; gap:5px; width:100%; }
+  .visual-toggle { min-height:26px; }
+  .utility-strip { display:flex; flex-wrap:wrap; align-items:center; gap:7px; width:100%; margin-top:4px; }
+  #design-start-btn, #design-stop-btn {
+    font-size:9px; font-family:inherit; letter-spacing:.24em; text-transform:uppercase;
+    padding:6px 10px; cursor:pointer; border:1px solid #ffff00; color:#ffff00; background:transparent;
+  }
+  #design-start-btn:hover { background:#ffff00; color:#000; }
+  #design-stop-btn { border-color:#333; color:#555; }
+  #design-stop-btn.hidden { display:none; }
+  #design-init-hint { font-size:8px; color:#444; font-style:italic; }
+  #advanced-grid label, .color-grid label {
+    display:flex; align-items:center; gap:6px; font-size:8px; color:#666; letter-spacing:.18em; text-transform:uppercase;
+  }
+  .compact-knob .design-knob { width:48px !important; height:48px !important; }
 
   /* Mode row */
   #mode-row {
     display:flex; align-items:center; gap:10px; margin-bottom:14px; flex-wrap:wrap;
   }
+  #perf-row {
+    display:flex; align-items:center; gap:8px; margin-bottom:14px; flex-wrap:wrap;
+    font-size:7px; color:#555; letter-spacing:.2em; text-transform:uppercase;
+  }
+  #perf-row label { display:flex; align-items:center; gap:5px; }
   .btn-group { display:flex; gap:3px; flex-wrap:wrap; }
   .section-label {
     font-size:7px; letter-spacing:.4em; color:#3a3a3a; text-transform:uppercase;
@@ -1892,9 +2187,11 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
     border:1px solid #222; color:#777; padding:3px 6px;
     cursor:pointer; flex:1; max-width:140px;
     letter-spacing:.05em; outline:none;
+    min-height:28px;
   }
   .viz-select:focus { border-color:#444; }
   .viz-select option { background:#111; }
+  .compact-select { width:auto; min-width:58px; max-width:96px; flex:0 0 auto; padding:3px 5px; }
 
   /* Engage/Stop */
   #start-btn, #stop-btn {
@@ -1907,6 +2204,64 @@ const { isMini = false, color = '#ffff00' } = Astro.props;
   #stop-btn:hover { border-color:#a00; color:#a00; }
   #stop-btn.hidden { display:none; }
   #init-hint { font-size:7px; color:#2a2a2a; font-style:italic; margin-top:4px; display:block; }
+  #perf-overlay {
+    position:absolute; right:20px; top:46px; z-index:4; pointer-events:none;
+    font-size:8px; line-height:1.7; letter-spacing:.18em; color:#777;
+    background:rgba(0,0,0,.72); border:1px solid #222; padding:8px 10px;
+    white-space:pre; display:none;
+  }
+  #perf-overlay.visible { display:block; }
+  .visualizer-root.scope-only #hud-bar,
+  .visualizer-root.scope-only #control-panel,
+  .visualizer-root.scope-only #perf-overlay { display:none; }
+  .visualizer-root.hud-hidden #hud-bar { display:none; }
+  .visualizer-root.scope-only canvas#visualizer-canvas { background:#000; }
+
+  @media (max-width: 900px) {
+    #control-panel {
+      max-height:min(72dvh, 620px);
+      border-top:1px solid rgba(255,255,0,.08);
+    }
+    #panel-inner { padding:22px 14px calc(16px + env(safe-area-inset-bottom)); }
+    #design-panel { grid-template-columns:1fr; }
+    .panel-section { border-left:none; padding-left:0; border-top:1px solid #181818; padding-top:12px; }
+    .panel-section:first-child { border-top:none; padding-top:0; }
+    .primary-grid { grid-template-columns:repeat(3,minmax(80px,1fr)); }
+    .design-knob { width:64px !important; height:64px !important; }
+    .mode-btn, .osc-btn, .toggle-btn { font-size:8px; padding:8px 10px; min-height:34px; }
+    .viz-select { min-height:34px; font-size:9px; }
+  }
+
+  @media (max-width: 560px) {
+    #hud-bar { display:none; }
+    #hud-title { font-size:8px; letter-spacing:.32em; }
+    #status-label { font-size:7px; letter-spacing:.24em; }
+    #panel-toggle-btn { font-size:8px; padding:6px 9px; }
+    #control-panel { max-height:76dvh; }
+    .primary-grid { grid-template-columns:repeat(2,minmax(118px,1fr)); gap:14px 10px; }
+    #hud-center { display:none; }
+    .panel-section summary { font-size:10px; margin-bottom:10px; }
+    .design-label { font-size:10px; }
+    .design-value { font-size:11px; }
+    .mode-panel, .color-grid, #advanced-grid, .utility-strip { gap:9px; }
+    .compact-select { max-width:100%; min-width:112px; }
+    #design-start-btn, #design-stop-btn { min-height:36px; font-size:9px; padding:7px 12px; }
+  }
+
+  @media (max-width: 380px) {
+    .primary-grid { grid-template-columns:1fr 1fr; }
+    .design-knob { width:60px !important; height:60px !important; }
+    .mode-btn, .osc-btn, .toggle-btn { letter-spacing:.16em; }
+  }
+
+  @media (max-height: 560px) and (orientation: landscape) {
+    #control-panel { max-height:64dvh; }
+    #panel-inner { padding-top:16px; }
+    #design-panel { grid-template-columns:minmax(0,1.25fr) minmax(220px,.9fr) minmax(180px,.7fr); }
+    .primary-grid { grid-template-columns:repeat(3,minmax(70px,1fr)); }
+    .design-knob { width:50px !important; height:50px !important; }
+    .panel-section summary { font-size:9px; margin-bottom:8px; }
+  }
 </style>
 
 <script>
@@ -1917,12 +2272,17 @@ const ROOT    = document.querySelector('.visualizer-root') as HTMLElement;
 const canvas  = document.getElementById('visualizer-canvas') as HTMLCanvasElement;
 const C       = canvas.getContext('2d')!;
 const IS_MINI = ROOT.dataset.mini === 'true';
-const ACCENT  = ROOT.dataset.color || '#ffff00';
+let ACCENT  = ROOT.dataset.color || '#ffff00';
+let gridCanvas: HTMLCanvasElement | null = null;
+let gridKey = '';
 
-function dpr() { return window.devicePixelRatio || 1; }
+let renderScale = 1;
+let dprClamp = 2;
+function dpr() { return Math.min(window.devicePixelRatio || 1, dprClamp) * renderScale; }
 function resize() {
   canvas.width  = canvas.clientWidth  * dpr();
   canvas.height = canvas.clientHeight * dpr();
+  invalidateGrid();
 }
 window.addEventListener('resize', resize);
 resize();
@@ -1946,8 +2306,7 @@ let running = false;
 
 // ── Audio params ─────────────────────────────────────────
 let gain      = 1.0;
-let outVol    = 0.5;
-let outputOn  = false;
+let outVol    = 0;
 let oscType: OscillatorType | 'off' | 'noise' = 'off';
 let oscFreq   = 440;
 let oscDetune = 0;
@@ -1972,6 +2331,33 @@ let pxSize    = 4;
 let pxThresh  = 0.15;
 let pxOpacity = 0.7;
 let pxGap     = 1;
+let beamWidth = 1;
+let intensity = 1;
+let xExpand = 1;
+let yExpand = 1;
+let rotationDeg = 0;
+let hue = 60;
+let hudVisible = true;
+
+// Performance params
+let targetFps = IS_MINI ? 30 : 60;
+let actualFps = 0;
+let msFrame = 0;
+let droppedFrames = 0;
+let frameInterval = 1000 / targetFps;
+let lastFrameAt = 0;
+let fpsWindowAt = 0;
+let fpsFrames = 0;
+let sampleStep = IS_MINI ? 4 : 1;
+let fftSetting: 'auto' | '512' | '1024' | '2048' | '4096' = 'auto';
+let glowQuality: 'off' | 'low' | 'high' = IS_MINI ? 'off' : 'low';
+let adaptiveQuality = false;
+let perfOverlayOn = false;
+let scopeOnly = false;
+let ultraMinimal = false;
+let lastHudAt = 0;
+let hudPeakHz = 0;
+let hudRmsDb = -Infinity;
 
 // ── Buffers ──────────────────────────────────────────────
 const WATERFALL_ROWS = 150;
@@ -1981,6 +2367,229 @@ let lissX: number[] = [];
 let lissY: number[] = [];
 interface Ptcl { x:number;y:number;vx:number;vy:number;life:number;mLife:number;sz:number;hue:number }
 let particles: Ptcl[] = [];
+
+function setTargetFps(v: number) {
+  targetFps = Math.max(1, v);
+  frameInterval = 1000 / targetFps;
+}
+
+function glow(v: number) {
+  if (glowQuality === 'off') return 0;
+  return glowQuality === 'high' ? v : v * 0.35;
+}
+
+function setFftSize(size: number) {
+  if (!analyser) return;
+  analyser.fftSize = size;
+  waterfallData = [];
+}
+
+function autoFftForMode() {
+  if (fftSetting !== 'auto') return;
+  const next =
+    mode === 'spectrum' || mode === 'waterfall' ? 4096 :
+    mode === 'particle' ? 1024 :
+    2048;
+  setFftSize(next);
+}
+
+function applyFftSetting() {
+  if (fftSetting === 'auto') {
+    autoFftForMode();
+  } else {
+    setFftSize(parseInt(fftSetting, 10));
+  }
+}
+
+function invalidateGrid() {
+  gridCanvas = null;
+  gridKey = '';
+}
+
+function updatePerfHud(force = false) {
+  const now = performance.now();
+  if (!force && now - lastHudAt < 250) return;
+  lastHudAt = now;
+
+  const hz=(h:number)=>h>=1000?`${(h/1000).toFixed(1)}k`:`${Math.round(h)}`;
+  const fe=document.getElementById('hud-freq');
+  const re=document.getElementById('hud-rms');
+  const pe=document.getElementById('hud-perf');
+  const oe=document.getElementById('perf-overlay');
+  if(fe) fe.textContent=`FREQ: ${hz(hudPeakHz)}Hz`;
+  if(re) re.textContent=`RMS: ${isFinite(hudRmsDb)?hudRmsDb.toFixed(1):'-∞'}dB`;
+  if(pe) pe.textContent=`FPS: ${actualFps.toFixed(0)}/${targetFps} | ${msFrame.toFixed(1)}ms | DROP ${droppedFrames}`;
+  if(oe) {
+    oe.classList.toggle('visible', perfOverlayOn);
+    oe.textContent =
+      `FPS ${actualFps.toFixed(1)} / ${targetFps}\n` +
+      `FRAME ${msFrame.toFixed(1)}ms\n` +
+      `SCALE ${renderScale.toFixed(2)} DPR ${dpr().toFixed(2)}\n` +
+      `FFT ${analyser?.fftSize ?? '--'}\n` +
+      `SAMPLES 1:${sampleStep}\n` +
+      `GLOW ${glowQuality.toUpperCase()}\n` +
+      `DROP ${droppedFrames}`;
+  }
+}
+
+function applyAdaptiveQuality() {
+  if (!adaptiveQuality || actualFps === 0) return;
+  if (actualFps < targetFps * 0.72) {
+    if (sampleStep < 8) sampleStep *= 2;
+    if (glowQuality === 'high') glowQuality = 'low';
+    else if (glowQuality === 'low') glowQuality = 'off';
+    if (renderScale > 0.5) { renderScale = renderScale === 1 ? 0.75 : 0.5; resize(); }
+  }
+}
+
+function hueColor(h: number) {
+  return `hsl(${Math.round(h)},100%,58%)`;
+}
+
+function setAccentFromHue(v: number) {
+  hue = ((v % 360) + 360) % 360;
+  ACCENT = hueColor(hue);
+  ROOT.dataset.color = ACCENT;
+  const dot = document.getElementById('status-dot') as HTMLElement | null;
+  if (dot) dot.style.background = ACCENT;
+  invalidateGrid();
+}
+
+function fmtDesign(v: number, fmt: string) {
+  switch(fmt) {
+    case 'pct': return `${Math.round(v*100)}%`;
+    case 'x1': return `${v.toFixed(1)}x`;
+    case 'deg': return `${Math.round(v)}°`;
+    default: return v.toFixed(2);
+  }
+}
+
+function drawDesignKnob(kc: HTMLCanvasElement) {
+  const min = parseFloat(kc.dataset.min || '0');
+  const max = parseFloat(kc.dataset.max || '1');
+  const val = parseFloat(kc.dataset.val || '0');
+  const bipolar = kc.dataset.bipolar === 'true';
+  const sz = kc.classList.contains('large-knob') ? 58 : 58;
+  const D = dpr();
+  kc.width = kc.height = sz * D;
+  kc.style.width = kc.style.height = `${sz}px`;
+  const ctx = kc.getContext('2d')!;
+  ctx.setTransform(D,0,0,D,0,0);
+  ctx.clearRect(0,0,sz,sz);
+  const cx=sz/2, cy=sz/2, r=sz/2-5;
+  const start=Math.PI*.75, sweep=Math.PI*1.5;
+  const norm=Math.max(0,Math.min(1,(val-min)/(max-min)));
+  const angle=start+norm*sweep;
+  ctx.lineCap='round';
+  ctx.beginPath();ctx.arc(cx,cy,r,start,start+sweep);ctx.strokeStyle='#1c1c1c';ctx.lineWidth=4;ctx.stroke();
+  ctx.beginPath();
+  if (bipolar && norm < .5) ctx.arc(cx,cy,r,angle,start+sweep*.5);
+  else ctx.arc(cx,cy,r,bipolar ? start+sweep*.5 : start,angle);
+  ctx.strokeStyle=ACCENT;ctx.shadowBlur=glow(10);ctx.shadowColor=ACCENT;ctx.lineWidth=4;ctx.stroke();
+  ctx.shadowBlur=0;
+  ctx.beginPath();ctx.arc(cx,cy,r*.42,0,Math.PI*2);ctx.strokeStyle='#2b2b2b';ctx.lineWidth=1;ctx.stroke();
+  ctx.beginPath();ctx.arc(cx+Math.cos(angle)*r,cy+Math.sin(angle)*r,3,0,Math.PI*2);ctx.fillStyle='#fff';ctx.fill();
+}
+
+function applyDesignParam(id: string, v: number) {
+  switch(id) {
+    case 'design-volume': setOutputVol(v); break;
+    case 'design-speed': zoom = v; break;
+    case 'design-scale': vdiv = v; break;
+    case 'design-beam': beamWidth = v; break;
+    case 'design-intensity': intensity = v; break;
+    case 'design-afterglow': persist = v; break;
+    case 'design-x': xExpand = v; break;
+    case 'design-y': yExpand = v; break;
+    case 'design-rotate': rotationDeg = v; break;
+    case 'design-hue': setAccentFromHue(v); break;
+  }
+}
+
+function setScopeOnly(on: boolean) {
+  scopeOnly = on;
+  ROOT.classList.toggle('scope-only', scopeOnly);
+  document.getElementById('scope-only-btn')?.setAttribute('data-active', String(scopeOnly));
+  document.getElementById('design-wave-only')?.setAttribute('data-active', String(scopeOnly));
+  if (scopeOnly) {
+    mode = 'scope';
+    showGrid = false;
+    pixelMapOn = false;
+    perfOverlayOn = false;
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('[data-mode="scope"]').forEach(b=>b.classList.add('active'));
+    document.getElementById('perf-overlay')?.classList.remove('visible');
+    document.getElementById('design-pixelmap')?.setAttribute('data-active','false');
+  }
+  document.dispatchEvent(new CustomEvent('ss-scope-only', { detail: { active: scopeOnly } }));
+}
+
+function resetDesignParams() {
+  const defaults: Record<string,string> = {
+    'design-volume':'0',
+    'design-speed':'1',
+    'design-scale':'1',
+    'design-beam':'1',
+    'design-intensity':'1',
+    'design-afterglow':'0.15',
+    'design-x':'1',
+    'design-y':'1',
+    'design-rotate':'0',
+    'design-hue':'60',
+  };
+  document.querySelectorAll('.design-knob').forEach(el=>{
+    const kc = el as HTMLCanvasElement;
+    const next = defaults[kc.dataset.id || ''];
+    if (!next) return;
+    kc.dataset.val = next;
+    const fmt = kc.dataset.fmt || 'raw';
+    const val = parseFloat(next);
+    const lbl = document.querySelector(`.design-value[data-for="${kc.dataset.id}"]`) as HTMLElement | null;
+    if (lbl) lbl.textContent = fmtDesign(val, fmt);
+    drawDesignKnob(kc);
+    applyDesignParam(kc.dataset.id!, val);
+  });
+  showGrid = true;
+  pixelMapOn = false;
+  glowQuality = 'low';
+  sampleStep = 1;
+  renderScale = 1;
+  setTargetFps(60);
+  resize();
+}
+
+function initDesignKnobs() {
+  document.querySelectorAll('.design-knob').forEach(el=>{
+    const kc = el as HTMLCanvasElement;
+    const id = kc.dataset.id!;
+    const lbl = document.querySelector(`.design-value[data-for="${id}"]`) as HTMLElement | null;
+    const fmt = kc.dataset.fmt || 'raw';
+    const min = parseFloat(kc.dataset.min || '0');
+    const max = parseFloat(kc.dataset.max || '1');
+    let startY = 0;
+    let startVal = 0;
+    let dragging = false;
+    const setVal = (val: number) => {
+      const next = Math.max(min, Math.min(max, val));
+      kc.dataset.val = String(next);
+      if (lbl) lbl.textContent = fmtDesign(next, fmt);
+      drawDesignKnob(kc);
+      applyDesignParam(id, next);
+    };
+    setVal(parseFloat(kc.dataset.val || '0'));
+    const move = (clientY: number) => {
+      const fine = window.event instanceof MouseEvent && window.event.shiftKey ? .001 : .004;
+      setVal(startVal + (startY - clientY) * (max - min) * fine);
+    };
+    kc.addEventListener('mousedown',e=>{dragging=true;startY=e.clientY;startVal=parseFloat(kc.dataset.val||'0');e.preventDefault();});
+    window.addEventListener('mousemove',e=>{if(dragging)move(e.clientY);});
+    window.addEventListener('mouseup',()=>{dragging=false;});
+    kc.addEventListener('touchstart',e=>{dragging=true;startY=e.touches[0].clientY;startVal=parseFloat(kc.dataset.val||'0');e.preventDefault();},{passive:false});
+    window.addEventListener('touchmove',e=>{if(dragging)move(e.touches[0].clientY);},{passive:false});
+    window.addEventListener('touchend',()=>{dragging=false;});
+    kc.addEventListener('dblclick',()=>setVal(parseFloat(kc.dataset.id === 'design-afterglow' ? '0.15' : kc.dataset.id === 'design-hue' ? '60' : kc.dataset.id === 'design-volume' ? '0' : '1')));
+  });
+}
 
 // ── Audio init ───────────────────────────────────────────
 async function initAudio(deviceId?: string) {
@@ -1994,8 +2603,9 @@ async function initAudio(deviceId?: string) {
 
   audioCtx    = new AudioContext();
   analyser    = audioCtx.createAnalyser();
-  analyser.fftSize = 4096;
+  analyser.fftSize = 2048;
   analyser.smoothingTimeConstant = 0.0;
+  applyFftSetting();
 
   gainNode    = audioCtx.createGain();           gainNode.gain.value    = gain;
   distNode    = audioCtx.createWaveShaper();     distNode.oversample    = '4x';
@@ -2003,7 +2613,7 @@ async function initAudio(deviceId?: string) {
   hpfNode     = audioCtx.createBiquadFilter();   hpfNode.type           = 'highpass';  hpfNode.frequency.value  = hpfFreq;
   delayNode   = audioCtx.createDelay(2.0);       delayNode.delayTime.value = delayTime;
   delayGain   = audioCtx.createGain();           delayGain.gain.value   = 0;
-  // Output path — by default disconnected from destination (no feedback / howl)
+  // Output path starts muted. OUT VOL controls this gain directly.
   outputGain  = audioCtx.createGain();           outputGain.gain.value  = 0;
   oscGainNode = audioCtx.createGain();           oscGainNode.gain.value = 0;
 
@@ -2012,7 +2622,7 @@ async function initAudio(deviceId?: string) {
   // Signal chain:
   // [mic|osc] → gainNode → distNode → hpfNode → lpfNode → analyser
   //                                                        → delayNode → delayGain → analyser
-  //                                           → outputGain → destination   (only when outputOn)
+  //                                           → outputGain → destination
   gainNode.connect(distNode);
   distNode.connect(hpfNode);
   hpfNode.connect(lpfNode);
@@ -2020,9 +2630,8 @@ async function initAudio(deviceId?: string) {
   lpfNode.connect(delayNode);
   delayNode.connect(delayGain);
   delayGain.connect(analyser);
-  // outputGain is ONLY connected to destination when user enables output
   analyser.connect(outputGain);
-  // Do NOT connect outputGain → destination yet (prevents howling)
+  outputGain.connect(audioCtx.destination);
 
   oscGainNode.connect(gainNode);
 
@@ -2064,32 +2673,22 @@ function setEngageUI(on: boolean) {
   const sl = document.getElementById('status-label');
   const sb = document.getElementById('start-btn');
   const xb = document.getElementById('stop-btn');
+  const dsb = document.getElementById('design-start-btn');
+  const dxb = document.getElementById('design-stop-btn');
   const ih = document.getElementById('init-hint');
+  const dih = document.getElementById('design-init-hint');
   if (sl) sl.textContent = on ? 'ACTIVE' : 'STANDBY';
   sb?.classList.toggle('hidden', on);
   xb?.classList.toggle('hidden', !on);
+  dsb?.classList.toggle('hidden', on);
+  dxb?.classList.toggle('hidden', !on);
   if (ih && on) ih.textContent = micStream ? 'mic connected' : 'synth only';
-}
-
-// ── Output routing (howl-safe) ────────────────────────────
-function setOutputToggle(on: boolean) {
-  outputOn = on;
-  const btn = document.getElementById('output-toggle');
-  if (btn) { btn.textContent = on ? 'ON' : 'OFF'; btn.dataset.active = String(on); }
-  if (!audioCtx || !outputGain) return;
-  if (on) {
-    try { outputGain.connect(audioCtx.destination); } catch(_){}
-    outputGain.gain.setTargetAtTime(outVol, audioCtx.currentTime, 0.02);
-  } else {
-    outputGain.gain.setTargetAtTime(0, audioCtx.currentTime, 0.02);
-    // Disconnect after fade
-    setTimeout(() => { try { outputGain.disconnect(audioCtx.destination); } catch(_){} }, 200);
-  }
+  if (dih && on) dih.textContent = micStream ? 'mic connected' : 'synth only';
 }
 
 function setOutputVol(v: number) {
   outVol = v;
-  if (outputGain && outputOn) outputGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
+  if (outputGain) outputGain.gain.setTargetAtTime(v, audioCtx?.currentTime||0, 0.01);
 }
 
 // ── Distortion ───────────────────────────────────────────
@@ -2128,14 +2727,20 @@ function startOsc(type: typeof oscType) {
 // ── Device enumeration ───────────────────────────────────
 async function populateDevices() {
   const sel = document.getElementById('input-select') as HTMLSelectElement;
-  if (!sel) return;
+  const designSel = document.getElementById('design-input-select') as HTMLSelectElement;
+  if (!sel && !designSel) return;
   try {
     // Trigger permission prompt
     await navigator.mediaDevices.getUserMedia({audio:true}).then(s=>s.getTracks().forEach(t=>t.stop())).catch(()=>{});
     const devs = await navigator.mediaDevices.enumerateDevices();
     const ins  = devs.filter(d => d.kind === 'audioinput');
-    sel.innerHTML = ins.map((d,i) => `<option value="${d.deviceId}">${d.label||'Microphone '+(i+1)}</option>`).join('');
-  } catch { sel.innerHTML = '<option value="">— permission required —</option>'; }
+    const html = ins.map((d,i) => `<option value="${d.deviceId}">${d.label||'Microphone '+(i+1)}</option>`).join('');
+    if (sel) sel.innerHTML = html;
+    if (designSel) designSel.innerHTML = html;
+  } catch {
+    if (sel) sel.innerHTML = '<option value="">— permission required —</option>';
+    if (designSel) designSel.innerHTML = '<option value="">— permission required —</option>';
+  }
 }
 
 // ── Data getters ─────────────────────────────────────────
@@ -2167,14 +2772,21 @@ function idxToHz(i: number): number { return i*(audioCtx?.sampleRate??44100)/ana
 
 // ── Grid ─────────────────────────────────────────────────
 function drawGrid(c: CanvasRenderingContext2D, W: number, H: number) {
-  c.save();
-  c.strokeStyle='rgba(255,255,0,0.055)'; c.lineWidth=0.5;
-  for(let i=0;i<=10;i++){const x=W/10*i;c.beginPath();c.moveTo(x,0);c.lineTo(x,H);c.stroke();}
-  for(let j=0;j<=8;j++){const y=H/8*j;c.beginPath();c.moveTo(0,y);c.lineTo(W,y);c.stroke();}
-  c.strokeStyle='rgba(255,255,0,0.11)';
-  c.beginPath();c.moveTo(0,H/2);c.lineTo(W,H/2);c.stroke();
-  c.beginPath();c.moveTo(W/2,0);c.lineTo(W/2,H);c.stroke();
-  c.restore();
+  const key = `${Math.round(W)}x${Math.round(H)}:${ACCENT}`;
+  if (!gridCanvas || gridKey !== key) {
+    gridCanvas = document.createElement('canvas');
+    gridCanvas.width = Math.max(1, Math.round(W));
+    gridCanvas.height = Math.max(1, Math.round(H));
+    gridKey = key;
+    const g = gridCanvas.getContext('2d')!;
+    g.strokeStyle='rgba(255,255,0,0.055)'; g.lineWidth=0.5;
+    for(let i=0;i<=10;i++){const x=W/10*i;g.beginPath();g.moveTo(x,0);g.lineTo(x,H);g.stroke();}
+    for(let j=0;j<=8;j++){const y=H/8*j;g.beginPath();g.moveTo(0,y);g.lineTo(W,y);g.stroke();}
+    g.strokeStyle='rgba(255,255,0,0.11)';
+    g.beginPath();g.moveTo(0,H/2);g.lineTo(W,H/2);g.stroke();
+    g.beginPath();g.moveTo(W/2,0);g.lineTo(W/2,H);g.stroke();
+  }
+  c.drawImage(gridCanvas, 0, 0, W, H);
 }
 
 // ── Pixel Map ────────────────────────────────────────────
@@ -2220,15 +2832,17 @@ function drawScope(c: CanvasRenderingContext2D, W: number, H: number) {
   if (showGrid) drawGrid(c, W, H);
   const start  = trigSync ? findTrigger(data) : 0;
   const visLen = Math.max(2, Math.floor(data.length / zoom));
-  const sw     = W / visLen;
+  const points = Math.max(2, Math.ceil(visLen / sampleStep));
 
   const wave = (lw: number, blur: number, alpha: number) => {
-    c.save(); c.lineWidth=lw; c.shadowBlur=blur; c.shadowColor=ACCENT;
-    c.strokeStyle=ACCENT; c.globalAlpha=alpha; c.beginPath();
-    for (let i=0; i<visLen; i++) {
+    c.save(); c.lineWidth=lw*beamWidth; c.shadowBlur=glow(blur*intensity); c.shadowColor=ACCENT;
+    c.strokeStyle=ACCENT; c.globalAlpha=Math.min(1,alpha*intensity); c.beginPath();
+    for (let p=0; p<points; p++) {
+      const i = Math.min(visLen - 1, p * sampleStep);
       const v = ((data[(start+i)%data.length]/128)-1)*gain*vdiv;
-      const y = H/2 - v*H*0.42;
-      i===0 ? c.moveTo(0,y) : c.lineTo(i*sw,y);
+      const y = H/2 - v*H*0.42*yExpand;
+      const x = points === 1 ? W/2 : ((p/(points-1)-0.5)*W*xExpand)+W/2;
+      p===0 ? c.moveTo(x,y) : c.lineTo(x,y);
     }
     c.stroke(); c.restore();
   };
@@ -2257,7 +2871,7 @@ function drawSpectrum(c: CanvasRenderingContext2D, W: number, H: number) {
     const h = v*H*.95;
     const hue = (i/bins)*60+35;
     c.fillStyle=`hsla(${hue},${80+v*20}%,55%,${0.4+v*0.6})`;
-    c.shadowBlur=8*v; c.shadowColor=`hsl(${hue},100%,70%)`;
+    c.shadowBlur=glow(8*v); c.shadowColor=`hsl(${hue},100%,70%)`;
     c.fillRect(i*bw, H-h, Math.max(bw-.5,.5), h);
   }
   c.save(); c.strokeStyle='rgba(255,255,255,.2)'; c.lineWidth=.5; c.beginPath();
@@ -2293,14 +2907,14 @@ function drawLissajous(c: CanvasRenderingContext2D, W: number, H: number) {
     const t = i/n;
     c.save();
     c.strokeStyle=`hsla(${t*55+35},100%,60%,${t*.9})`;
-    c.lineWidth=1.2; c.shadowBlur=6*t; c.shadowColor=`hsl(${t*55+35},100%,70%)`;
+    c.lineWidth=1.2; c.shadowBlur=glow(6*t); c.shadowColor=`hsl(${t*55+35},100%,70%)`;
     c.beginPath();
     c.moveTo(W/2+lissX[i-1]*W*.44, H/2+lissY[i-1]*H*.44);
     c.lineTo(W/2+lissX[i]  *W*.44, H/2+lissY[i]  *H*.44);
     c.stroke(); c.restore();
   }
   if (n>0) {
-    c.save(); c.fillStyle=ACCENT; c.shadowBlur=14; c.shadowColor=ACCENT;
+    c.save(); c.fillStyle=ACCENT; c.shadowBlur=glow(14); c.shadowColor=ACCENT;
     c.beginPath(); c.arc(W/2+lissX[n-1]*W*.44, H/2+lissY[n-1]*H*.44, 3, 0, Math.PI*2);
     c.fill(); c.restore();
   }
@@ -2324,7 +2938,7 @@ function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
     const ang=i*(Math.PI*2/fBins)-Math.PI/2;
     const hue=(i/fBins)*60+30;
     c.strokeStyle=`hsla(${hue},100%,58%,${.4+v*.6})`;
-    c.shadowColor=`hsl(${hue},100%,70%)`;c.shadowBlur=8*v;c.lineWidth=1.5;
+    c.shadowColor=`hsl(${hue},100%,70%)`;c.shadowBlur=glow(8*v);c.lineWidth=1.5;
     c.beginPath();
     c.moveTo(cx+Math.cos(ang)*baseR*.12, cy+Math.sin(ang)*baseR*.12);
     c.lineTo(cx+Math.cos(ang)*(baseR*.12+v*baseR*.65), cy+Math.sin(ang)*(baseR*.12+v*baseR*.65));
@@ -2333,7 +2947,7 @@ function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
 
   const wBins=Math.min(data.length,512), wStep=Math.PI*2/wBins;
   const ring=(lw:number,blur:number,alpha:number)=>{
-    c.save();c.strokeStyle=ACCENT;c.lineWidth=lw;c.shadowBlur=blur;c.shadowColor=ACCENT;c.globalAlpha=alpha;
+    c.save();c.strokeStyle=ACCENT;c.lineWidth=lw;c.shadowBlur=glow(blur);c.shadowColor=ACCENT;c.globalAlpha=alpha;
     c.beginPath();
     for(let i=0;i<wBins;i++){
       const v=((data[i]/128)-1)*gain*vdiv;
@@ -2345,7 +2959,7 @@ function drawRadial(c: CanvasRenderingContext2D, W: number, H: number) {
   ring(6,28,.1); ring(1.5,8,1);
   const rms=calcRMS(data);
   c.save();c.beginPath();c.arc(cx,cy,3+rms*18,0,Math.PI*2);
-  c.fillStyle=ACCENT;c.shadowBlur=20;c.shadowColor=ACCENT;c.fill();c.restore();
+  c.fillStyle=ACCENT;c.shadowBlur=glow(20);c.shadowColor=ACCENT;c.fill();c.restore();
   updateHUD(idxToHz(peakIdx(freq)),0);
 }
 
@@ -2391,11 +3005,11 @@ function drawParticles(c: CanvasRenderingContext2D, W: number, H: number) {
   for(const p of particles){
     p.x+=p.vx;p.y+=p.vy;p.vy+=.06;p.life-=.016/p.mLife;
     c.save();c.globalAlpha=Math.max(0,p.life);c.beginPath();c.arc(p.x,p.y,p.sz,0,Math.PI*2);
-    c.fillStyle=`hsl(${p.hue},100%,65%)`;c.shadowBlur=10;c.shadowColor=`hsl(${p.hue},100%,70%)`;
+    c.fillStyle=`hsl(${p.hue},100%,65%)`;c.shadowBlur=glow(10);c.shadowColor=`hsl(${p.hue},100%,70%)`;
     c.fill();c.restore();
   }
-  c.save();c.strokeStyle='rgba(255,255,0,.2)';c.lineWidth=1;c.shadowBlur=6;c.shadowColor=ACCENT;c.beginPath();
-  for(let i=0;i<data.length;i++){
+  c.save();c.strokeStyle='rgba(255,255,0,.2)';c.lineWidth=1;c.shadowBlur=glow(6);c.shadowColor=ACCENT;c.beginPath();
+  for(let i=0;i<data.length;i+=sampleStep){
     const v=((data[i]/128)-1)*gain*vdiv;
     const y=H/2-v*H*.38;i===0?c.moveTo(0,y):c.lineTo((i/data.length)*W,y);
   }c.stroke();c.restore();
@@ -2412,17 +3026,33 @@ function updateHUD(peakHz: number, rmsDb: number) {
 }
 
 // ── DRAW LOOP ────────────────────────────────────────────
-function drawLoop() {
+function drawLoop(now = 0) {
   if (!running) return;
   requestAnimationFrame(drawLoop);
+  if (document.hidden) return;
+  if (!lastFrameAt) lastFrameAt = now;
+  const elapsed = now - lastFrameAt;
+  if (elapsed < frameInterval * 0.92) return;
+  msFrame = elapsed;
+  if (elapsed > frameInterval * 1.7) droppedFrames++;
+  lastFrameAt = now - (elapsed % frameInterval);
+  fpsFrames++;
+  if (!fpsWindowAt) fpsWindowAt = now;
+  if (now - fpsWindowAt >= 500) {
+    actualFps = fpsFrames * 1000 / (now - fpsWindowAt);
+    fpsFrames = 0;
+    fpsWindowAt = now;
+    applyAdaptiveQuality();
+    updatePerfHud(true);
+  }
   const W=canvas.width, H=canvas.height, D=dpr(), Wl=W/D, Hl=H/D;
 
   if (IS_MINI) {
     C.clearRect(0,0,W,H);
     if (!analyser) return;
     const d=getTime();
-    C.save();C.scale(D,D);C.lineWidth=1;C.strokeStyle=ACCENT;C.shadowBlur=4;C.shadowColor=ACCENT;C.beginPath();
-    for(let i=0;i<d.length;i++){
+    C.save();C.scale(D,D);C.lineWidth=1;C.strokeStyle=ACCENT;C.shadowBlur=glow(4);C.shadowColor=ACCENT;C.beginPath();
+    for(let i=0;i<d.length;i+=sampleStep){
       const v=((d[i]/128)-1)*gain*vdiv;
       const y=Hl/2-v*Hl*.42;i===0?C.moveTo(0,y):C.lineTo((i/d.length)*Wl,y);
     }C.stroke();C.restore();
@@ -2430,9 +3060,14 @@ function drawLoop() {
   }
 
   // Phosphor persistence
-  C.fillStyle=`rgba(0,0,0,${1-persist})`;C.fillRect(0,0,W,H);
+  C.fillStyle=`rgba(0,0,0,${ultraMinimal ? 1 : 1-persist})`;C.fillRect(0,0,W,H);
 
   C.save();C.scale(D,D);
+  if (rotationDeg !== 0) {
+    C.translate(Wl/2,Hl/2);
+    C.rotate(rotationDeg*Math.PI/180);
+    C.translate(-Wl/2,-Hl/2);
+  }
   switch(mode){
     case'scope':     drawScope(C,Wl,Hl);     break;
     case'spectrum':  drawSpectrum(C,Wl,Hl);  break;
@@ -2447,17 +3082,23 @@ function drawLoop() {
 
 // ── DEMO LOOP ────────────────────────────────────────────
 let demoT=0;
-function demoLoop(){
+let demoLastAt=0;
+function demoLoop(now=0){
   if(running) return;
   requestAnimationFrame(demoLoop);
+  if(document.hidden) return;
+  if(!demoLastAt) demoLastAt=now;
+  const elapsed=now-demoLastAt;
+  if(elapsed<frameInterval*.92) return;
+  demoLastAt=now-(elapsed%frameInterval);
   const W=canvas.width,H=canvas.height,D=dpr(),Wl=W/D,Hl=H/D;
   demoT+=.018;
   C.fillStyle='rgba(0,0,0,.25)';C.fillRect(0,0,W,H);
   C.save();C.scale(D,D);
   if(!IS_MINI&&showGrid) drawGrid(C,Wl,Hl);
-  C.strokeStyle=ACCENT;C.shadowBlur=8;C.shadowColor=ACCENT;C.lineWidth=IS_MINI?1:1.4;
+  C.strokeStyle=ACCENT;C.shadowBlur=glow(8);C.shadowColor=ACCENT;C.lineWidth=IS_MINI?1:1.4;
   C.beginPath();
-  const pts=IS_MINI?200:1024;
+  const pts=IS_MINI?96:Math.max(128,Math.floor(1024/sampleStep));
   for(let i=0;i<pts;i++){
     const t=demoT+i*.035;
     const y=Hl/2+Math.sin(t)*Hl*.28+Math.sin(t*2.7+.5)*Hl*.07+Math.sin(t*7.1)*Hl*.02;
@@ -2631,24 +3272,32 @@ function togglePanel(){
 
 // ── UI WIRING ────────────────────────────────────────────
 if (!IS_MINI) {
+  initDesignKnobs();
   initKnobs();
   populateDevices();
 
   document.getElementById('panel-toggle-btn')?.addEventListener('click',togglePanel);
-  document.addEventListener('keydown',e=>{ if(e.key==='Tab'){e.preventDefault();togglePanel();} });
+  document.addEventListener('keydown',e=>{ if(e.key==='Tab'){e.preventDefault();setScopeOnly(!scopeOnly);} });
 
   document.getElementById('start-btn')?.addEventListener('click',async()=>{
     const sel=document.getElementById('input-select') as HTMLSelectElement;
     await initAudio(sel?.value||undefined);
   });
+  document.getElementById('design-start-btn')?.addEventListener('click',async()=>{
+    const sel=document.getElementById('design-input-select') as HTMLSelectElement;
+    await initAudio(sel?.value||undefined);
+  });
   document.getElementById('stop-btn')?.addEventListener('click',stopAudio);
+  document.getElementById('design-stop-btn')?.addEventListener('click',stopAudio);
 
   document.getElementById('input-select')?.addEventListener('change',async e=>{
     const id=(e.target as HTMLSelectElement).value;
     if(running) await restartMic(id);
   });
-
-  document.getElementById('output-toggle')?.addEventListener('click',()=>setOutputToggle(!outputOn));
+  document.getElementById('design-input-select')?.addEventListener('change',async e=>{
+    const id=(e.target as HTMLSelectElement).value;
+    if(running) await restartMic(id);
+  });
 
   document.querySelectorAll('.mode-btn').forEach(btn=>{
     (btn as HTMLElement).addEventListener('click',()=>{
@@ -2658,9 +3307,10 @@ if (!IS_MINI) {
       const lbl=document.getElementById('hud-mode-label');
       if(lbl) lbl.textContent=`MODE: ${mode.toUpperCase()}`;
       waterfallData=[];lissX=[];lissY=[];particles=[];
+      autoFftForMode();
     });
   });
-  (document.querySelector('[data-mode="scope"]') as HTMLElement)?.classList.add('active');
+  document.querySelectorAll('[data-mode="scope"]').forEach(b=>b.classList.add('active'));
 
   document.querySelectorAll('.osc-btn').forEach(btn=>{
     (btn as HTMLElement).addEventListener('click',()=>{
@@ -2677,6 +3327,18 @@ if (!IS_MINI) {
     const b=e.currentTarget as HTMLElement;
     b.dataset.active=String(pixelMapOn);
   });
+  document.getElementById('design-pixelmap')?.addEventListener('click',e=>{
+    pixelMapOn=!pixelMapOn;
+    (e.currentTarget as HTMLElement).dataset.active=String(pixelMapOn);
+  });
+  document.getElementById('design-hud')?.addEventListener('click',e=>{
+    hudVisible=!hudVisible;
+    ROOT.classList.toggle('hud-hidden',!hudVisible);
+    (e.currentTarget as HTMLElement).dataset.active=String(hudVisible);
+  });
+  document.getElementById('design-wave-only')?.addEventListener('click',()=>setScopeOnly(!scopeOnly));
+  document.getElementById('design-reset')?.addEventListener('click',resetDesignParams);
+  document.addEventListener('ss-toggle-panel',togglePanel);
 
   const mkToggle=(id:string,cb:(v:boolean)=>void)=>{
     document.getElementById(id)?.addEventListener('click',e=>{
@@ -2688,6 +3350,123 @@ if (!IS_MINI) {
   mkToggle('btn-grid',  v=>{showGrid=v;});
   mkToggle('btn-trig',  v=>{trigSync=v;});
   mkToggle('btn-invert',v=>{invertSig=v;});
+
+  document.getElementById('fps-select')?.addEventListener('change',e=>{
+    setTargetFps(parseInt((e.target as HTMLSelectElement).value,10));
+    updatePerfHud(true);
+  });
+  document.getElementById('design-fps-select')?.addEventListener('change',e=>{
+    setTargetFps(parseInt((e.target as HTMLSelectElement).value,10));
+    updatePerfHud(true);
+  });
+  document.getElementById('scale-select')?.addEventListener('change',e=>{
+    renderScale=parseFloat((e.target as HTMLSelectElement).value);
+    resize();
+    updatePerfHud(true);
+  });
+  document.getElementById('design-scale-select')?.addEventListener('change',e=>{
+    renderScale=parseFloat((e.target as HTMLSelectElement).value);
+    resize();
+    updatePerfHud(true);
+  });
+  document.getElementById('sample-select')?.addEventListener('change',e=>{
+    sampleStep=parseInt((e.target as HTMLSelectElement).value,10);
+    updatePerfHud(true);
+  });
+  document.getElementById('design-sample-select')?.addEventListener('change',e=>{
+    sampleStep=parseInt((e.target as HTMLSelectElement).value,10);
+    updatePerfHud(true);
+  });
+  document.getElementById('fft-select')?.addEventListener('change',e=>{
+    fftSetting=(e.target as HTMLSelectElement).value as typeof fftSetting;
+    applyFftSetting();
+    updatePerfHud(true);
+  });
+  document.getElementById('design-fft-select')?.addEventListener('change',e=>{
+    fftSetting=(e.target as HTMLSelectElement).value as typeof fftSetting;
+    applyFftSetting();
+    updatePerfHud(true);
+  });
+  document.getElementById('glow-select')?.addEventListener('change',e=>{
+    glowQuality=(e.target as HTMLSelectElement).value as typeof glowQuality;
+    updatePerfHud(true);
+  });
+  document.getElementById('design-glow-select')?.addEventListener('change',e=>{
+    glowQuality=(e.target as HTMLSelectElement).value as typeof glowQuality;
+    updatePerfHud(true);
+  });
+  document.getElementById('color-select')?.addEventListener('change',e=>{
+    ACCENT=(e.target as HTMLSelectElement).value;
+    ROOT.dataset.color=ACCENT;
+    invalidateGrid();
+  });
+  document.getElementById('design-color-select')?.addEventListener('change',e=>{
+    ACCENT=(e.target as HTMLSelectElement).value;
+    ROOT.dataset.color=ACCENT;
+    invalidateGrid();
+    document.querySelectorAll('.design-knob').forEach(el=>drawDesignKnob(el as HTMLCanvasElement));
+  });
+  document.getElementById('adaptive-btn')?.addEventListener('click',e=>{
+    adaptiveQuality=!adaptiveQuality;
+    (e.currentTarget as HTMLElement).dataset.active=String(adaptiveQuality);
+  });
+  document.getElementById('design-adaptive')?.addEventListener('click',e=>{
+    adaptiveQuality=!adaptiveQuality;
+    (e.currentTarget as HTMLElement).dataset.active=String(adaptiveQuality);
+  });
+  document.getElementById('perf-overlay-btn')?.addEventListener('click',e=>{
+    perfOverlayOn=!perfOverlayOn;
+    (e.currentTarget as HTMLElement).dataset.active=String(perfOverlayOn);
+    updatePerfHud(true);
+  });
+  document.getElementById('design-stats')?.addEventListener('click',e=>{
+    perfOverlayOn=!perfOverlayOn;
+    (e.currentTarget as HTMLElement).dataset.active=String(perfOverlayOn);
+    updatePerfHud(true);
+  });
+  document.getElementById('scope-only-btn')?.addEventListener('click',e=>{
+    setScopeOnly(!scopeOnly);
+  });
+  document.getElementById('ultra-btn')?.addEventListener('click',e=>{
+    ultraMinimal=!ultraMinimal;
+    (e.currentTarget as HTMLElement).dataset.active=String(ultraMinimal);
+    if(ultraMinimal){
+      setTargetFps(120);
+      sampleStep=Math.max(sampleStep,4);
+      glowQuality='off';
+      persist=0;
+      pixelMapOn=false;
+      showGrid=false;
+      mode='scope';
+      setScopeOnly(true);
+      document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('[data-mode="scope"]').forEach(b=>b.classList.add('active'));
+    }
+    updatePerfHud(true);
+  });
+  document.getElementById('design-ultra')?.addEventListener('click',e=>{
+    ultraMinimal=!ultraMinimal;
+    (e.currentTarget as HTMLElement).dataset.active=String(ultraMinimal);
+    if(ultraMinimal){
+      setTargetFps(120);
+      sampleStep=Math.max(sampleStep,4);
+      glowQuality='off';
+      persist=0;
+      pixelMapOn=false;
+      showGrid=false;
+      mode='scope';
+      setScopeOnly(true);
+    }
+    updatePerfHud(true);
+  });
+  canvas.addEventListener('dblclick',()=>{
+    setScopeOnly(!scopeOnly);
+  });
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'&&scopeOnly){
+      setScopeOnly(false);
+    }
+  });
 }
 
 if(IS_MINI) canvas.addEventListener('click',()=>initAudio(),{once:true});

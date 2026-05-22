@@ -1,0 +1,133 @@
+---
+import '../styles/global.css';
+
+interface Props {
+  title?: string;
+  bodyClass?: string;
+  shellClass?: string;
+  showShell?: boolean;
+  showFooter?: boolean;
+  footerLeft?: string;
+  footerRight?: string;
+}
+
+const {
+  title = 'SS_Portfolio',
+  bodyClass = 'bg-[#0a0a0a] text-[#a1a1a1] font-sans selection:bg-white selection:text-black antialiased overflow-x-hidden',
+  shellClass = 'max-w-6xl mx-auto p-6 md:p-16 lg:p-24 min-h-screen flex flex-col relative z-10',
+  showShell = true,
+  showFooter = false,
+  footerLeft = '',
+  footerRight = ''
+} = Astro.props;
+---
+
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width, initial-scale=1, viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#000000" />
+    <title>{title}</title>
+    <style is:global>
+      @keyframes fadeSlideRight {
+        0% { opacity: 0; transform: translateX(-15px); }
+        100% { opacity: 1; transform: translateX(0); }
+      }
+
+      .animate-fade-slide {
+        opacity: 0;
+        animation: fadeSlideRight 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
+      }
+
+      .delay-100 { animation-delay: 100ms; }
+      .delay-200 { animation-delay: 200ms; }
+      .delay-300 { animation-delay: 300ms; }
+      .delay-400 { animation-delay: 400ms; }
+      .delay-500 { animation-delay: 500ms; }
+
+      .rotary-viewport {
+        -webkit-overflow-scrolling: touch;
+        scrollbar-width: thin;
+        scrollbar-color: #3f3f46 transparent;
+      }
+
+      .rotary-item {
+        height: 80px;
+        display: flex;
+        align-items: center;
+        top: 0;
+        will-change: transform;
+      }
+
+      .focus-container:has(a:hover) .dim-text {
+        opacity: 0.3;
+      }
+
+      .dim-text {
+        transition: opacity 0.4s ease;
+      }
+
+      #cursor-light {
+        width: 150px;
+        height: 150px;
+        background: radial-gradient(circle, rgba(208,226,248,0.15) 0%, transparent 70%);
+        border-radius: 50%;
+        position: fixed;
+        pointer-events: none;
+        z-index: 9999;
+        transform: translate(-50%, -50%);
+        mix-blend-mode: screen;
+        transition: transform 0.1s ease-out;
+        display: none;
+      }
+
+      @media (hover: hover) {
+        #cursor-light {
+          display: block;
+        }
+      }
+    </style>
+  </head>
+  <body class={bodyClass}>
+    <div id="cursor-light"></div>
+
+    {showShell ? (
+      <div class={shellClass}>
+        <slot />
+
+        {showFooter && (
+          <footer class="mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500 italic">
+            <div>{footerLeft}</div>
+            <div>{footerRight}</div>
+          </footer>
+        )}
+      </div>
+    ) : (
+      <slot />
+    )}
+
+    <script>
+      const light =
+        document.getElementById('cursor-light');
+
+      window.addEventListener(
+        'mousemove',
+        (event) => {
+          if (!light) {
+            return;
+          }
+
+          light.style.left =
+            `${event.clientX}px`;
+
+          light.style.top =
+            `${event.clientY}px`;
+        }
+      );
+    </script>
+  </body>
+</html>

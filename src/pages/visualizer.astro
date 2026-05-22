@@ -1,601 +1,362 @@
 ---
-// src/pages/visualizer.astro
-// SS_SCOPE v4.0
-
-import '../styles/global.css';
+import BaseLayout from '../layouts/BaseLayout.astro';
 import Visualizer from '../components/Visualizer.astro';
 ---
 
-<html lang="ja">
-  <head>
-    <meta charset="utf-8" />
+<BaseLayout
+  title="SS_SCOPE v4.1 | CRT Audio Observatory"
+  showShell={false}
+  bodyClass="bg-black text-white font-sans antialiased overflow-hidden"
+>
+  <div id="topbar">
+    <div id="topbar-left">
+      <a href="/" class="top-button">BACK</a>
+    </div>
 
-    <meta
-      name="viewport"
-      content="width=device-width, initial-scale=1, viewport-fit=cover"
-    />
+    <div id="topbar-right">
+      <button id="panel-toggle" class="top-button">PANEL</button>
+      <button id="help-toggle" class="top-button">HELP</button>
+      <button id="fullscreen-toggle" class="top-button">FULL</button>
+    </div>
+  </div>
 
-    <title>SS_SCOPE v4.0 | CRT Audio Observatory</title>
+  <div id="help">
+    <div id="help-title">SS_SCOPE SHORTCUTS</div>
+    <div class="help-row"><span>TAB</span><span class="help-key">WAVE ONLY</span></div>
+    <div class="help-row"><span>H</span><span class="help-key">TOGGLE HELP</span></div>
+    <div class="help-row"><span>F</span><span class="help-key">FULLSCREEN</span></div>
+    <div class="help-row"><span>DBL CLICK</span><span class="help-key">WAVE ONLY</span></div>
+    <div class="help-row"><span>ESC</span><span class="help-key">EXIT WAVE</span></div>
+  </div>
 
-    <meta
-      name="theme-color"
-      content="#000000"
-    />
+  <div class="scope-wrap">
+    <Visualizer />
+  </div>
 
-    <style>
-      :root {
-        --bg: #000;
-        --text-dim: rgba(255,255,255,0.3);
-        --text: rgba(255,255,255,0.85);
+  <style>
+    :root {
+      --bg: #000;
+      --text-dim: rgba(255,255,255,0.3);
+      --text: rgba(255,255,255,0.85);
+      --accent: #36ff72;
+      --panel: rgba(8,8,8,0.72);
+      --border: rgba(255,255,255,0.08);
+      --blur: blur(20px);
+    }
 
-        --accent: #d8ff72;
+    html,
+    body {
+      margin: 0;
+      padding: 0;
+      width: 100%;
+      height: 100%;
+      min-height: 100dvh;
+      overflow: hidden;
+      background:
+        radial-gradient(circle at center, #0b0b0b 0%, #000 70%);
+      overscroll-behavior: none;
+    }
 
-        --panel:
-          rgba(8,8,8,0.72);
+    body {
+      animation: bootFade 0.8s ease;
+    }
 
-        --border:
-          rgba(255,255,255,0.08);
+    .scope-wrap {
+      position: fixed;
+      inset: 0;
+      width: 100vw;
+      height: 100dvh;
+      overflow: hidden;
+      isolation: isolate;
+    }
 
-        --blur: blur(20px);
+    .scope-wrap::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 3;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,0.018) 0px,
+          rgba(255,255,255,0.018) 1px,
+          transparent 2px,
+          transparent 4px
+        );
+      mix-blend-mode: screen;
+      opacity: 0.25;
+    }
+
+    .scope-wrap::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 2;
+      background:
+        radial-gradient(
+          circle at center,
+          transparent 45%,
+          rgba(0,0,0,0.4) 100%
+        );
+      opacity: 0.9;
+    }
+
+    #topbar {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      min-height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding:
+        env(safe-area-inset-top)
+        max(12px, env(safe-area-inset-right))
+        0
+        max(12px, env(safe-area-inset-left));
+      z-index: 200;
+      pointer-events: none;
+    }
+
+    #topbar-left,
+    #topbar-right {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      pointer-events: auto;
+    }
+
+    .top-button {
+      appearance: none;
+      border: 1px solid var(--border);
+      background: var(--panel);
+      backdrop-filter: var(--blur);
+      color: var(--text-dim);
+      border-radius: 999px;
+      height: 34px;
+      padding: 0 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      font-family: monospace;
+      letter-spacing: 0.22em;
+      text-transform: uppercase;
+      text-decoration: none;
+      cursor: pointer;
+      transition:
+        opacity .18s ease,
+        border-color .18s ease,
+        color .18s ease,
+        background .18s ease,
+        transform .18s ease;
+      opacity: 0.42;
+    }
+
+    .top-button:hover {
+      color: var(--accent);
+      border-color: rgba(54,255,114,0.3);
+      transform: translateY(-1px);
+      opacity: 1;
+    }
+
+    #help {
+      position: fixed;
+      right: 20px;
+      top: 72px;
+      z-index: 300;
+      width: 240px;
+      padding: 14px;
+      border-radius: 18px;
+      background: rgba(0,0,0,0.72);
+      backdrop-filter: blur(18px);
+      border: 1px solid var(--border);
+      font-family: monospace;
+      transition: opacity .2s ease, transform .2s ease;
+    }
+
+    #help.hidden {
+      opacity: 0;
+      transform: translateY(-6px);
+      pointer-events: none;
+    }
+
+    body.scope-only #topbar,
+    body.scope-only #help,
+    body.scope-only .scope-wrap::before,
+    body.scope-only .scope-wrap::after {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    body.scope-only .scope-wrap::before,
+    body.scope-only .scope-wrap::after {
+      display: none;
+    }
+
+    #help-title {
+      font-size: 11px;
+      letter-spacing: 0.22em;
+      color: rgba(255,255,255,0.9);
+      margin-bottom: 12px;
+    }
+
+    .help-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 10px;
+      color: rgba(255,255,255,0.55);
+      margin-bottom: 8px;
+    }
+
+    .help-key {
+      color: rgba(255,255,255,0.95);
+    }
+
+    @keyframes bootFade {
+      from {
+        opacity: 0;
+        filter: blur(12px);
       }
 
-      *,
-      *::before,
-      *::after {
-        box-sizing: border-box;
+      to {
+        opacity: 1;
+        filter: blur(0px);
       }
+    }
 
-      html,
-      body {
-        margin: 0;
-        padding: 0;
-
-        width: 100%;
-        height: 100%;
-        min-height: 100dvh;
-
-        overflow: hidden;
-
-        background:
-          radial-gradient(
-            circle at center,
-            #0b0b0b 0%,
-            #000 70%
-          );
-
-        color: white;
-
-        font-family:
-          Inter,
-          system-ui,
-          sans-serif;
-
-        overscroll-behavior: none;
-      }
-
-      body {
-        position: relative;
-      }
-
-      .scope-wrap {
-        position: fixed;
-        inset: 0;
-
-        width: 100vw;
-        height: 100vh;
-        height: 100dvh;
-
-        overflow: hidden;
-
-        isolation: isolate;
-      }
-
-      /*
-      ------------------------------------------------
-      OVERLAY FX
-      ------------------------------------------------
-      */
-
-      .scope-wrap::before {
-        content: "";
-
-        position: absolute;
-        inset: 0;
-
-        pointer-events: none;
-        z-index: 3;
-
-        background:
-          repeating-linear-gradient(
-            to bottom,
-            rgba(255,255,255,0.018) 0px,
-            rgba(255,255,255,0.018) 1px,
-            transparent 2px,
-            transparent 4px
-          );
-
-        mix-blend-mode: screen;
-
-        opacity: 0.25;
-      }
-
-      .scope-wrap::after {
-        content: "";
-
-        position: absolute;
-        inset: 0;
-
-        pointer-events: none;
-        z-index: 2;
-
-        background:
-          radial-gradient(
-            circle at center,
-            transparent 45%,
-            rgba(0,0,0,0.4) 100%
-          );
-
-        opacity: 0.9;
-      }
-
-      /*
-      ------------------------------------------------
-      TOP BAR
-      ------------------------------------------------
-      */
-
+    @media (max-width: 700px) {
       #topbar {
-        position: fixed;
-
-        top: 0;
-        left: 0;
-        right: 0;
-
-        min-height: 56px;
-
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-
-        padding:
-          env(safe-area-inset-top)
-          max(12px, env(safe-area-inset-right))
-          0
-          max(12px, env(safe-area-inset-left));
-
-        z-index: 200;
-
-        pointer-events: none;
+        align-items: flex-start;
+        padding-top: calc(env(safe-area-inset-top) + 8px);
       }
 
       #topbar-left,
       #topbar-right {
-        display: flex;
-        align-items: center;
-        gap: 14px;
-
-        pointer-events: auto;
+        gap: 8px;
       }
 
-      .top-button {
-        appearance: none;
-
-        border: 1px solid var(--border);
-
-        background: var(--panel);
-        backdrop-filter: var(--blur);
-
-        color: var(--text-dim);
-
-        border-radius: 999px;
-
-        height: 34px;
-
-        padding: 0 14px;
-
-        display: flex;
-        align-items: center;
-        justify-content: center;
-
-        font-size: 10px;
-        font-family: monospace;
-
-        letter-spacing: 0.22em;
-        text-transform: uppercase;
-
-        cursor: pointer;
-
-        transition:
-          opacity .18s ease,
-          border-color .18s ease,
-          color .18s ease,
-          background .18s ease,
-          transform .18s ease;
-
-        opacity: 0.42;
-      }
-
-      .top-button:hover {
-        color: var(--accent);
-        border-color: rgba(216,255,114,0.3);
-
-        transform: translateY(-1px);
-        opacity: 1;
-      }
-
-      .top-button:active {
-        transform: translateY(0);
-      }
-
-      /*
-      ------------------------------------------------
-      HELP OVERLAY
-      ------------------------------------------------
-      */
-
-      #help {
-        position: fixed;
-
-        right: 20px;
-        top: 72px;
-
-        z-index: 300;
-
-        width: 240px;
-
-        padding: 14px;
-
-        border-radius: 18px;
-
-        background: rgba(0,0,0,0.72);
-        backdrop-filter: blur(18px);
-
-        border: 1px solid var(--border);
-
-        font-family: monospace;
-
-        transition:
-          opacity .2s ease,
-          transform .2s ease;
-      }
-
-      #help.hidden {
-        opacity: 0;
-        transform: translateY(-6px);
-        pointer-events: none;
-      }
-
-      body.scope-only #topbar,
-      body.scope-only #help,
-      body.scope-only .scope-wrap::before,
-      body.scope-only .scope-wrap::after {
-        opacity: 0;
-        pointer-events: none;
-      }
-
-      body.scope-only .scope-wrap::before,
-      body.scope-only .scope-wrap::after {
+      #help-toggle,
+      #fullscreen-toggle {
         display: none;
       }
 
-      #help-title {
-        font-size: 11px;
-        letter-spacing: 0.22em;
-
-        color: rgba(255,255,255,0.9);
-
-        margin-bottom: 12px;
+      #help {
+        width: calc(100vw - 32px);
+        right: 16px;
+        top: calc(env(safe-area-inset-top) + 56px);
       }
 
-      .help-row {
-        display: flex;
-        justify-content: space-between;
+      .top-button {
+        font-size: 9px;
+        letter-spacing: 0.14em;
+        height: 32px;
+        padding: 0 10px;
+      }
+    }
 
-        font-size: 10px;
-
-        color: rgba(255,255,255,0.55);
-
-        margin-bottom: 8px;
+    @media (max-width: 430px) {
+      #topbar-right {
+        gap: 6px;
       }
 
-      .help-key {
-        color: rgba(255,255,255,0.95);
+      .top-button {
+        font-size: 8px;
+        letter-spacing: 0.1em;
+        padding: 0 8px;
       }
+    }
+  </style>
 
-      /*
-      ------------------------------------------------
-      PANEL HIDE STATE
-      ------------------------------------------------
-      */
+  <script>
+    const body =
+      document.body;
 
-      body.panel-hidden #panel {
-        opacity: 0;
-        transform:
-          translateY(16px);
+    const panelToggle =
+      document.getElementById('panel-toggle');
 
-        pointer-events: none;
+    const helpToggle =
+      document.getElementById('help-toggle');
+
+    const fullscreenToggle =
+      document.getElementById('fullscreen-toggle');
+
+    const help =
+      document.getElementById('help');
+
+    const togglePanel = () => {
+      document.dispatchEvent(
+        new CustomEvent('ss-toggle-panel')
+      );
+    };
+
+    panelToggle?.addEventListener(
+      'click',
+      togglePanel
+    );
+
+    helpToggle?.addEventListener(
+      'click',
+      () => {
+        help?.classList.toggle('hidden');
       }
+    );
 
-      /*
-      ------------------------------------------------
-      FADE-IN
-      ------------------------------------------------
-      */
-
-      body {
-        animation:
-          bootFade 0.8s ease;
+    const toggleFullscreen = async () => {
+      if (!document.fullscreenElement) {
+        await document.documentElement.requestFullscreen?.();
+      } else {
+        await document.exitFullscreen?.();
       }
+    };
 
-      @keyframes bootFade {
-        from {
-          opacity: 0;
-          filter: blur(12px);
-        }
-
-        to {
-          opacity: 1;
-          filter: blur(0px);
-        }
+    fullscreenToggle?.addEventListener(
+      'click',
+      () => {
+        void toggleFullscreen();
       }
+    );
 
-      /*
-      ------------------------------------------------
-      MOBILE
-      ------------------------------------------------
-      */
-
-      @media (max-width: 700px) {
-        #topbar {
-          align-items: flex-start;
-          padding-top:
-            calc(env(safe-area-inset-top) + 8px);
+    window.addEventListener(
+      'keydown',
+      (event) => {
+        if (event.key === 'Tab') {
+          event.preventDefault();
         }
 
-        #topbar-left,
-        #topbar-right {
-          gap: 8px;
+        if (event.key.toLowerCase() === 'h') {
+          help?.classList.toggle('hidden');
         }
 
-        #help-toggle,
-        #fullscreen-toggle {
-          display: none;
-        }
-
-        #help {
-          width: calc(100vw - 32px);
-          right: 16px;
-          top:
-            calc(env(safe-area-inset-top) + 56px);
-        }
-
-        .top-button {
-          font-size: 9px;
-          letter-spacing: 0.14em;
-          height: 32px;
-          padding: 0 10px;
+        if (event.key.toLowerCase() === 'f') {
+          void toggleFullscreen();
         }
       }
+    );
 
-      @media (max-width: 430px) {
-        #topbar-right {
-          gap: 6px;
-        }
+    window.addEventListener(
+      'gesturestart',
+      event => event.preventDefault()
+    );
 
-        .top-button {
-          font-size: 8px;
-          letter-spacing: 0.1em;
-          padding: 0 8px;
-        }
-      }
-    </style>
-  </head>
+    window.setTimeout(
+      () => {
+        help?.classList.add('hidden');
+      },
+      1200
+    );
 
-  <body>
-    <div id="topbar">
-      <div id="topbar-left">
-        <a
-          href="/"
-          class="top-button"
-        >
-          ← BACK
-        </a>
-      </div>
-
-      <div id="topbar-right">
-        <button
-          id="panel-toggle"
-          class="top-button"
-        >
-          PANEL
-        </button>
-
-        <button
-          id="help-toggle"
-          class="top-button"
-        >
-          HELP
-        </button>
-
-        <button
-          id="fullscreen-toggle"
-          class="top-button"
-        >
-          FULL
-        </button>
-      </div>
-    </div>
-
-    <div id="help">
-      <div id="help-title">
-        SS_SCOPE SHORTCUTS
-      </div>
-
-      <div class="help-row">
-        <span>TAB</span>
-        <span class="help-key">WAVE ONLY</span>
-      </div>
-
-      <div class="help-row">
-        <span>H</span>
-        <span class="help-key">TOGGLE HELP</span>
-      </div>
-
-      <div class="help-row">
-        <span>F</span>
-        <span class="help-key">FULLSCREEN</span>
-      </div>
-
-      <div class="help-row">
-        <span>DBL CLICK</span>
-        <span class="help-key">RESET KNOB</span>
-      </div>
-
-      <div class="help-row">
-        <span>SHIFT</span>
-        <span class="help-key">FINE CONTROL</span>
-      </div>
-    </div>
-
-    <div class="scope-wrap">
-      <Visualizer />
-    </div>
-
-    <script>
-      const body = document.body;
-
-      const panelToggle =
-        document.getElementById(
-          "panel-toggle"
-        );
-
-      const helpToggle =
-        document.getElementById(
-          "help-toggle"
-        );
-
-      const fullscreenToggle =
-        document.getElementById(
-          "fullscreen-toggle"
-        );
-
-      const help =
-        document.getElementById("help");
-
-      /*
-      ----------------------------------------
-      PANEL TOGGLE
-      ----------------------------------------
-      */
-
-      function togglePanel() {
-        document.dispatchEvent(
-          new CustomEvent("ss-toggle-panel")
+    document.addEventListener(
+      'ss-scope-only',
+      (event) => {
+        body.classList.toggle(
+          'scope-only',
+          Boolean((event as CustomEvent<{ active: boolean }>).detail?.active)
         );
       }
-
-      panelToggle?.addEventListener(
-        "click",
-        togglePanel
-      );
-
-      /*
-      ----------------------------------------
-      HELP
-      ----------------------------------------
-      */
-
-      helpToggle?.addEventListener(
-        "click",
-        () => {
-          help?.classList.toggle(
-            "hidden"
-          );
-        }
-      );
-
-      /*
-      ----------------------------------------
-      FULLSCREEN
-      ----------------------------------------
-      */
-
-      fullscreenToggle?.addEventListener(
-        "click",
-        async () => {
-          if (!document.fullscreenElement) {
-            await document.documentElement
-              .requestFullscreen?.();
-          } else {
-            await document.exitFullscreen?.();
-          }
-        }
-      );
-
-      /*
-      ----------------------------------------
-      KEYBOARD
-      ----------------------------------------
-      */
-
-      window.addEventListener(
-        "keydown",
-        async (e) => {
-          if (e.key === "Tab") {
-            e.preventDefault();
-          }
-
-          if (
-            e.key.toLowerCase() === "h"
-          ) {
-            help?.classList.toggle(
-              "hidden"
-            );
-          }
-
-          if (
-            e.key.toLowerCase() === "f"
-          ) {
-            if (!document.fullscreenElement) {
-              await document.documentElement
-                .requestFullscreen?.();
-            } else {
-              await document.exitFullscreen?.();
-            }
-          }
-        }
-      );
-
-      /*
-      ----------------------------------------
-      PREVENT GESTURE NAVIGATION
-      ----------------------------------------
-      */
-
-      window.addEventListener(
-        "gesturestart",
-        e => e.preventDefault()
-      );
-
-      /*
-      ----------------------------------------
-      INITIAL STATE
-      ----------------------------------------
-      */
-
-      setTimeout(() => {
-        help?.classList.add("hidden");
-      }, 1200);
-
-      document.addEventListener(
-        "ss-scope-only",
-        (event) => {
-          body.classList.toggle(
-            "scope-only",
-            Boolean(event.detail?.active)
-          );
-        }
-      );
-    </script>
-  </body>
-</html>
+    );
+  </script>
+</BaseLayout>

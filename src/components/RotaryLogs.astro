@@ -1,15 +1,19 @@
 ---
-// RotaryLogs.astro
-interface Log {
-  date: string;
-  content: string;
-  url: string;
-}
-interface Props {
-  logs: Log[];
-}
-const { logs } = Astro.props;
+import { getCollection } from 'astro:content';
+
+const allLogs =
+  await getCollection('logs');
+
+const logs =
+  allLogs
+    .sort((a, b) => b.data.date.localeCompare(a.data.date))
+    .map(log => ({
+      date: log.data.date,
+      content: (log.body ?? '').trim(),
+      url: log.data.url
+    }));
 ---
+
 <section class="animate-fade-slide delay-300">
   <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-400 uppercase mb-6 border-b border-zinc-900 pb-2">Recent Logs</h2>
   <div class="relative h-[320px]" style="mask-image: linear-gradient(to bottom, transparent, black 20%, black 80%, transparent);">
@@ -35,55 +39,154 @@ const { logs } = Astro.props;
 </section>
 
 <script>
-  const rotary = document.getElementById('rotary') as HTMLElement;
-  const list = document.getElementById('rotary-list') as HTMLElement;
-  
-  if (rotary && list) {
-    const items = Array.from(list.children) as HTMLElement[];
-    const itemHeight = 80;
-    const totalHeight = items.length * itemHeight;
-    const offset = itemHeight; 
-    const centerPos = Math.floor(50000 / itemHeight) * itemHeight;
-    rotary.scrollTop = centerPos;
+  const rotary =
+    document.getElementById('rotary') as HTMLElement | null;
 
-    let isInteracting = false;
-    let snapTimeout: number;
+  const list =
+    document.getElementById('rotary-list') as HTMLElement | null;
+
+  if (rotary && list) {
+    const items =
+      Array.from(list.children) as HTMLElement[];
+
+    const itemHeight =
+      80;
+
+    const totalHeight =
+      items.length * itemHeight;
+
+    const offset =
+      itemHeight;
+
+    const centerPos =
+      Math.floor(50000 / itemHeight) * itemHeight;
+
+    rotary.scrollTop =
+      centerPos;
+
+    let isInteracting =
+      false;
+
+    let snapTimeout:
+      number | undefined;
+
+    let wheelTimer:
+      number | undefined;
 
     const updateItems = () => {
-      const currentScroll = rotary.scrollTop;
-      const scrollY = currentScroll - centerPos;
+      const currentScroll =
+        rotary.scrollTop;
+
+      const scrollY =
+        currentScroll - centerPos;
+
       items.forEach((item, i) => {
-        const basePos = i * itemHeight;
-        const pos = basePos - scrollY;
-        const wrappedPos = (((pos + offset) % totalHeight) + totalHeight) % totalHeight - offset;
-        item.style.transform = `translateY(${currentScroll + wrappedPos}px)`;
+        const basePos =
+          i * itemHeight;
+
+        const pos =
+          basePos - scrollY;
+
+        const wrappedPos =
+          (((pos + offset) % totalHeight) + totalHeight) % totalHeight - offset;
+
+        item.style.transform =
+          `translateY(${currentScroll + wrappedPos}px)`;
       });
     };
 
     const snapToCenter = () => {
-      if (isInteracting) return;
-      const target = Math.round(rotary.scrollTop / itemHeight) * itemHeight;
-      rotary.scrollTo({ top: target, behavior: 'smooth' });
+      if (isInteracting) {
+        return;
+      }
+
+      const target =
+        Math.round(rotary.scrollTop / itemHeight) * itemHeight;
+
+      rotary.scrollTo({
+        top: target,
+        behavior: 'smooth'
+      });
     };
 
-    rotary.addEventListener('scroll', () => {
-      updateItems();
-      clearTimeout(snapTimeout);
-      if (!isInteracting) snapTimeout = window.setTimeout(snapToCenter, 500);
-    }, { passive: true });
+    const startInteraction = () => {
+      isInteracting =
+        true;
 
-    const startInteraction = () => { isInteracting = true; clearTimeout(snapTimeout); };
-    const endInteraction = () => { isInteracting = false; snapTimeout = window.setTimeout(snapToCenter, 500); };
+      if (snapTimeout !== undefined) {
+        window.clearTimeout(snapTimeout);
+      }
+    };
 
-    rotary.addEventListener('mousedown', startInteraction);
-    window.addEventListener('mouseup', endInteraction);
-    rotary.addEventListener('touchstart', startInteraction);
-    window.addEventListener('touchend', endInteraction);
-    rotary.addEventListener('wheel', () => {
-      startInteraction();
-      clearTimeout((rotary as any).wheelTimer);
-      (rotary as any).wheelTimer = setTimeout(endInteraction, 150);
-    }, { passive: true });
+    const endInteraction = () => {
+      isInteracting =
+        false;
+
+      snapTimeout =
+        window.setTimeout(
+          snapToCenter,
+          500
+        );
+    };
+
+    rotary.addEventListener(
+      'scroll',
+      () => {
+        updateItems();
+
+        if (snapTimeout !== undefined) {
+          window.clearTimeout(snapTimeout);
+        }
+
+        if (!isInteracting) {
+          snapTimeout =
+            window.setTimeout(
+              snapToCenter,
+              500
+            );
+        }
+      },
+      { passive: true }
+    );
+
+    rotary.addEventListener(
+      'mousedown',
+      startInteraction
+    );
+
+    window.addEventListener(
+      'mouseup',
+      endInteraction
+    );
+
+    rotary.addEventListener(
+      'touchstart',
+      startInteraction,
+      { passive: true }
+    );
+
+    window.addEventListener(
+      'touchend',
+      endInteraction
+    );
+
+    rotary.addEventListener(
+      'wheel',
+      () => {
+        startInteraction();
+
+        if (wheelTimer !== undefined) {
+          window.clearTimeout(wheelTimer);
+        }
+
+        wheelTimer =
+          window.setTimeout(
+            endInteraction,
+            150
+          );
+      },
+      { passive: true }
+    );
 
     updateItems();
   }

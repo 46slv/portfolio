@@ -1,0 +1,292 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="SS_CLOCK | Timer"
+  showShell={false}
+  bodyClass="bg-black text-[#d8ff72] font-mono selection:bg-[#d8ff72] selection:text-black antialiased overflow-hidden"
+>
+  <main id="clock-page">
+    <a id="clock-back" href="/">BACK</a>
+
+    <section id="clock-face">
+      <div id="clock-label">JST SYSTEM CLOCK</div>
+      <div id="wall-clock">--:--:--</div>
+      <div id="elapsed">00:00.000</div>
+    </section>
+
+    <section id="timer-panel">
+      <div class="timer-group">
+        <button id="count-start">COUNT UP</button>
+        <button id="count-stop">STOP</button>
+        <button id="lap">LAP</button>
+        <button id="reset">RESET</button>
+      </div>
+
+      <div class="timer-group countdown">
+        <label>
+          MIN
+          <input id="minutes" type="number" min="0" max="999" value="1" inputmode="numeric" />
+        </label>
+        <label>
+          SEC
+          <input id="seconds" type="number" min="0" max="59" value="0" inputmode="numeric" />
+        </label>
+        <button id="countdown-start">START</button>
+      </div>
+
+      <ol id="laps"></ol>
+    </section>
+  </main>
+
+  <style>
+    #clock-page {
+      min-height: 100dvh;
+      display: grid;
+      grid-template-rows: 1fr auto;
+      padding: max(24px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+      background:
+        radial-gradient(circle at center, rgba(54,255,114,0.08), transparent 44%),
+        linear-gradient(#000, #040604);
+      position: relative;
+      overflow: hidden;
+    }
+
+    #clock-page::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background: repeating-linear-gradient(to bottom, rgba(255,255,255,0.025), rgba(255,255,255,0.025) 1px, transparent 2px, transparent 4px);
+      mix-blend-mode: screen;
+      opacity: 0.28;
+    }
+
+    #clock-page.expired {
+      animation: clockFlash 0.68s ease-out;
+    }
+
+    #clock-back {
+      position: fixed;
+      top: max(18px, env(safe-area-inset-top));
+      left: max(18px, env(safe-area-inset-left));
+      color: rgba(216,255,114,0.45);
+      font-size: 10px;
+      letter-spacing: 0.28em;
+      text-decoration: none;
+      z-index: 2;
+    }
+
+    #clock-face {
+      align-self: center;
+      text-align: center;
+      text-shadow: 0 0 20px rgba(54,255,114,0.45);
+      z-index: 1;
+    }
+
+    #clock-label {
+      font-size: 11px;
+      letter-spacing: 0.35em;
+      color: rgba(216,255,114,0.5);
+      margin-bottom: 18px;
+    }
+
+    #wall-clock {
+      font-size: clamp(64px, 17vw, 190px);
+      line-height: 0.9;
+      letter-spacing: 0.02em;
+      color: rgba(216,255,114,0.95);
+    }
+
+    #elapsed {
+      margin-top: 24px;
+      font-size: clamp(18px, 4vw, 42px);
+      color: rgba(255,255,255,0.48);
+    }
+
+    #timer-panel {
+      display: grid;
+      gap: 14px;
+      width: min(760px, 100%);
+      margin: 0 auto;
+      z-index: 1;
+    }
+
+    .timer-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      justify-content: center;
+    }
+
+    .timer-group button,
+    .timer-group input {
+      height: 42px;
+      border: 1px solid rgba(216,255,114,0.24);
+      background: rgba(0,0,0,0.58);
+      color: rgba(216,255,114,0.88);
+      font: inherit;
+      letter-spacing: 0.18em;
+      padding: 0 14px;
+      outline: none;
+    }
+
+    .timer-group button {
+      cursor: pointer;
+    }
+
+    .timer-group label {
+      display: grid;
+      grid-template-columns: auto 78px;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      color: rgba(216,255,114,0.52);
+      letter-spacing: 0.22em;
+    }
+
+    .timer-group input {
+      width: 78px;
+      text-align: center;
+    }
+
+    #laps {
+      max-height: 132px;
+      overflow: auto;
+      margin: 0;
+      padding: 0;
+      list-style: none;
+      color: rgba(255,255,255,0.48);
+      font-size: 12px;
+      text-align: center;
+    }
+
+    #laps li {
+      padding: 4px 0;
+    }
+
+    @keyframes clockFlash {
+      0% { box-shadow: inset 0 0 0 100vmax rgba(54,255,114,0); }
+      25% { box-shadow: inset 0 0 0 100vmax rgba(54,255,114,0.32); }
+      100% { box-shadow: inset 0 0 0 100vmax rgba(54,255,114,0); }
+    }
+
+    @media (max-width: 560px) {
+      #clock-page {
+        grid-template-rows: 1fr auto;
+      }
+
+      .timer-group button,
+      .timer-group input {
+        height: 46px;
+      }
+
+      .timer-group label {
+        grid-template-columns: 1fr;
+        justify-items: center;
+      }
+    }
+  </style>
+
+  <script>
+    import { TimerEngine } from '../scripts/timer-engine';
+
+    const engine =
+      new TimerEngine();
+
+    const page =
+      document.getElementById('clock-page');
+
+    const wallClock =
+      document.getElementById('wall-clock');
+
+    const elapsed =
+      document.getElementById('elapsed');
+
+    const laps =
+      document.getElementById('laps');
+
+    const minutes =
+      document.getElementById('minutes') as HTMLInputElement | null;
+
+    const seconds =
+      document.getElementById('seconds') as HTMLInputElement | null;
+
+    const formatMs = (ms: number) => {
+      const totalSeconds =
+        Math.floor(ms / 1000);
+
+      const min =
+        Math.floor(totalSeconds / 60)
+          .toString()
+          .padStart(2, '0');
+
+      const sec =
+        (totalSeconds % 60)
+          .toString()
+          .padStart(2, '0');
+
+      const milli =
+        Math.floor(ms % 1000)
+          .toString()
+          .padStart(3, '0');
+
+      return `${min}:${sec}.${milli}`;
+    };
+
+    engine.onTick((state) => {
+      if (wallClock) {
+        wallClock.textContent =
+          state.wallClock;
+      }
+
+      if (elapsed) {
+        elapsed.textContent =
+          state.countdown !== null
+            ? formatMs(state.countdown)
+            : formatMs(state.elapsed);
+      }
+
+      if (laps) {
+        laps.innerHTML =
+          state.laps
+            .map(record => `<li>#${record.index} SPLIT ${formatMs(record.splitMs)} / TOTAL ${formatMs(record.totalMs)}</li>`)
+            .join('');
+      }
+    });
+
+    engine.onExpire(() => {
+      page?.classList.remove('expired');
+      void page?.offsetWidth;
+      page?.classList.add('expired');
+    });
+
+    document.getElementById('count-start')
+      ?.addEventListener('click', () => engine.start());
+
+    document.getElementById('count-stop')
+      ?.addEventListener('click', () => engine.stop());
+
+    document.getElementById('lap')
+      ?.addEventListener('click', () => engine.lap());
+
+    document.getElementById('reset')
+      ?.addEventListener('click', () => engine.reset());
+
+    document.getElementById('countdown-start')
+      ?.addEventListener('click', () => {
+        const min =
+          Number(minutes?.value || 0);
+
+        const sec =
+          Number(seconds?.value || 0);
+
+        engine.setCountdown(
+          min * 60 + sec
+        );
+
+        engine.startCountdown();
+      });
+  </script>
+</BaseLayout>
