@@ -1,0 +1,50 @@
+---
+interface Props {
+  name: string;
+}
+
+const { name } = Astro.props;
+
+const LINK_MAP: Record<string, { href: string; classEn: string; classJa: string }> = {
+  'Core Creative': {
+    href: 'https://corecreative.jp/',
+    classEn: 'text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left',
+    classJa: 'hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-all hover:scale-105 inline-block origin-left',
+  },
+  'CDs': {
+    href: 'https://x.com/CDs_inter',
+    classEn: 'text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left',
+    classJa: 'hover:text-zinc-400 underline underline-offset-4 decoration-zinc-800 transition-all hover:scale-105 inline-block origin-left',
+  },
+};
+
+function linkify(text: string, lang: 'en' | 'ja'): string {
+  const keys = Object.keys(LINK_MAP).sort((a, b) => b.length - a.length);
+  let result = text;
+
+  for (const key of keys) {
+    const { href, classEn, classJa } = LINK_MAP[key];
+    const cls = lang === 'en' ? classEn : classJa;
+
+    result = result.replaceAll(
+      key,
+      `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${cls}">${key}</a>`
+    );
+  }
+
+  return result;
+}
+
+const enText = `${name} is a Japanese visual artist, compositor, and motion designer.
+He is primarily active as a director for music videos, focusing on illustration-based visual works.
+A member of the creative collective Core Creative and the musical unit CDs.`;
+
+const jaText = `藤白 詩集（ふじしろ・ししゅう、生年不明）は、日本の映像作家、コンポジター、モーションデザイナー。主にイラストレーションを中心としたミュージックビデオを手掛けている。クリエイティブ・コレクティブ「Core Creative」およびレーベル「CDs」のメンバー。`;
+---
+
+<section class="mb-24">
+  <div class="focus-container space-y-8 text-sm md:text-base leading-loose max-w-3xl font-light animate-fade-slide delay-200">
+    <p class="text-zinc-400 dim-text" set:html={linkify(enText, 'en')} />
+    <p class="text-zinc-600 italic dim-text" set:html={linkify(jaText, 'ja')} />
+  </div>
+</section>

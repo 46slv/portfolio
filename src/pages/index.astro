@@ -1,5 +1,6 @@
 ---
 import BaseLayout from '../layouts/BaseLayout.astro';
+import Bio from '../components/Bio.astro';
 import Header from '../components/Header.astro';
 import RotaryLogs from '../components/RotaryLogs.astro';
 
@@ -35,37 +36,7 @@ const workScope = [
   <Header name={name} jpName={jpName} />
 
   <main class="flex-grow">
-    <section class="mb-24">
-      <div class="focus-container space-y-8 text-sm md:text-base leading-loose max-w-3xl font-light animate-fade-slide delay-200">
-        <p class="text-zinc-400">
-          <span class="dim-text">
-            <strong class="text-zinc-200 font-medium">{name}</strong> is a Japanese visual artist, compositor, and motion designer.
-            He is primarily active as a director for music videos, focusing on illustration-based visual works.
-            A member of the creative collective
-          </span>
-          <a href="https://corecreative.jp/" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left">Core Creative</a>
-          <span class="dim-text"> and the musical unit </span>
-          <a href="https://x.com/CDs_inter" target="_blank" class="text-zinc-300 hover:text-white underline underline-offset-4 decoration-zinc-700 transition-all hover:scale-105 inline-block origin-left">CDs</a>
-          <span class="dim-text">.</span>
-        </p>
-        <p class="text-zinc-600 italic">
-          <span class="dim-text">映像制作、コンポジット、モーションデザインを中心に活動。ミュージックビデオとライブ表現のための視覚設計を行う。</span>
-        </p>
-      </div>
-
-      <div class="mt-12 animate-fade-slide delay-300">
-        <div class="flex flex-wrap gap-3 text-[10px] tracking-[0.2em] uppercase">
-          {snsLinks.map(link => (
-            <a href={link.url} target="_blank" class="border border-zinc-800 px-5 py-3 hover:bg-[#d0e2f8] hover:text-black hover:border-[#d0e2f8] transition-all duration-300">
-              {link.name}
-            </a>
-          ))}
-          <button id="copy-email-btn" class="border border-zinc-800 px-5 py-3 hover:bg-[#d0e2f8] hover:text-black transition-all" data-email={email}>
-            Mail: {email}
-          </button>
-        </div>
-      </div>
-    </section>
+    <Bio name={name} />
 
     <div class="grid lg:grid-cols-2 gap-24 items-start">
       <RotaryLogs />
