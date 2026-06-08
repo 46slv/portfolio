@@ -20,6 +20,20 @@ const groups =
     },
     {}
   );
+
+const getGearTitle = (body: string | undefined, fallback: string) => {
+  const firstHeading =
+    body
+      ?.split(/\r?\n/)
+      .find(line => line.trim().startsWith('# '));
+
+  return (
+    firstHeading
+      ?.replace(/^#\s*/, '')
+      .trim() ||
+    fallback
+  );
+};
 ---
 
 <BaseLayout title="SS_Gear | Equipment">
@@ -39,9 +53,10 @@ const groups =
           <div class="divide-y divide-zinc-900 border border-zinc-900 bg-zinc-950/35">
             {items.map(item => {
               const title =
-                (item.body ?? item.id)
-                  .replace(/^#\s*/m, '')
-                  .trim();
+                getGearTitle(
+                  item.body,
+                  item.id
+                );
 
               const md =
 `---
@@ -69,6 +84,47 @@ tags: [${item.data.tags.join(', ')}]
   </main>
 
   <script>
+    type LegacyClipboardDocument = {
+      execCommand(commandId: string): boolean;
+    };
+
+    const writeClipboard = async (value: string) => {
+      try {
+        await navigator.clipboard.writeText(value);
+        return true;
+      } catch (_error) {
+        const textarea =
+          document.createElement('textarea');
+
+        textarea.value =
+          value;
+
+        textarea.setAttribute(
+          'readonly',
+          ''
+        );
+
+        textarea.style.position =
+          'fixed';
+
+        textarea.style.left =
+          '-9999px';
+
+        document.body.appendChild(textarea);
+        textarea.select();
+
+        const legacyDocument =
+          document as LegacyClipboardDocument;
+
+        const copied =
+          legacyDocument.execCommand('copy');
+
+        textarea.remove();
+
+        return copied;
+      }
+    };
+
     document.querySelectorAll('.gear-item')
       .forEach((item) => {
         const button =
@@ -88,13 +144,23 @@ tags: [${item.data.tags.join(', ')}]
               return;
             }
 
-            await navigator.clipboard.writeText(value);
-
             const original =
               button.textContent ?? '[COPY MD]';
 
-            button.textContent =
-              'COPIED!';
+            try {
+              const copied =
+                await writeClipboard(value);
+
+              if (!copied) {
+                throw new Error('Clipboard copy failed');
+              }
+
+              button.textContent =
+                'COPIED!';
+            } catch (_error) {
+              button.textContent =
+                'COPY FAILED';
+            }
 
             window.setTimeout(
               () => {

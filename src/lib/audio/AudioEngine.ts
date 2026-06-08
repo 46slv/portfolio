@@ -7,6 +7,8 @@ export class AudioEngine {
 
   analyser: AnalyserNode;
   frequencyAnalyser: AnalyserNode;
+  leftAnalyser: AnalyserNode;
+  rightAnalyser: AnalyserNode;
 
   inputGain: GainNode;
   outputGain: GainNode;
@@ -21,6 +23,7 @@ export class AudioEngine {
   delayGain: GainNode;
 
   keepAliveGain: GainNode;
+  stereoSplitter: ChannelSplitterNode;
 
   sourceNode?: MediaStreamAudioSourceNode;
 
@@ -56,6 +59,26 @@ export class AudioEngine {
 
     this.frequencyAnalyser.smoothingTimeConstant =
       0.86;
+
+    this.leftAnalyser =
+      this.audioCtx
+        .createAnalyser();
+
+    this.leftAnalyser.fftSize =
+      2048;
+
+    this.leftAnalyser.smoothingTimeConstant =
+      0;
+
+    this.rightAnalyser =
+      this.audioCtx
+        .createAnalyser();
+
+    this.rightAnalyser.fftSize =
+      2048;
+
+    this.rightAnalyser.smoothingTimeConstant =
+      0;
 
     /*
     --------------------------------
@@ -94,6 +117,10 @@ export class AudioEngine {
 
     this.keepAliveGain.gain.value =
       0.00001;
+
+    this.stereoSplitter =
+      this.audioCtx
+        .createChannelSplitter(2);
 
     this.filterNode =
       this.audioCtx
@@ -213,6 +240,20 @@ export class AudioEngine {
       this.frequencyAnalyser
     );
 
+    this.outputGain.connect(
+      this.stereoSplitter
+    );
+
+    this.stereoSplitter.connect(
+      this.leftAnalyser,
+      0
+    );
+
+    this.stereoSplitter.connect(
+      this.rightAnalyser,
+      1
+    );
+
     /*
     --------------------------------
     MONITOR PATH
@@ -252,16 +293,7 @@ export class AudioEngine {
     deviceId?: string
   ) {
 
-    // cleanup previous stream
-
-    if (this.stream) {
-
-      this.stream
-        .getTracks()
-        .forEach(track => {
-          track.stop();
-        });
-    }
+    this.stopInput();
 
     const constraints: MediaStreamConstraints = {
       audio: {
@@ -387,6 +419,12 @@ export class AudioEngine {
 
     this.frequencyAnalyser.fftSize =
       frequencyFftSize;
+
+    this.leftAnalyser.fftSize =
+      timeFftSize;
+
+    this.rightAnalyser.fftSize =
+      timeFftSize;
   }
 
   /*
@@ -493,6 +531,47 @@ export class AudioEngine {
       .getByteTimeDomainData(
         target as unknown as Uint8Array<ArrayBuffer>
       );
+  }
+
+  fillLissajousData(
+    xTarget: Uint8Array<ArrayBufferLike>,
+    yTarget: Uint8Array<ArrayBufferLike>
+  ) {
+
+    this.leftAnalyser
+      .getByteTimeDomainData(
+        xTarget as unknown as Uint8Array<ArrayBuffer>
+      );
+
+    this.rightAnalyser
+      .getByteTimeDomainData(
+        yTarget as unknown as Uint8Array<ArrayBuffer>
+      );
+
+    let rightHasSignal =
+      false;
+
+    for (
+      let i = 0;
+      i < yTarget.length;
+      i++
+    ) {
+
+      if (Math.abs(yTarget[i] - 128) > 1) {
+        rightHasSignal =
+          true;
+        break;
+      }
+    }
+
+    if (!rightHasSignal) {
+      yTarget.set(
+        xTarget.subarray(
+          0,
+          yTarget.length
+        )
+      );
+    }
   }
 
   getFrequencyData() {

@@ -4,10 +4,35 @@ interface Props {
   color?: string;
 }
 
+interface KnobDefinition {
+  id: string;
+  label: string;
+  value: string;
+  min: string;
+  max: string;
+  fmt: string;
+  bipolar?: string;
+}
+
 const {
   isMini = false,
   color = '#36ff72'
 } = Astro.props;
+
+const sharedKnobs: KnobDefinition[] = [
+  { id: 'volume', label: 'Monitor', value: '0', min: '0', max: '1', fmt: 'pct' },
+  { id: 'speed', label: 'Motion', value: '1', min: '0.5', max: '8', fmt: 'x1' },
+  { id: 'scale', label: 'Size', value: '1', min: '0.1', max: '3', fmt: 'x1' },
+  { id: 'beam', label: 'Beam', value: '1', min: '0.4', max: '3', fmt: 'x1' },
+  { id: 'intensity', label: 'Glow', value: '1', min: '0.2', max: '2', fmt: 'x1' },
+  { id: 'afterglow', label: 'Decay', value: '0.15', min: '0', max: '0.95', fmt: 'pct' }
+];
+
+const modeDetailKnobs: KnobDefinition[] = [
+  { id: 'x-scale', label: 'Width', value: '1', min: '0.5', max: '2', fmt: 'x1' },
+  { id: 'y-scale', label: 'Height', value: '1', min: '0.5', max: '2', fmt: 'x1' },
+  { id: 'rotate', label: 'Angle', value: '0', min: '-180', max: '180', fmt: 'deg', bipolar: 'true' }
+];
 ---
 
 <div
@@ -42,22 +67,19 @@ const {
 
       <div id="perf-overlay"></div>
 
+      <div id="engage-overlay">
+        <button id="engage-overlay-btn" type="button">
+          <span id="engage-overlay-title">ENGAGE</span>
+          <span id="engage-overlay-status">MIC STANDBY</span>
+        </button>
+      </div>
+
       <div id="control-panel">
         <div id="panel-inner">
           <details class="panel-section primary-section" open>
-            <summary>PRIMARY</summary>
+            <summary>GLOBAL</summary>
             <div class="primary-grid">
-              {[
-                { id: 'volume', label: 'Volume', value: '0', min: '0', max: '1', fmt: 'pct' },
-                { id: 'speed', label: 'Speed', value: '1', min: '0.5', max: '8', fmt: 'x1' },
-                { id: 'scale', label: 'Scale', value: '1', min: '0.1', max: '3', fmt: 'x1' },
-                { id: 'beam', label: 'Beam', value: '1', min: '0.4', max: '3', fmt: 'x1' },
-                { id: 'intensity', label: 'Intensity', value: '1', min: '0.2', max: '2', fmt: 'x1' },
-                { id: 'afterglow', label: 'Afterglow', value: '0.15', min: '0', max: '0.95', fmt: 'pct' },
-                { id: 'x-scale', label: 'Horizontal', value: '1', min: '0.5', max: '2', fmt: 'x1' },
-                { id: 'y-scale', label: 'Vertical', value: '1', min: '0.5', max: '2', fmt: 'x1' },
-                { id: 'rotate', label: 'Rotate', value: '0', min: '-180', max: '180', fmt: 'deg', bipolar: 'true' }
-              ].map(knob => (
+              {sharedKnobs.map(knob => (
                 <div class="knob-wrap">
                   <canvas
                     class="design-knob"
@@ -109,6 +131,34 @@ const {
             </div>
           </details>
 
+          <details class="panel-section mode-detail-section" open>
+            <summary>MODE DETAIL</summary>
+            <div id="mode-detail-panel">
+              <div class="mode-readout">
+                <span id="mode-detail-title">OSC TRACE</span>
+                <span id="mode-detail-scope">TIME DOMAIN</span>
+              </div>
+
+              <div class="mode-detail-grid">
+                {modeDetailKnobs.map(knob => (
+                  <div class="knob-wrap">
+                    <canvas
+                      class="design-knob"
+                      data-id={knob.id}
+                      data-min={knob.min}
+                      data-max={knob.max}
+                      data-val={knob.value}
+                      data-fmt={knob.fmt}
+                      data-bipolar={knob.bipolar}
+                    ></canvas>
+                    <span class="knob-label" data-label-for={knob.id}>{knob.label}</span>
+                    <span class="knob-value" data-for={knob.id}></span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </details>
+
           <details class="panel-section">
             <summary>COLOR</summary>
             <div class="color-grid">
@@ -136,7 +186,7 @@ const {
             <div id="advanced-grid">
               <label>FPS
                 <select id="fps-select" class="viz-select compact-select">
-                  {[15, 24, 30, 60, 120].map(v => <option value={v} selected={v === 60}>{v}</option>)}
+                  {[15, 24, 30, 60, 120].map(v => <option value={v} selected={v === 30}>{v}</option>)}
                 </select>
               </label>
               <label>QUALITY
@@ -157,16 +207,16 @@ const {
               </label>
               <label>DENSITY
                 <select id="sample-select" class="viz-select compact-select">
-                  <option value="1" selected>1:1</option>
-                  <option value="2">1:2</option>
+                  <option value="1">1:1</option>
+                  <option value="2" selected>1:2</option>
                   <option value="4">1:4</option>
                   <option value="8">1:8</option>
                 </select>
               </label>
               <label>RENDER
                 <select id="render-scale-select" class="viz-select compact-select">
-                  <option value="1" selected>1.0</option>
-                  <option value="0.75">0.75</option>
+                  <option value="1">1.0</option>
+                  <option value="0.75" selected>0.75</option>
                   <option value="0.5">0.5</option>
                 </select>
               </label>
@@ -236,6 +286,7 @@ const {
 
   #hud-bar {
     position: absolute;
+    z-index: 24;
     top: 0;
     left: 0;
     right: 0;
@@ -348,8 +399,69 @@ const {
     opacity: 1;
   }
 
+  #engage-overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    padding: max(24px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
+    background:
+      radial-gradient(circle at center, rgba(54,255,114,0.12), transparent 34%),
+      rgba(0,0,0,0.72);
+    backdrop-filter: blur(8px);
+    pointer-events: auto;
+    transition: opacity .24s ease, visibility .24s ease;
+  }
+
+  #engage-overlay.hidden {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  #engage-overlay-btn {
+    appearance: none;
+    width: min(420px, 88vw);
+    min-height: 180px;
+    border: 1px solid color-mix(in srgb, var(--accent), transparent 40%);
+    background: rgba(0,0,0,0.76);
+    color: var(--accent);
+    display: grid;
+    place-items: center;
+    gap: 14px;
+    padding: 28px;
+    cursor: pointer;
+    box-shadow:
+      0 0 28px rgba(54,255,114,0.12),
+      inset 0 0 26px rgba(54,255,114,0.08);
+    font: inherit;
+    text-transform: uppercase;
+    transition: border-color .18s ease, color .18s ease, transform .18s ease, background .18s ease;
+  }
+
+  #engage-overlay-btn:hover {
+    border-color: var(--accent);
+    background: rgba(54,255,114,0.06);
+    transform: translateY(-1px);
+  }
+
+  #engage-overlay-title {
+    font-size: clamp(34px, 8vw, 74px);
+    line-height: 0.9;
+    letter-spacing: 0.22em;
+    font-weight: 800;
+  }
+
+  #engage-overlay-status {
+    color: rgba(255,255,255,0.48);
+    font-size: 11px;
+    letter-spacing: 0.24em;
+  }
+
   #control-panel {
     position: absolute;
+    z-index: 32;
     right: max(14px, env(safe-area-inset-right));
     bottom: max(14px, env(safe-area-inset-bottom));
     width: min(520px, calc(100vw - 28px));
@@ -410,10 +522,42 @@ const {
     display: none;
   }
 
-  .primary-grid {
+  .primary-grid,
+  .mode-detail-grid {
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 16px 12px;
+  }
+
+  #mode-detail-panel {
+    display: grid;
+    gap: 14px;
+  }
+
+  .mode-readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+    min-height: 30px;
+    padding: 0 0 8px;
+    border-bottom: 1px solid rgba(255,255,255,0.07);
+    color: rgba(255,255,255,0.46);
+    text-transform: uppercase;
+  }
+
+  #mode-detail-title {
+    color: var(--accent);
+    font-size: 12px;
+    letter-spacing: 0.18em;
+    font-weight: 700;
+  }
+
+  #mode-detail-scope {
+    color: rgba(255,255,255,0.34);
+    font-size: 10px;
+    letter-spacing: 0.16em;
+    text-align: right;
   }
 
   .knob-wrap {
@@ -519,7 +663,8 @@ const {
       border-bottom: none;
     }
 
-    .primary-grid {
+    .primary-grid,
+    .mode-detail-grid {
       grid-template-columns: repeat(3, minmax(0, 1fr));
     }
   }
@@ -537,9 +682,15 @@ const {
       padding: 16px 14px calc(18px + env(safe-area-inset-bottom));
     }
 
-    .primary-grid {
+    .primary-grid,
+    .mode-detail-grid {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 15px 8px;
+    }
+
+    .mode-readout {
+      align-items: flex-start;
+      flex-direction: column;
     }
 
     .utility-strip {
@@ -564,7 +715,8 @@ const {
       max-height: 64dvh;
     }
 
-    .primary-grid {
+    .primary-grid,
+    .mode-detail-grid {
       grid-template-columns: repeat(4, minmax(0, 1fr));
     }
 
@@ -603,6 +755,7 @@ const {
 
   interface RenderParams {
     targetFps: number;
+    motionSpeed: number;
     sampleStep: number;
     renderScale: number;
     beam: number;
@@ -640,6 +793,7 @@ const {
   let workerReady = false;
   let offscreenMode = false;
   let running = false;
+  let startingAudio = false;
   let animationId = 0;
   let lastFrameAt = 0;
   let fpsWindowAt = 0;
@@ -647,9 +801,10 @@ const {
   let actualFps = 0;
   let droppedFrames = 0;
   let msFrame = 0;
-  let targetFps = IS_MINI ? 30 : 60;
-  let sampleStep = IS_MINI ? 4 : 1;
-  let renderScale = 1;
+  let targetFps = 30;
+  let motionSpeed = 1;
+  let sampleStep = IS_MINI ? 4 : 2;
+  let renderScale = IS_MINI ? 1 : 0.75;
   let mode: VizMode = 'scope';
   let pixelMap = false;
   let hudVisible = true;
@@ -661,6 +816,8 @@ const {
   let fftSetting: 'auto' | '512' | '1024' | '2048' | '4096' = 'auto';
   let timeData = new Uint8Array(2048);
   let freqData = new Uint8Array(2048);
+  let lissajousXData = new Uint8Array(2048);
+  let lissajousYData = new Uint8Array(2048);
   let sharedTime: Uint8Array | null = null;
   let sharedFreq: Uint8Array | null = null;
   let sharedBuffer: SharedArrayBuffer | null = null;
@@ -669,6 +826,7 @@ const {
 
   const params: RenderParams = {
     targetFps,
+    motionSpeed,
     sampleStep,
     renderScale,
     beam: 1,
@@ -1050,6 +1208,35 @@ const {
       targetFps;
   };
 
+  const normalizeAccent = (value: string) => {
+    const scratch =
+      document.createElement('span');
+
+    scratch.style.color =
+      value;
+
+    document.body.appendChild(scratch);
+
+    const computed =
+      getComputedStyle(scratch).color;
+
+    scratch.remove();
+
+    const match =
+      computed.match(/\d+(\.\d+)?/g);
+
+    if (!match || match.length < 3) {
+      return '#36ff72';
+    }
+
+    return `#${match
+      .slice(0, 3)
+      .map(part => Number(part)
+        .toString(16)
+        .padStart(2, '0'))
+      .join('')}`;
+  };
+
   const resize = () => {
     const scale =
       dpr();
@@ -1098,7 +1285,7 @@ const {
           mode === 'spectrum' ||
           mode === 'waterfall'
             ? 4096
-            : 2048
+            : 1024
         )
         : Number(fftSetting);
 
@@ -1106,6 +1293,12 @@ const {
       new Uint8Array(value);
 
     freqData =
+      new Uint8Array(value);
+
+    lissajousXData =
+      new Uint8Array(value);
+
+    lissajousYData =
       new Uint8Array(value);
 
     if (engine) {
@@ -1171,7 +1364,7 @@ const {
         {
           type: 'init',
           canvas: offscreen,
-          color: ACCENT,
+          color: normalizeAccent(ACCENT),
           sab: sharedBuffer ?? undefined,
           timeLength,
           freqLength
@@ -1179,11 +1372,37 @@ const {
         [offscreen]
       );
 
+      worker.addEventListener(
+        'message',
+        (event: MessageEvent<{ type?: string }>) => {
+          if (event.data?.type === 'ready') {
+            workerReady =
+              true;
+          }
+        }
+      );
+
+      worker.addEventListener(
+        'error',
+        () => {
+          workerReady =
+            false;
+        }
+      );
+
+      worker.addEventListener(
+        'messageerror',
+        () => {
+          workerReady =
+            false;
+        }
+      );
+
       offscreenMode =
         true;
 
       workerReady =
-        true;
+        false;
     } catch (_error) {
       fallbackCtx =
         canvas.getContext('2d');
@@ -1229,32 +1448,114 @@ const {
     }
   };
 
+  const setEngageOverlay = (
+    state: 'standby' | 'starting' | 'blocked' | 'hidden'
+  ) => {
+    const overlay =
+      ROOT.querySelector('#engage-overlay') as HTMLElement | null;
+
+    const title =
+      ROOT.querySelector('#engage-overlay-title') as HTMLElement | null;
+
+    const status =
+      ROOT.querySelector('#engage-overlay-status') as HTMLElement | null;
+
+    if (!overlay) {
+      return;
+    }
+
+    overlay.classList.toggle(
+      'hidden',
+      state === 'hidden'
+    );
+
+    if (title) {
+      title.textContent =
+        state === 'starting'
+          ? 'STARTING'
+          : state === 'blocked'
+            ? 'RETRY'
+            : 'ENGAGE';
+    }
+
+    if (status) {
+      status.textContent =
+        state === 'starting'
+          ? 'REQUESTING MIC'
+          : state === 'blocked'
+            ? 'MIC BLOCKED'
+            : 'MIC STANDBY';
+    }
+  };
+
   const startAudio = async () => {
+    if (startingAudio) {
+      return false;
+    }
+
+    startingAudio =
+      true;
+
     const select =
       ROOT.querySelector('#input-select') as HTMLSelectElement | null;
 
-    if (!engine) {
-      engine =
-        new AudioEngine();
+    const status =
+      ROOT.querySelector('#status-label');
+
+    const hint =
+      ROOT.querySelector('#init-hint');
+
+    try {
+      if (!engine) {
+        engine =
+          new AudioEngine();
+      }
+
+      if (hint) {
+        hint.textContent =
+          'requesting mic';
+      }
+
+      setEngageOverlay('starting');
+
+      await engine.initInput(
+        select?.value || undefined
+      );
+
+      engine.setMonitorLevel(
+        params.beam >= 0
+          ? currentVolume
+          : 0
+      );
+    } catch (_error) {
+      running =
+        false;
+
+      ROOT.classList.remove('is-running');
+      ROOT.querySelector('#start-btn')?.classList.remove('hidden');
+      ROOT.querySelector('#stop-btn')?.classList.add('hidden');
+
+      if (status) {
+        status.textContent =
+          'MIC BLOCKED';
+      }
+
+      if (hint) {
+        hint.textContent =
+          'mic unavailable';
+      }
+
+      setEngageOverlay('blocked');
+      startingAudio =
+        false;
+
+      return false;
     }
-
-    await engine.initInput(
-      select?.value || undefined
-    );
-
-    engine.setMonitorLevel(
-      params.beam >= 0
-        ? currentVolume
-        : 0
-    );
 
     running =
       true;
 
     ROOT.classList.add('is-running');
-
-    const status =
-      ROOT.querySelector('#status-label');
 
     if (status) {
       status.textContent =
@@ -1263,9 +1564,20 @@ const {
 
     ROOT.querySelector('#start-btn')?.classList.add('hidden');
     ROOT.querySelector('#stop-btn')?.classList.remove('hidden');
-    ROOT.querySelector('#init-hint')!.textContent = 'analysis active';
+
+    if (hint) {
+      hint.textContent =
+        'analysis active';
+    }
+
+    setEngageOverlay('hidden');
 
     await populateDevices();
+
+    startingAudio =
+      false;
+
+    return true;
   };
 
   const stopAudio = async () => {
@@ -1281,6 +1593,7 @@ const {
     ROOT.querySelector('#start-btn')?.classList.remove('hidden');
     ROOT.querySelector('#stop-btn')?.classList.add('hidden');
     ROOT.querySelector('#init-hint')!.textContent = 'mic standby';
+    setEngageOverlay('standby');
 
     const status =
       ROOT.querySelector('#status-label');
@@ -1307,7 +1620,7 @@ const {
 
     worker?.postMessage({
       type: 'color',
-      value
+      value: normalizeAccent(value)
     });
   };
 
@@ -1354,8 +1667,11 @@ const {
         );
         break;
       case 'speed':
-        params.targetFps =
-          targetFps;
+        motionSpeed =
+          value;
+
+        params.motionSpeed =
+          motionSpeed;
         break;
       case 'scale':
         params.xScale =
@@ -1413,20 +1729,38 @@ const {
       const timeTarget =
         sharedTime ?? timeData;
 
-      const freqTarget =
-        sharedFreq ?? freqData;
-
       engine.fillTimeData(
         timeTarget
       );
 
-      engine.fillFrequencyData(
-        freqTarget
-      );
+      if (
+        mode === 'spectrum' ||
+        mode === 'waterfall' ||
+        mode === 'particle'
+      ) {
+        const freqTarget =
+          sharedFreq ?? freqData;
+
+        engine.fillFrequencyData(
+          freqTarget
+        );
+      }
+
+      if (mode === 'lissajous') {
+        engine.fillLissajousData(
+          lissajousXData,
+          lissajousYData
+        );
+      }
     }
   };
 
   const postFrame = () => {
+    const needsFrequencyData =
+      mode === 'spectrum' ||
+      mode === 'waterfall' ||
+      mode === 'particle';
+
     params.sampleStep =
       sampleStep;
 
@@ -1442,6 +1776,9 @@ const {
     params.targetFps =
       targetFps;
 
+    params.motionSpeed =
+      motionSpeed;
+
     if (
       workerReady &&
       worker
@@ -1449,7 +1786,15 @@ const {
       worker.postMessage({
         type: 'frame',
         timeData: sharedTime ? undefined : timeData,
-        freqData: sharedFreq ? undefined : freqData,
+        freqData: needsFrequencyData && !sharedFreq
+          ? freqData
+          : undefined,
+        lissajousXData: mode === 'lissajous'
+          ? lissajousXData
+          : undefined,
+        lissajousYData: mode === 'lissajous'
+          ? lissajousYData
+          : undefined,
         mode,
         params,
         running
@@ -1566,7 +1911,8 @@ glow        ${glowQuality}`;
     const height =
       canvas.height;
 
-    demoT += 0.026;
+    demoT +=
+      0.026 * params.motionSpeed;
 
     context.fillStyle =
       `rgba(0,0,0,${Math.max(0.05, 1 - params.afterglow)})`;
@@ -1588,34 +1934,82 @@ glow        ${glowQuality}`;
     context.lineWidth =
       1.2 * params.beam;
 
-    context.beginPath();
-
     const logicalW =
       width / params.dpr;
 
     const logicalH =
       height / params.dpr;
 
-    for (let i = 0; i < timeData.length; i += sampleStep) {
-      const signal =
+    context.beginPath();
+
+    if (mode === 'lissajous') {
+      const length =
         running
-          ? timeData[i]
-          : 128 + Math.sin(i * 0.025 + demoT) * 42 + Math.sin(i * 0.071 - demoT) * 12;
+          ? Math.min(
+            lissajousXData.length,
+            lissajousYData.length
+          )
+          : 768;
 
-      const x =
-        (i / (timeData.length - 1)) * logicalW;
+      for (let i = 0; i < length; i += sampleStep) {
+        const phase =
+          i / Math.max(
+            1,
+            length - 1
+          );
 
-      const y =
-        logicalH / 2 +
-        ((signal / 128) - 1) *
-        logicalH *
-        0.42 *
-        params.yScale;
+        const xValue =
+          running
+            ? ((lissajousXData[i] ?? 128) - 128) / 128
+            : Math.sin(phase * Math.PI * 2 + demoT);
 
-      if (i === 0) {
-        context.moveTo(x, y);
-      } else {
-        context.lineTo(x, y);
+        const yValue =
+          running
+            ? ((lissajousYData[i] ?? 128) - 128) / 128
+            : Math.sin(phase * Math.PI * 2 + demoT + Math.PI / 2);
+
+        const x =
+          logicalW / 2 +
+          xValue *
+          logicalW *
+          0.38 *
+          params.xScale;
+
+        const y =
+          logicalH / 2 +
+          yValue *
+          logicalH *
+          0.38 *
+          params.yScale;
+
+        if (i === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
+      }
+    } else {
+      for (let i = 0; i < timeData.length; i += sampleStep) {
+        const signal =
+          running
+            ? timeData[i]
+            : 128 + Math.sin(i * 0.025 + demoT) * 42 + Math.sin(i * 0.071 - demoT) * 12;
+
+        const x =
+          (i / (timeData.length - 1)) * logicalW;
+
+        const y =
+          logicalH / 2 +
+          ((signal / 128) - 1) *
+          logicalH *
+          0.42 *
+          params.yScale;
+
+        if (i === 0) {
+          context.moveTo(x, y);
+        } else {
+          context.lineTo(x, y);
+        }
       }
     }
 
@@ -1681,6 +2075,120 @@ glow        ${glowQuality}`;
     postFrame();
   };
 
+  const modeDetails: Record<
+    VizMode,
+    {
+      title: string;
+      scope: string;
+      labels: Record<'x-scale' | 'y-scale' | 'rotate', string>;
+    }
+  > = {
+    scope: {
+      title: 'OSC TRACE',
+      scope: 'TIME DOMAIN',
+      labels: {
+        'x-scale': 'Horizontal',
+        'y-scale': 'Amplitude',
+        rotate: 'Trace Tilt'
+      }
+    },
+    spectrum: {
+      title: 'SPECTRUM',
+      scope: 'FREQUENCY',
+      labels: {
+        'x-scale': 'Bar Width',
+        'y-scale': 'Range',
+        rotate: 'Tilt'
+      }
+    },
+    lissajous: {
+      title: 'LISSAJOUS',
+      scope: 'STEREO FIELD',
+      labels: {
+        'x-scale': 'X Gain',
+        'y-scale': 'Y Gain',
+        rotate: 'Phase Tilt'
+      }
+    },
+    radial: {
+      title: 'RADIAL',
+      scope: 'POLAR TRACE',
+      labels: {
+        'x-scale': 'Radius',
+        'y-scale': 'Pulse',
+        rotate: 'Spin'
+      }
+    },
+    waterfall: {
+      title: 'WATERFALL',
+      scope: 'SPECTRAL TIME',
+      labels: {
+        'x-scale': 'Time Width',
+        'y-scale': 'Frequency',
+        rotate: 'Drift'
+      }
+    },
+    particle: {
+      title: 'PARTICLE',
+      scope: 'ENERGY FIELD',
+      labels: {
+        'x-scale': 'Spread',
+        'y-scale': 'Lift',
+        rotate: 'Current'
+      }
+    },
+    pixel_map: {
+      title: 'PIXEL MAP',
+      scope: 'GRID ENERGY',
+      labels: {
+        'x-scale': 'Columns',
+        'y-scale': 'Rows',
+        rotate: 'Tilt'
+      }
+    }
+  };
+
+  const updateModeDetail = (next: VizMode) => {
+    const detail =
+      modeDetails[next];
+
+    const panel =
+      ROOT.querySelector('#mode-detail-panel') as HTMLElement | null;
+
+    const title =
+      ROOT.querySelector('#mode-detail-title');
+
+    const scope =
+      ROOT.querySelector('#mode-detail-scope');
+
+    if (panel) {
+      panel.dataset.activeMode =
+        next;
+    }
+
+    if (title) {
+      title.textContent =
+        detail.title;
+    }
+
+    if (scope) {
+      scope.textContent =
+        detail.scope;
+    }
+
+    Object
+      .entries(detail.labels)
+      .forEach(([id, label]) => {
+        const target =
+          ROOT.querySelector(`[data-label-for="${id}"]`);
+
+        if (target) {
+          target.textContent =
+            label;
+        }
+      });
+  };
+
   const setMode = (next: VizMode) => {
     mode =
       next;
@@ -1695,6 +2203,7 @@ glow        ${glowQuality}`;
       });
 
     applyFft();
+    updateModeDetail(next);
     updateHud();
   };
 
@@ -1740,6 +2249,14 @@ glow        ${glowQuality}`;
     );
 
     ROOT.querySelector('#start-btn')
+      ?.addEventListener(
+        'click',
+        () => {
+          void startAudio();
+        }
+      );
+
+    ROOT.querySelector('#engage-overlay-btn')
       ?.addEventListener(
         'click',
         () => {
@@ -1958,6 +2475,8 @@ glow        ${glowQuality}`;
     setMode('scope');
   } else {
     targetFps = 30;
+    motionSpeed = 1;
+    params.motionSpeed = motionSpeed;
     sampleStep = 4;
     glowQuality = 'off';
     fallbackCtx =

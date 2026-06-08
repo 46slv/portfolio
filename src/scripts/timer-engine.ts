@@ -32,9 +32,11 @@ export class TimerEngine {
   onTick(callback: TickCallback) {
     this.tickCallbacks.add(callback);
     callback(this.getState());
+    this.ensureTicker();
 
     return () => {
       this.tickCallbacks.delete(callback);
+      this.stopTickerIfIdle();
     };
   }
 
@@ -229,10 +231,7 @@ export class TimerEngine {
           this.emit();
           this.stopTickerIfIdle();
 
-          if (
-            this.startAt !== 0 ||
-            this.countdownRunning
-          ) {
+          if (this.shouldKeepTicking()) {
             this.ensureTicker();
           }
         },
@@ -240,11 +239,16 @@ export class TimerEngine {
       );
   }
 
-  private stopTickerIfIdle() {
-    if (
+  private shouldKeepTicking() {
+    return (
+      this.tickCallbacks.size > 0 ||
       this.startAt !== 0 ||
       this.countdownRunning
-    ) {
+    );
+  }
+
+  private stopTickerIfIdle() {
+    if (this.shouldKeepTicking()) {
       return;
     }
 

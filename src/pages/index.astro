@@ -8,13 +8,6 @@ const name = 'Shishu Fujishiro';
 const jpName = '藤白 詩集';
 const email = 'info@corecreative.jp';
 
-const snsLinks = [
-  {
-    name: 'X (Twitter)',
-    url: 'https://x.com/shiro_works'
-  }
-];
-
 const workScope = [
   {
     title: 'Music Video',
@@ -73,6 +66,7 @@ const directLinks = [
             <a
               href={link.href}
               target="_blank"
+              rel="noopener noreferrer"
               class={`block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center ${i < directLinks.length - 1 ? 'mb-4' : ''}`}
             >
               <div class="flex justify-between items-center">
@@ -86,39 +80,4 @@ const directLinks = [
       </section>
     </div>
   </main>
-
-  <script>
-    const copyBtn =
-      document.getElementById('copy-email-btn');
-
-    if (copyBtn) {
-      copyBtn.addEventListener(
-        'click',
-        () => {
-          const email =
-            copyBtn.getAttribute('data-email');
-
-          if (!email) {
-            return;
-          }
-
-          navigator.clipboard.writeText(email);
-
-          const originalText =
-            copyBtn.innerText;
-
-          copyBtn.innerText =
-            'COPIED!';
-
-          window.setTimeout(
-            () => {
-              copyBtn.innerText =
-                originalText;
-            },
-            2000
-          );
-        }
-      );
-    }
-  </script>
 </BaseLayout>

@@ -14,7 +14,7 @@ import { logs } from '../data/logs';
               <div class="h-1.5 w-1.5 rounded-full bg-[#d0e2f8] shadow-[0_0_8px_rgba(208,226,248,0.4)] group-hover:shadow-[0_0_12px_rgba(208,226,248,0.8)] transition-all"></div>
               <div>
                 <div class="text-[10px] font-mono text-zinc-400 mb-1 tracking-wider">{log.date}</div>
-                <a href={log.url} target="_blank" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-all hover:scale-105 origin-left inline-block">
+                <a href={log.url} target="_blank" rel="noopener noreferrer" class="text-sm tracking-wider text-zinc-300 group-hover:text-[#d0e2f8] transition-all hover:scale-105 origin-left inline-block">
                   {log.content}
                 </a>
               </div>
@@ -33,7 +33,7 @@ import { logs } from '../data/logs';
   const list =
     document.getElementById('rotary-list') as HTMLElement | null;
 
-  if (rotary && list) {
+  if (rotary && list && list.children.length > 0) {
     const items =
       Array.from(list.children) as HTMLElement[];
 

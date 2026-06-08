@@ -14,6 +14,7 @@ type GlowQuality =
 
 interface RenderParams {
   targetFps: number;
+  motionSpeed: number;
   sampleStep: number;
   renderScale: number;
   beam: number;
@@ -31,7 +32,7 @@ interface RenderParams {
 
 type WorkerInMessage =
   | { type: 'init'; canvas: OffscreenCanvas; color: string; sab?: SharedArrayBuffer; timeLength?: number; freqLength?: number }
-  | { type: 'frame'; timeData?: Uint8Array<ArrayBufferLike>; freqData?: Uint8Array<ArrayBufferLike>; mode: VizMode; params: RenderParams; running: boolean }
+  | { type: 'frame'; timeData?: Uint8Array<ArrayBufferLike>; freqData?: Uint8Array<ArrayBufferLike>; lissajousXData?: Uint8Array<ArrayBufferLike>; lissajousYData?: Uint8Array<ArrayBufferLike>; mode: VizMode; params: RenderParams; running: boolean }
   | { type: 'resize'; width: number; height: number; dpr: number }
   | { type: 'color'; value: string };
 
@@ -50,11 +51,14 @@ let demoT = 0;
 
 let timeData: Uint8Array<ArrayBufferLike> = new Uint8Array(2048);
 let freqData: Uint8Array<ArrayBufferLike> = new Uint8Array(2048);
+let lissajousXData: Uint8Array<ArrayBufferLike> = new Uint8Array(2048);
+let lissajousYData: Uint8Array<ArrayBufferLike> = new Uint8Array(2048);
 let sabTime: Uint8Array<ArrayBufferLike> | null = null;
 let sabFreq: Uint8Array<ArrayBufferLike> | null = null;
 
 let params: RenderParams = {
   targetFps: 60,
+  motionSpeed: 1,
   sampleStep: 1,
   renderScale: 1,
   beam: 1,
@@ -69,11 +73,6 @@ let params: RenderParams = {
   height: 1,
   dpr: 1
 };
-
-const lissX = new Float32Array(LISS_LEN);
-const lissY = new Float32Array(LISS_LEN);
-let lissWrite = 0;
-let lissCount = 0;
 
 let waterfallPool: Uint8Array[] = [];
 let waterfallWrite = 0;
@@ -111,7 +110,8 @@ function ensureWaterfall() {
 
 function loop() {
   const now = performance.now();
-  const interval = 1000 / targetFps;
+  const interval =
+    1000 / Math.max(1, targetFps);
 
   if (
     ctx &&
@@ -122,7 +122,16 @@ function loop() {
     draw(now);
   }
 
-  setTimeout(loop, 0);
+  const delay =
+    Math.max(
+      4,
+      Math.min(
+        250,
+        interval * 0.5
+      )
+    );
+
+  setTimeout(loop, delay);
 }
 
 function cssAlpha(hex: string, alpha: number) {
@@ -136,7 +145,24 @@ function cssAlpha(hex: string, alpha: number) {
   const g = parseInt(value.slice(2, 4), 16);
   const b = parseInt(value.slice(4, 6), 16);
 
-  return `rgba(${r},${g},${b},${alpha})`;
+  if (
+    Number.isNaN(r) ||
+    Number.isNaN(g) ||
+    Number.isNaN(b)
+  ) {
+    return `rgba(54,255,114,${alpha})`;
+  }
+
+  const safeAlpha =
+    Math.max(
+      0,
+      Math.min(
+        1,
+        alpha
+      )
+    );
+
+  return `rgba(${r},${g},${b},${safeAlpha})`;
 }
 
 function glow(base: number) {
@@ -182,7 +208,8 @@ function draw(now: number) {
     return;
   }
 
-  demoT += 0.026;
+  demoT +=
+    0.026 * params.motionSpeed;
 
   const w = params.width;
   const h = params.height;
@@ -332,35 +359,52 @@ function drawLissajous(w: number, h: number) {
     return;
   }
 
-  for (let i = 0; i < timeData.length; i += 16) {
-    const a =
-      ((getTime(i) / 128) - 1) *
-      params.xScale;
-
-    const b =
-      ((getTime((i * 5) % timeData.length) / 128) - 1) *
-      params.yScale;
-
-    lissX[lissWrite] = a;
-    lissY[lissWrite] = b;
-    lissWrite = (lissWrite + 1) % LISS_LEN;
-    lissCount = Math.min(LISS_LEN, lissCount + 1);
-  }
-
   prepareStroke(1.1);
   ctx.beginPath();
 
-  for (let n = 0; n < lissCount; n++) {
-    const idx =
-      (lissWrite - lissCount + n + LISS_LEN) % LISS_LEN;
+  const length =
+    running
+      ? Math.min(
+        lissajousXData.length,
+        lissajousYData.length
+      )
+      : LISS_LEN;
+
+  const step =
+    Math.max(
+      1,
+      params.sampleStep
+    );
+
+  for (let i = 0; i < length; i += step) {
+    const phase =
+      i / Math.max(1, length - 1);
+
+    const xValue =
+      running
+        ? ((lissajousXData[i] ?? 128) - 128) / 128
+        : Math.sin(phase * Math.PI * 2 + demoT);
+
+    const yValue =
+      running
+        ? ((lissajousYData[i] ?? 128) - 128) / 128
+        : Math.sin(phase * Math.PI * 2 + demoT + Math.PI / 2);
 
     const x =
-      w / 2 + lissX[idx] * w * 0.36;
+      w / 2 +
+      xValue *
+      params.xScale *
+      w *
+      0.38;
 
     const y =
-      h / 2 + lissY[idx] * h * 0.36;
+      h / 2 +
+      yValue *
+      params.yScale *
+      h *
+      0.38;
 
-    if (n === 0) {
+    if (i === 0) {
       ctx.moveTo(x, y);
     } else {
       ctx.lineTo(x, y);
@@ -605,6 +649,9 @@ self.onmessage = (event: MessageEvent<WorkerInMessage>) => {
 
     initParticles();
     ensureWaterfall();
+    self.postMessage({
+      type: 'ready'
+    });
     loop();
     return;
   }
@@ -664,6 +711,16 @@ self.onmessage = (event: MessageEvent<WorkerInMessage>) => {
     ) {
       freqData =
         message.freqData;
+    }
+
+    if (message.lissajousXData) {
+      lissajousXData =
+        message.lissajousXData;
+    }
+
+    if (message.lissajousYData) {
+      lissajousYData =
+        message.lissajousYData;
     }
   }
 };
