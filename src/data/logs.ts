@@ -6,6 +6,11 @@ export interface Log {
 
 export const logs: Log[] = [
   {
+    date: '2026.06.26.',
+    url: 'https://x.com/CDs_inter/status/2070483138154050010?s=20',
+    content: "フィクショナリ / from CDs with 花譜 梓川"
+  },
+  {
     date: '2026.05.08.',
     url: 'https://x.com/sasuke_maschine/status/2052729058602193100?s=20',
     content: "Sound・有機・Traxx teaser / テクノポップ・有機・シンセサイザーちゃん"
