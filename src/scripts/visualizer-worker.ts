@@ -38,6 +38,7 @@ type WorkerInMessage =
 
 const WATERFALL_ROWS = 96;
 const LISS_LEN = 768;
+const LISS_MAX_POINTS = 1024;
 const PARTICLES = 128;
 
 let canvas: OffscreenCanvas | null = null;
@@ -224,9 +225,12 @@ function draw(now: number) {
   ctx.fillRect(0, 0, w, h);
   ctx.save();
   ctx.scale(dpr, dpr);
-  ctx.translate(wl / 2, hl / 2);
-  ctx.rotate(params.rotation * Math.PI / 180);
-  ctx.translate(-wl / 2, -hl / 2);
+
+  if (mode !== 'lissajous') {
+    ctx.translate(wl / 2, hl / 2);
+    ctx.rotate(params.rotation * Math.PI / 180);
+    ctx.translate(-wl / 2, -hl / 2);
+  }
 
   switch (mode) {
     case 'spectrum':
@@ -373,7 +377,8 @@ function drawLissajous(w: number, h: number) {
   const step =
     Math.max(
       1,
-      params.sampleStep
+      params.sampleStep,
+      Math.ceil(length / LISS_MAX_POINTS)
     );
 
   for (let i = 0; i < length; i += step) {
@@ -402,7 +407,7 @@ function drawLissajous(w: number, h: number) {
       yValue *
       params.yScale *
       h *
-      0.38;
+      -0.38;
 
     if (i === 0) {
       ctx.moveTo(x, y);

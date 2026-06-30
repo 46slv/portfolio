@@ -72,6 +72,7 @@ const modeDetailKnobs: KnobDefinition[] = [
           <span id="engage-overlay-title">ENGAGE</span>
           <span id="engage-overlay-status">MIC STANDBY</span>
         </button>
+        <button id="test-overlay-btn" type="button">TEST TONE</button>
       </div>
 
       <div id="control-panel">
@@ -125,6 +126,12 @@ const modeDetailKnobs: KnobDefinition[] = [
                   <option value="">default mic</option>
                 </select>
                 <button id="start-btn">ENGAGE</button>
+                <select id="test-tone-select" class="viz-select compact-select">
+                  <option value="mono">mono line</option>
+                  <option value="phase90" selected>phase 90</option>
+                  <option value="ratio12">ratio 1:2</option>
+                </select>
+                <button id="test-btn">TEST</button>
                 <button id="stop-btn" class="hidden">STOP</button>
                 <span id="init-hint">mic standby</span>
               </div>
@@ -349,6 +356,8 @@ const modeDetailKnobs: KnobDefinition[] = [
 
   #panel-toggle-btn,
   #start-btn,
+  #test-btn,
+  #test-overlay-btn,
   #stop-btn,
   .toggle-btn,
   .mode-btn {
@@ -369,6 +378,8 @@ const modeDetailKnobs: KnobDefinition[] = [
 
   #panel-toggle-btn:hover,
   #start-btn:hover,
+  #test-btn:hover,
+  #test-overlay-btn:hover,
   #stop-btn:hover,
   .toggle-btn:hover,
   .mode-btn:hover,
@@ -402,9 +413,11 @@ const modeDetailKnobs: KnobDefinition[] = [
   #engage-overlay {
     position: absolute;
     inset: 0;
-    z-index: 20;
+    z-index: 44;
     display: grid;
     place-items: center;
+    align-content: center;
+    gap: 16px;
     padding: max(24px, env(safe-area-inset-top)) max(18px, env(safe-area-inset-right)) max(24px, env(safe-area-inset-bottom)) max(18px, env(safe-area-inset-left));
     background:
       radial-gradient(circle at center, rgba(54,255,114,0.12), transparent 34%),
@@ -444,6 +457,10 @@ const modeDetailKnobs: KnobDefinition[] = [
     border-color: var(--accent);
     background: rgba(54,255,114,0.06);
     transform: translateY(-1px);
+  }
+
+  #test-overlay-btn {
+    min-width: min(220px, 70vw);
   }
 
   #engage-overlay-title {
@@ -602,7 +619,7 @@ const modeDetailKnobs: KnobDefinition[] = [
 
   .utility-strip {
     display: grid;
-    grid-template-columns: minmax(0, 1fr) auto auto auto;
+    grid-template-columns: minmax(0, 1fr) auto auto auto auto auto;
   }
 
   .viz-select {
@@ -698,6 +715,7 @@ const modeDetailKnobs: KnobDefinition[] = [
     }
 
     #start-btn,
+    #test-btn,
     #stop-btn,
     .toggle-btn,
     .mode-btn,
@@ -730,6 +748,8 @@ const modeDetailKnobs: KnobDefinition[] = [
 <script>
   import { AudioEngine } from '../lib/audio/AudioEngine';
 
+  const LISS_MAX_POINTS = 1024;
+
   type VizMode =
     | 'scope'
     | 'spectrum'
@@ -743,6 +763,11 @@ const modeDetailKnobs: KnobDefinition[] = [
     | 'off'
     | 'low'
     | 'high';
+
+  type TestTonePreset =
+    | 'mono'
+    | 'phase90'
+    | 'ratio12';
 
   interface KnobState {
     min: number;
@@ -1580,6 +1605,97 @@ const modeDetailKnobs: KnobDefinition[] = [
     return true;
   };
 
+  const startTestTone = async () => {
+    if (startingAudio) {
+      return false;
+    }
+
+    startingAudio =
+      true;
+
+    const select =
+      ROOT.querySelector('#test-tone-select') as HTMLSelectElement | null;
+
+    const preset =
+      (select?.value ?? 'phase90') as TestTonePreset;
+
+    const status =
+      ROOT.querySelector('#status-label');
+
+    const hint =
+      ROOT.querySelector('#init-hint');
+
+    try {
+      if (!engine) {
+        engine =
+          new AudioEngine();
+      }
+
+      if (hint) {
+        hint.textContent =
+          'starting test';
+      }
+
+      await engine.startTestSignal(
+        preset
+      );
+
+      engine.setMonitorLevel(
+        currentVolume
+      );
+    } catch (_error) {
+      running =
+        false;
+
+      ROOT.classList.remove('is-running');
+      ROOT.querySelector('#start-btn')?.classList.remove('hidden');
+      ROOT.querySelector('#stop-btn')?.classList.add('hidden');
+
+      if (status) {
+        status.textContent =
+          'TEST FAILED';
+      }
+
+      if (hint) {
+        hint.textContent =
+          'test unavailable';
+      }
+
+      setEngageOverlay('standby');
+      startingAudio =
+        false;
+
+      return false;
+    }
+
+    running =
+      true;
+
+    ROOT.classList.add('is-running');
+
+    if (status) {
+      status.textContent =
+        'TEST';
+    }
+
+    ROOT.querySelector('#start-btn')?.classList.add('hidden');
+    ROOT.querySelector('#stop-btn')?.classList.remove('hidden');
+
+    if (hint) {
+      hint.textContent =
+        currentVolume > 0
+          ? `test ${preset}`
+          : `test ${preset} / monitor muted`;
+    }
+
+    setEngageOverlay('hidden');
+
+    startingAudio =
+      false;
+
+    return true;
+  };
+
   const stopAudio = async () => {
     running =
       false;
@@ -1911,6 +2027,12 @@ glow        ${glowQuality}`;
     const height =
       canvas.height;
 
+    const logicalW =
+      width / params.dpr;
+
+    const logicalH =
+      height / params.dpr;
+
     demoT +=
       0.026 * params.motionSpeed;
 
@@ -1920,6 +2042,13 @@ glow        ${glowQuality}`;
     context.fillRect(0, 0, width, height);
     context.save();
     context.scale(params.dpr, params.dpr);
+
+    if (mode !== 'lissajous') {
+      context.translate(logicalW / 2, logicalH / 2);
+      context.rotate(params.rotation * Math.PI / 180);
+      context.translate(-logicalW / 2, -logicalH / 2);
+    }
+
     context.strokeStyle =
       ACCENT;
 
@@ -1934,12 +2063,6 @@ glow        ${glowQuality}`;
     context.lineWidth =
       1.2 * params.beam;
 
-    const logicalW =
-      width / params.dpr;
-
-    const logicalH =
-      height / params.dpr;
-
     context.beginPath();
 
     if (mode === 'lissajous') {
@@ -1951,7 +2074,14 @@ glow        ${glowQuality}`;
           )
           : 768;
 
-      for (let i = 0; i < length; i += sampleStep) {
+      const step =
+        Math.max(
+          1,
+          sampleStep,
+          Math.ceil(length / LISS_MAX_POINTS)
+        );
+
+      for (let i = 0; i < length; i += step) {
         const phase =
           i / Math.max(
             1,
@@ -1979,7 +2109,7 @@ glow        ${glowQuality}`;
           logicalH / 2 +
           yValue *
           logicalH *
-          0.38 *
+          -0.38 *
           params.yScale;
 
         if (i === 0) {
@@ -2107,7 +2237,7 @@ glow        ${glowQuality}`;
       labels: {
         'x-scale': 'X Gain',
         'y-scale': 'Y Gain',
-        rotate: 'Phase Tilt'
+        rotate: 'Axes Fixed'
       }
     },
     radial: {
@@ -2256,11 +2386,27 @@ glow        ${glowQuality}`;
         }
       );
 
+    ROOT.querySelector('#test-btn')
+      ?.addEventListener(
+        'click',
+        () => {
+          void startTestTone();
+        }
+      );
+
     ROOT.querySelector('#engage-overlay-btn')
       ?.addEventListener(
         'click',
         () => {
           void startAudio();
+        }
+      );
+
+    ROOT.querySelector('#test-overlay-btn')
+      ?.addEventListener(
+        'click',
+        () => {
+          void startTestTone();
         }
       );
 
@@ -2278,6 +2424,16 @@ glow        ${glowQuality}`;
         () => {
           if (running) {
             void startAudio();
+          }
+        }
+      );
+
+    ROOT.querySelector('#test-tone-select')
+      ?.addEventListener(
+        'change',
+        () => {
+          if (running) {
+            void startTestTone();
           }
         }
       );

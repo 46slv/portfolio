@@ -29,6 +29,13 @@ export class AudioEngine {
 
   stream?: MediaStream;
 
+  testMerger?: ChannelMergerNode;
+  testLeftOsc?: OscillatorNode;
+  testRightOsc?: OscillatorNode;
+  testLeftGain?: GainNode;
+  testRightGain?: GainNode;
+  testRightDelay?: DelayNode;
+
   constructor() {
 
     this.audioCtx =
@@ -401,6 +408,149 @@ export class AudioEngine {
       frequency;
   }
 
+  async startTestSignal(
+    preset: 'mono' | 'phase90' | 'ratio12'
+  ) {
+
+    this.stopInput();
+
+    const now =
+      this.audioCtx.currentTime;
+
+    const startAt =
+      now + 0.02;
+
+    const baseFrequency =
+      preset === 'ratio12'
+        ? 220
+        : 440;
+
+    const rightFrequency =
+      preset === 'ratio12'
+        ? baseFrequency * 2
+        : baseFrequency;
+
+    const rightDelaySeconds =
+      preset === 'phase90'
+        ? 1 / (baseFrequency * 4)
+        : 0;
+
+    const merger =
+      this.audioCtx
+        .createChannelMerger(2);
+
+    const leftOsc =
+      this.audioCtx
+        .createOscillator();
+
+    const rightOsc =
+      this.audioCtx
+        .createOscillator();
+
+    const leftGain =
+      this.audioCtx
+        .createGain();
+
+    const rightGain =
+      this.audioCtx
+        .createGain();
+
+    leftOsc.type =
+      'sine';
+
+    rightOsc.type =
+      'sine';
+
+    leftOsc.frequency.value =
+      baseFrequency;
+
+    rightOsc.frequency.value =
+      rightFrequency;
+
+    leftGain.gain.value =
+      0.35;
+
+    rightGain.gain.value =
+      0.35;
+
+    leftOsc.connect(
+      leftGain
+    );
+
+    leftGain.connect(
+      merger,
+      0,
+      0
+    );
+
+    rightOsc.connect(
+      rightGain
+    );
+
+    if (rightDelaySeconds > 0) {
+      const delay =
+        this.audioCtx
+          .createDelay(0.1);
+
+      delay.delayTime.value =
+        rightDelaySeconds;
+
+      rightGain.connect(
+        delay
+      );
+
+      delay.connect(
+        merger,
+        0,
+        1
+      );
+
+      this.testRightDelay =
+        delay;
+    } else {
+      rightGain.connect(
+        merger,
+        0,
+        1
+      );
+    }
+
+    merger.connect(
+      this.inputGain
+    );
+
+    this.testMerger =
+      merger;
+
+    this.testLeftOsc =
+      leftOsc;
+
+    this.testRightOsc =
+      rightOsc;
+
+    this.testLeftGain =
+      leftGain;
+
+    this.testRightGain =
+      rightGain;
+
+    leftOsc.start(
+      startAt
+    );
+
+    rightOsc.start(
+      startAt
+    );
+
+    if (
+      this.audioCtx.state ===
+      'suspended'
+    ) {
+
+      void this.audioCtx.resume();
+    }
+  }
+
   setHPF(
     frequency: number
   ) {
@@ -691,6 +841,8 @@ export class AudioEngine {
 
   stopInput() {
 
+    this.stopTestSignal();
+
     if (this.sourceNode) {
 
       this.sourceNode.disconnect();
@@ -710,6 +862,50 @@ export class AudioEngine {
       this.stream =
         undefined;
     }
+  }
+
+  stopTestSignal() {
+
+    if (this.testLeftOsc) {
+      try {
+        this.testLeftOsc.stop();
+      } catch (_error) {
+        // Oscillator may already be stopped.
+      }
+
+      this.testLeftOsc.disconnect();
+      this.testLeftOsc =
+        undefined;
+    }
+
+    if (this.testRightOsc) {
+      try {
+        this.testRightOsc.stop();
+      } catch (_error) {
+        // Oscillator may already be stopped.
+      }
+
+      this.testRightOsc.disconnect();
+      this.testRightOsc =
+        undefined;
+    }
+
+    this.testLeftGain?.disconnect();
+    this.testRightGain?.disconnect();
+    this.testRightDelay?.disconnect();
+    this.testMerger?.disconnect();
+
+    this.testLeftGain =
+      undefined;
+
+    this.testRightGain =
+      undefined;
+
+    this.testRightDelay =
+      undefined;
+
+    this.testMerger =
+      undefined;
   }
 
   async close() {
