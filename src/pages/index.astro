@@ -6,7 +6,7 @@ import RotaryLogs from '../components/RotaryLogs.astro';
 
 const name = 'Shishu Fujishiro';
 const jpName = '藤白 詩集';
-const email = 'info@corecreative.jp';
+const contact = '@shiro_works';
 
 const workScope = [
   {
@@ -21,14 +21,14 @@ const workScope = [
 
 const directLinks = [
   {
-    href: "https://lime479000.studio.site/about",
-    title: "Go to Studio Site",
-    desc: "old site.",
+    href: 'https://lime479000.studio.site/about',
+    title: 'Go to Studio Site',
+    desc: 'Old site.',
   },
   {
-    href: "https://corecreative.jp/shishu-fujishiro",
-    title: "Core Creative Profile",
-    desc: "View professional works and creative collective details.",
+    href: 'https://x.com/shiro_works',
+    title: 'X / shiro_works',
+    desc: 'Updates and public activity.',
   },
 ];
 ---
@@ -36,8 +36,8 @@ const directLinks = [
 <BaseLayout
   title={`SS_Portfolio | ${name}`}
   showFooter={true}
-  footerLeft="AFFILIATION: CORE CREATIVE / CDs"
-  footerRight={email}
+  footerLeft="AFFILIATION: CDs"
+  footerRight={contact}
 >
   <Header name={name} jpName={jpName} />
 
@@ -71,7 +71,7 @@ const directLinks = [
             >
               <div class="flex justify-between items-center">
                 <span class="text-sm text-white font-bold tracking-widest uppercase">{link.title}</span>
-                <span class="text-xl group-hover:translate-x-2 transition-transform">→</span>
+                <span class="text-xl group-hover:translate-x-2 transition-transform">-&gt;</span>
               </div>
               <p class="text-[10px] text-zinc-500 mt-2">{link.desc}</p>
             </a>

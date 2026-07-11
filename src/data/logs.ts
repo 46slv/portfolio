@@ -28,7 +28,7 @@ export const logs: Log[] = [
   {
     date: '2025.09.01',
     url: 'https://x.com/shiro_works/status/1962168505782186124?s=20',
-    content: 'Core Creative 加入 / CDs 加入 / 名義追加'
+    content: 'CDs 加入 / 名義追加'
   },
   {
     date: '2025.08.22',
