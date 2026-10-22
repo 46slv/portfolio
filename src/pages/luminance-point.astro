@@ -253,18 +253,18 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     function sourceLuminance(point, time) {
       const nx = point.x / width;
       const ny = point.y / height;
-      const t = time * 0.000055;
+      const t = time * 0.00005;
 
-      const waveA = Math.sin((nx * 1.72 + ny * 0.68 + t * 1.1) * Math.PI * 2);
-      const waveB = Math.sin((nx * -0.82 + ny * 2.15 - t * 0.72) * Math.PI * 2);
-      const waveC = Math.cos((nx * 2.54 - ny * 1.17 + t * 0.43) * Math.PI * 2);
+      const waveA = Math.sin((nx * 1.55 + ny * 0.58 + t * 1.08) * Math.PI * 2);
+      const waveB = Math.sin((nx * -0.76 + ny * 2.05 - t * 0.68) * Math.PI * 2);
+      const waveC = Math.cos((nx * 2.35 - ny * 1.04 + t * 0.37) * Math.PI * 2);
 
-      const c1x = 0.18 + Math.sin(t * 1.31) * 0.13;
-      const c1y = 0.33 + Math.cos(t * 0.87) * 0.17;
-      const c2x = 0.73 + Math.cos(t * 0.71) * 0.16;
-      const c2y = 0.62 + Math.sin(t * 1.09) * 0.19;
-      const c3x = 0.48 + Math.sin(t * 0.51 + 2.3) * 0.21;
-      const c3y = 0.22 + Math.cos(t * 0.63 + 0.9) * 0.13;
+      const c1x = 0.16 + Math.sin(t * 1.25) * 0.12;
+      const c1y = 0.31 + Math.cos(t * 0.82) * 0.15;
+      const c2x = 0.76 + Math.cos(t * 0.66) * 0.15;
+      const c2y = 0.64 + Math.sin(t * 1.02) * 0.17;
+      const c3x = 0.49 + Math.sin(t * 0.48 + 2.3) * 0.18;
+      const c3y = 0.22 + Math.cos(t * 0.57 + 0.9) * 0.12;
 
       const dx1 = nx - c1x;
       const dy1 = ny - c1y;
@@ -273,14 +273,27 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const dx3 = nx - c3x;
       const dy3 = ny - c3y;
 
-      const blob1 = Math.exp(-(dx1 * dx1 * 9.5 + dy1 * dy1 * 7.5));
-      const blob2 = Math.exp(-(dx2 * dx2 * 7.0 + dy2 * dy2 * 10.5));
-      const blob3 = Math.exp(-(dx3 * dx3 * 13.0 + dy3 * dy3 * 8.0));
+      const blob1 = Math.exp(-(dx1 * dx1 * 12.5 + dy1 * dy1 * 10.5));
+      const blob2 = Math.exp(-(dx2 * dx2 * 8.5 + dy2 * dy2 * 12.5));
+      const blob3 = Math.exp(-(dx3 * dx3 * 16.0 + dy3 * dy3 * 10.0));
 
-      const drift = (waveA * 0.13 + waveB * 0.09 + waveC * 0.06);
-      const seedBias = (point.bias - 0.5) * 0.08;
+      const drift = waveA * 0.08 + waveB * 0.05 + waveC * 0.04;
+      const seedBias = (point.bias - 0.5) * 0.045;
 
-      return clamp(0.16 + drift + blob1 * 0.34 + blob2 * 0.42 + blob3 * 0.24 + seedBias);
+      return clamp(
+        0.015 +
+        drift +
+        blob1 * 0.24 +
+        blob2 * 0.34 +
+        blob3 * 0.16 +
+        seedBias
+      );
+    }
+
+    function shapeLuminance(luminance) {
+      const gated = Math.max(0, luminance - 0.16);
+      const normalized = clamp(gated / 0.84);
+      return Math.pow(normalized, 1.75);
     }
 
     function resize() {
@@ -368,7 +381,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     function drawPoint(point, alpha, scale) {
-      const radius = Math.max(0.55, spacing * 0.115 * scale);
+      if (alpha <= 0.003) {
+        return;
+      }
+
+      const radius = Math.max(0.3, spacing * 0.07 * (0.65 + scale * 0.9));
       ctx.globalAlpha = alpha;
       ctx.fillStyle = '#f4f4f5';
       ctx.beginPath();
@@ -377,17 +394,17 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     function drawGlyph(point, char, alpha, scale) {
-      if (!char || alpha <= 0.002) {
+      if (!char || alpha <= 0.003) {
         return;
       }
 
-      const fontSize = Math.max(7, spacing * (0.74 + scale * 0.9));
+      const fontSize = Math.max(5, spacing * (0.34 + scale * 0.52));
       ctx.globalAlpha = alpha;
       ctx.fillStyle = '#f4f4f5';
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
       ctx.font = '600 ' + fontSize + 'px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
-      ctx.fillText(char, point.x, point.y + fontSize * 0.035);
+      ctx.fillText(char, point.x, point.y + fontSize * 0.03);
     }
 
     function draw(now) {
@@ -407,10 +424,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       const damping = prefersReducedMotion ? 0.44 : 0.76;
 
       for (const point of points) {
-        const luminance = sourceLuminance(point, now);
+        const rawLuminance = sourceLuminance(point, now);
+        const luminance = shapeLuminance(rawLuminance);
 
-        const targetScale = 0.35 + Math.pow(luminance, 0.9) * 1.2;
-        const targetAlpha = 0.06 + Math.pow(luminance, 0.72) * 0.82;
+        const targetScale = 0.05 + luminance * 1.45;
+        const targetAlpha = luminance < 0.02 ? 0 : 0.015 + luminance * 0.92;
 
         point.scaleVelocity = (point.scaleVelocity + (targetScale - point.scale) * spring) * damping;
         point.alphaVelocity = (point.alphaVelocity + (targetAlpha - point.alpha) * spring) * damping;
@@ -418,8 +436,9 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         point.alpha += point.alphaVelocity;
 
         const instanceMix = smoothstep(0.04, 0.92, hoverStrength);
-        const pointAlpha = point.alpha * (1 - instanceMix * 0.96);
-        const glyphAlpha = point.alpha * instanceMix;
+        const luminancePresence = smoothstep(0.03, 0.82, luminance);
+        const pointAlpha = point.alpha * (1 - instanceMix * 0.98) * 0.72;
+        const glyphAlpha = point.alpha * instanceMix * luminancePresence;
 
         drawPoint(point, pointAlpha, point.scale);
 
