@@ -1,0 +1,397 @@
+---
+import BaseLayout from '../layouts/BaseLayout.astro';
+---
+
+<BaseLayout
+  title="Luminance Point Typography | SS_Portfolio"
+  showShell={false}
+  bodyClass="bg-[#080808] text-zinc-300 font-sans antialiased overflow-hidden"
+>
+  <main class="point-demo" aria-label="Luminance Point Typography prototype">
+    <canvas id="point-field" aria-hidden="true"></canvas>
+
+    <div class="demo-meta" aria-hidden="true">
+      <span>LUMINANCE POINT / PROTOTYPE</span>
+      <span id="glyph-readout">GLYPH: —</span>
+    </div>
+
+    <section class="demo-nav" aria-label="Prototype navigation">
+      <p class="demo-index">SS_PORTFOLIO / FIELD TEST</p>
+      <div class="demo-words">
+        <button type="button" data-point-word>WORKS</button>
+        <button type="button" data-point-word>REEL</button>
+        <button type="button" data-point-word>ABOUT</button>
+        <button type="button" data-point-word>CONTACT</button>
+      </div>
+      <p class="demo-note">move across each letter</p>
+    </section>
+  </main>
+
+  <style is:global>
+    #cursor-light {
+      display: none !important;
+    }
+
+    .point-demo {
+      position: relative;
+      width: 100vw;
+      min-height: 100svh;
+      overflow: hidden;
+      background: #080808;
+      isolation: isolate;
+    }
+
+    #point-field {
+      position: fixed;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      z-index: 0;
+      pointer-events: none;
+    }
+
+    .demo-meta {
+      position: fixed;
+      top: 20px;
+      left: 24px;
+      right: 24px;
+      z-index: 2;
+      display: flex;
+      justify-content: space-between;
+      gap: 24px;
+      color: rgba(255,255,255,.34);
+      font: 500 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .16em;
+      pointer-events: none;
+    }
+
+    .demo-nav {
+      position: relative;
+      z-index: 2;
+      min-height: 100svh;
+      display: grid;
+      align-content: center;
+      justify-items: start;
+      padding: clamp(28px, 6vw, 96px);
+    }
+
+    .demo-index,
+    .demo-note {
+      margin: 0;
+      color: rgba(255,255,255,.32);
+      font: 500 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .16em;
+      text-transform: uppercase;
+    }
+
+    .demo-words {
+      display: grid;
+      gap: clamp(3px, .45vw, 8px);
+      margin: 26px 0 22px;
+    }
+
+    [data-point-word] {
+      appearance: none;
+      border: 0;
+      padding: 0;
+      background: transparent;
+      color: rgba(255,255,255,.88);
+      font: 600 clamp(36px, 6.2vw, 92px)/.92 Arial, Helvetica, sans-serif;
+      letter-spacing: -.055em;
+      text-align: left;
+      cursor: default;
+    }
+
+    .point-letter {
+      display: inline-block;
+      transition: opacity 140ms linear;
+    }
+
+    [data-point-word]:has(.point-letter[data-near="true"]) .point-letter:not([data-near="true"]) {
+      opacity: .36;
+    }
+
+    .demo-note {
+      opacity: .62;
+    }
+
+    @media (max-width: 700px) {
+      .demo-meta {
+        top: 16px;
+        left: 16px;
+        right: 16px;
+      }
+
+      .demo-nav {
+        padding: 24px 18px;
+      }
+
+      [data-point-word] {
+        font-size: clamp(42px, 16vw, 72px);
+      }
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .point-letter {
+        transition: none;
+      }
+    }
+  </style>
+
+  <script>
+    const canvas = document.querySelector('#point-field');
+    const glyphReadout = document.querySelector('#glyph-readout');
+    const words = [...document.querySelectorAll('[data-point-word]')];
+
+    if (!(canvas instanceof HTMLCanvasElement)) {
+      throw new Error('Point field canvas is missing.');
+    }
+
+    const ctx = canvas.getContext('2d', { alpha: false });
+    const glyphCanvas = document.createElement('canvas');
+    const glyphCtx = glyphCanvas.getContext('2d', { willReadFrequently: true });
+
+    if (!ctx || !glyphCtx) {
+      throw new Error('Canvas 2D context is unavailable.');
+    }
+
+    const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+    const smoothstep = (edge0, edge1, value) => {
+      const t = clamp((value - edge0) / Math.max(0.0001, edge1 - edge0));
+      return t * t * (3 - 2 * t);
+    };
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+    const pointer = { x: -1000, y: -1000, present: false, lockedChar: '' };
+
+    let width = 1;
+    let height = 1;
+    let dpr = 1;
+    let spacing = 16;
+    let points = [];
+    let letterMetrics = [];
+    let currentChar = '';
+    let previousGlyph = new Float32Array(0);
+    let currentGlyph = new Float32Array(0);
+    let glyphTransition = 1;
+    let hoverStrength = 0;
+    let lastTime = performance.now();
+
+    words.forEach((word) => {
+      const text = word.textContent ?? '';
+      word.setAttribute('aria-label', text);
+      word.textContent = '';
+
+      [...text].forEach((char) => {
+        const span = document.createElement('span');
+        span.className = 'point-letter';
+        span.dataset.char = char;
+        span.setAttribute('aria-hidden', 'true');
+        span.textContent = char;
+        word.append(span);
+
+        span.addEventListener('pointerdown', (event) => {
+          pointer.lockedChar = char;
+          pointer.x = event.clientX;
+          pointer.y = event.clientY;
+          pointer.present = true;
+          setGlyph(char);
+        });
+      });
+    });
+
+    function rebuildLetterMetrics() {
+      letterMetrics = [...document.querySelectorAll('.point-letter')].map((node) => {
+        const rect = node.getBoundingClientRect();
+        return {
+          node,
+          char: node.dataset.char ?? '',
+          rect,
+          cx: rect.left + rect.width * 0.5,
+          cy: rect.top + rect.height * 0.5,
+        };
+      });
+    }
+
+    function distanceToRect(x, y, rect) {
+      const dx = Math.max(rect.left - x, 0, x - rect.right);
+      const dy = Math.max(rect.top - y, 0, y - rect.bottom);
+      return Math.hypot(dx, dy);
+    }
+
+    function makeSourceLuminance(x, y, time) {
+      const nx = x / width;
+      const ny = y / height;
+      const drift = time * 0.00008;
+
+      const waveA = Math.sin((nx * 2.6 + ny * 1.25 + drift) * Math.PI * 2) * 0.5 + 0.5;
+      const waveB = Math.sin((nx * -1.15 + ny * 3.1 - drift * 0.72) * Math.PI * 2) * 0.5 + 0.5;
+
+      const rx = nx - (0.72 + Math.sin(drift * 2.1) * 0.08);
+      const ry = ny - (0.34 + Math.cos(drift * 1.6) * 0.09);
+      const radial = Math.exp(-(rx * rx * 4.2 + ry * ry * 7.2));
+
+      return clamp(0.08 + waveA * 0.16 + waveB * 0.1 + radial * 0.52);
+    }
+
+    function resize() {
+      width = Math.max(1, window.innerWidth);
+      height = Math.max(1, window.innerHeight);
+      dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+      spacing = width < 700 ? 13 : clamp(width / 92, 14, 20);
+
+      canvas.width = Math.round(width * dpr);
+      canvas.height = Math.round(height * dpr);
+      canvas.style.width = `${width}px`;
+      canvas.style.height = `${height}px`;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      glyphCanvas.width = Math.round(width);
+      glyphCanvas.height = Math.round(height);
+
+      points = [];
+      const offsetX = (width % spacing) * 0.5;
+      const offsetY = (height % spacing) * 0.5;
+
+      for (let y = offsetY; y <= height; y += spacing) {
+        for (let x = offsetX; x <= width; x += spacing) {
+          points.push({ x, y, scale: 0.2, velocity: 0 });
+        }
+      }
+
+      previousGlyph = new Float32Array(points.length);
+      currentGlyph = currentChar ? rasterizeGlyph(currentChar) : new Float32Array(points.length);
+      glyphTransition = 1;
+
+      requestAnimationFrame(rebuildLetterMetrics);
+    }
+
+    function rasterizeGlyph(char) {
+      const mask = new Float32Array(points.length);
+      glyphCtx.clearRect(0, 0, width, height);
+
+      const fontSize = Math.min(width * 0.48, height * 0.72);
+      glyphCtx.fillStyle = '#fff';
+      glyphCtx.textAlign = 'center';
+      glyphCtx.textBaseline = 'middle';
+      glyphCtx.font = `700 ${fontSize}px Arial, Helvetica, sans-serif`;
+      glyphCtx.fillText(char, width * 0.56, height * 0.5);
+
+      const pixels = glyphCtx.getImageData(0, 0, width, height).data;
+
+      points.forEach((point, index) => {
+        const px = clamp(Math.round(point.x), 0, width - 1);
+        const py = clamp(Math.round(point.y), 0, height - 1);
+        const alpha = pixels[(py * width + px) * 4 + 3] / 255;
+        mask[index] = alpha;
+      });
+
+      return mask;
+    }
+
+    function setGlyph(char) {
+      if (!char || char === currentChar) return;
+
+      previousGlyph = currentGlyph.length === points.length
+        ? currentGlyph.slice()
+        : new Float32Array(points.length);
+      currentChar = char;
+      currentGlyph = rasterizeGlyph(char);
+      glyphTransition = 0;
+
+      if (glyphReadout) {
+        glyphReadout.textContent = `GLYPH: ${char}`;
+      }
+    }
+
+    function updateHoverTarget() {
+      letterMetrics.forEach(({ node }) => node.removeAttribute('data-near'));
+
+      if (!pointer.present || letterMetrics.length === 0) {
+        hoverStrength += (0 - hoverStrength) * 0.12;
+        return;
+      }
+
+      let nearest = null;
+      let nearestDistance = Infinity;
+
+      for (const metric of letterMetrics) {
+        const distance = distanceToRect(pointer.x, pointer.y, metric.rect);
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearest = metric;
+        }
+      }
+
+      const radius = width < 700 ? 72 : 110;
+      const targetStrength = 1 - smoothstep(0, radius, nearestDistance);
+      hoverStrength += (targetStrength - hoverStrength) * 0.16;
+
+      if (nearest && targetStrength > 0.015) {
+        nearest.node.dataset.near = 'true';
+        setGlyph(pointer.lockedChar || nearest.char);
+      }
+    }
+
+    function draw(now) {
+      const dt = Math.min(34, now - lastTime);
+      lastTime = now;
+
+      updateHoverTarget();
+
+      const transitionSpeed = prefersReducedMotion ? 0.22 : 0.055;
+      glyphTransition = clamp(glyphTransition + transitionSpeed * (dt / 16.67));
+      const glyphEase = smoothstep(0, 1, glyphTransition);
+
+      ctx.fillStyle = '#080808';
+      ctx.fillRect(0, 0, width, height);
+
+      const baseRadius = spacing * 0.43;
+      const spring = prefersReducedMotion ? 0.32 : 0.115;
+      const damping = prefersReducedMotion ? 0.45 : 0.76;
+
+      points.forEach((point, index) => {
+        const source = makeSourceLuminance(point.x, point.y, now);
+        const glyph = previousGlyph[index] * (1 - glyphEase) + currentGlyph[index] * glyphEase;
+        const glyphLift = glyph * hoverStrength * 0.82;
+        const mixed = clamp(source + glyphLift * (1 - source));
+
+        const targetScale = 0.16 + Math.pow(mixed, 0.92) * 1.04;
+        point.velocity = (point.velocity + (targetScale - point.scale) * spring) * damping;
+        point.scale += point.velocity;
+
+        const radius = Math.max(0.45, baseRadius * point.scale);
+        const alpha = 0.22 + mixed * 0.62;
+
+        ctx.globalAlpha = alpha;
+        ctx.fillStyle = '#f4f4f5';
+        ctx.beginPath();
+        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+      });
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+
+    window.addEventListener('pointermove', (event) => {
+      if (event.pointerType === 'touch') return;
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+      pointer.present = true;
+      pointer.lockedChar = '';
+    }, { passive: true });
+
+    window.addEventListener('pointerleave', () => {
+      pointer.present = false;
+      pointer.lockedChar = '';
+    });
+
+    window.addEventListener('resize', () => {
+      resize();
+    });
+
+    resize();
+    requestAnimationFrame(draw);
+  </script>
+</BaseLayout>
