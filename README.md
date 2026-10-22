@@ -41,3 +41,11 @@ All commands are run from the root of the project, from a terminal:
 ## 👀 Want to learn more?
 
 Feel free to check [our documentation](https://docs.astro.build) or jump into our [Discord server](https://astro.build/chat).
+
+## Home glyph background
+
+The home page has an isolated, luminance-driven point grid. Only text explicitly
+marked with `data-glyph-source` can supply a glyph; the rest of the UI is unchanged.
+Run `npm test` for the dependency-free field, transition and grapheme tests.
+See [implementation and acceptance checks](docs/luminance-glyph-background.md)
+for rendering details, accessibility behavior and verification limitations.

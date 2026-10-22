@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Bio from '../components/Bio.astro';
 import Header from '../components/Header.astro';
 import RotaryLogs from '../components/RotaryLogs.astro';
+import GlyphField from '../components/GlyphField.astro';
 
 const name = 'Shishu Fujishiro';
 const jpName = '藤白 詩集';
@@ -39,6 +40,7 @@ const directLinks = [
   footerLeft="AFFILIATION: CDs"
   footerRight={contact}
 >
+  <GlyphField slot="background" />
   <Header name={name} jpName={jpName} />
 
   <main class="flex-grow">
