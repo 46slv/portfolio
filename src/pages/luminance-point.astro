@@ -290,10 +290,10 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       );
     }
 
-    function shapeLuminance(luminance) {
-      const gated = Math.max(0, luminance - 0.16);
-      const normalized = clamp(gated / 0.84);
-      return Math.pow(normalized, 1.75);
+    function shapeGlyphLuminance(luminance) {
+      const gated = Math.max(0, luminance - 0.12);
+      const normalized = clamp(gated / 0.88);
+      return Math.pow(normalized, 1.45);
     }
 
     function resize() {
@@ -425,20 +425,27 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       for (const point of points) {
         const rawLuminance = sourceLuminance(point, now);
-        const luminance = shapeLuminance(rawLuminance);
+        const glyphLuminance = shapeGlyphLuminance(rawLuminance);
+        const instanceMix = smoothstep(0.04, 0.92, hoverStrength);
 
-        const targetScale = 0.05 + luminance * 1.45;
-        const targetAlpha = luminance < 0.02 ? 0 : 0.015 + luminance * 0.92;
+        const pointScale = 0.42 + rawLuminance * 0.58;
+        const pointOpacity = 0.035 + Math.pow(rawLuminance, 0.9) * 0.16;
+
+        const glyphScale = 0.10 + glyphLuminance * 1.65;
+        const glyphOpacity = glyphLuminance < 0.015
+          ? 0
+          : 0.025 + glyphLuminance * 0.78;
+
+        const targetScale = pointScale * (1 - instanceMix) + glyphScale * instanceMix;
+        const targetAlpha = pointOpacity * (1 - instanceMix) + glyphOpacity * instanceMix;
 
         point.scaleVelocity = (point.scaleVelocity + (targetScale - point.scale) * spring) * damping;
         point.alphaVelocity = (point.alphaVelocity + (targetAlpha - point.alpha) * spring) * damping;
         point.scale += point.scaleVelocity;
         point.alpha += point.alphaVelocity;
 
-        const instanceMix = smoothstep(0.04, 0.92, hoverStrength);
-        const luminancePresence = smoothstep(0.03, 0.82, luminance);
-        const pointAlpha = point.alpha * (1 - instanceMix * 0.98) * 0.72;
-        const glyphAlpha = point.alpha * instanceMix * luminancePresence;
+        const pointAlpha = point.alpha * (1 - instanceMix);
+        const glyphAlpha = point.alpha * instanceMix;
 
         drawPoint(point, pointAlpha, point.scale);
 
