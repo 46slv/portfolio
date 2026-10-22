@@ -3,6 +3,7 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 import Bio from '../components/Bio.astro';
 import Header from '../components/Header.astro';
 import RotaryLogs from '../components/RotaryLogs.astro';
+import LuminanceGlyphBackground from '../components/LuminanceGlyphBackground.astro';
 
 const name = 'Shishu Fujishiro';
 const jpName = '藤白 詩集';
@@ -39,6 +40,7 @@ const directLinks = [
   footerLeft="AFFILIATION: CDs"
   footerRight={contact}
 >
+  <LuminanceGlyphBackground />
   <Header name={name} jpName={jpName} />
 
   <main class="flex-grow">
@@ -70,7 +72,7 @@ const directLinks = [
               class={`block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center ${i < directLinks.length - 1 ? 'mb-4' : ''}`}
             >
               <div class="flex justify-between items-center">
-                <span class="text-sm text-white font-bold tracking-widest uppercase">{link.title}</span>
+                <span data-bg-glyph class="text-sm text-white font-bold tracking-widest uppercase">{link.title}</span>
                 <span class="text-xl group-hover:translate-x-2 transition-transform">-&gt;</span>
               </div>
               <p class="text-[10px] text-zinc-500 mt-2">{link.desc}</p>
