@@ -177,6 +177,7 @@ const modeDetailKnobs: KnobDefinition[] = [
                   <option value="#ff4dff">LASER MAGENTA</option>
                   <option value="#ffff00">ACID YELLOW</option>
                   <option value="#f4f4f4">TERMINAL WHITE</option>
+                  <option value="custom" disabled>CUSTOM</option>
                 </select>
               </label>
 
@@ -747,6 +748,7 @@ const modeDetailKnobs: KnobDefinition[] = [
 
 <script>
   import { AudioEngine } from '../lib/audio/AudioEngine';
+  import { colorFromHex, changeColorHue } from '../lib/visualizer-color';
 
   const LISS_MAX_POINTS = 1024;
 
@@ -884,7 +886,7 @@ const modeDetailKnobs: KnobDefinition[] = [
       });
     }
 
-    set(id: string, value: number) {
+    set(id: string, value: number, notify = true) {
       const state =
         this.knobs.get(id);
 
@@ -909,7 +911,7 @@ const modeDetailKnobs: KnobDefinition[] = [
 
       this.draw(canvas, state);
       this.updateLabel(id, state);
-      this.onChange(id, state.val);
+      if (notify) this.onChange(id, state.val);
     }
 
     redraw() {
@@ -1722,6 +1724,17 @@ const modeDetailKnobs: KnobDefinition[] = [
 
   let currentVolume = 0;
 
+  const colorSelect =
+    ROOT.querySelector('#color-select') as HTMLSelectElement | null;
+  let colorState = colorFromHex(normalizeAccent(ACCENT));
+  let knobEngine: KnobEngine | null = null;
+  const hueControl = ROOT.querySelector('[data-id="hue"]') as HTMLCanvasElement | null;
+  if (hueControl) hueControl.dataset.val = String(colorState.hue);
+  if (colorSelect) {
+    colorSelect.value = Array.from(colorSelect.options).some(option => option.value === colorState.preset)
+      ? colorState.preset! : 'custom';
+  }
+
   const setAccent = (value: string) => {
     ACCENT =
       value;
@@ -1823,22 +1836,33 @@ const modeDetailKnobs: KnobDefinition[] = [
           value;
         break;
       case 'hue':
-        setAccent(
-          `hsl(${Math.round(value)} 100% 61%)`
-        );
+        if (value === colorState.hue) break;
+        colorState = changeColorHue(colorState, value);
+        setAccent(colorState.color);
+        if (colorSelect) colorSelect.value = 'custom';
+        knobEngine?.redraw();
         break;
       default:
         break;
     }
   };
 
-  const knobEngine =
+  knobEngine =
     !IS_MINI
       ? new KnobEngine(
         ROOT,
         applyKnob
       )
       : null;
+
+  const setColorPreset = (value: string) => {
+    colorState = colorFromHex(value, colorState.hue);
+    setAccent(colorState.color);
+    if (colorSelect) colorSelect.value = value;
+    // Synchronize the knob without treating a preset selection as a hue edit.
+    knobEngine?.set('hue', colorState.hue, false);
+    knobEngine?.redraw();
+  };
 
   const collectAudioFrame = () => {
     if (engine && running) {
@@ -2347,9 +2371,9 @@ glow        ${glowQuality}`;
       afterglow: 0.15,
       'x-scale': 1,
       'y-scale': 1,
-      rotate: 0,
-      hue: 136
+      rotate: 0
     });
+    setColorPreset('#36ff72');
 
     pixelMap =
       false;
@@ -2548,11 +2572,9 @@ glow        ${glowQuality}`;
       ?.addEventListener(
         'change',
         (event) => {
-          setAccent(
+          setColorPreset(
             (event.target as HTMLSelectElement).value
           );
-
-          knobEngine?.redraw();
         }
       );
 
