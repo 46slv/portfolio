@@ -94,6 +94,7 @@ const {
   </head>
   <body class={bodyClass}>
     <div id="cursor-light"></div>
+    <slot name="background" />
 
     {showShell ? (
       <div class={shellClass}>
@@ -111,6 +112,8 @@ const {
     )}
 
     <script>
+      import { updateCursorPointer } from '../lib/cursor-pointer';
+
       const light =
         document.getElementById('cursor-light');
 
@@ -126,6 +129,8 @@ const {
 
           light.style.top =
             `${event.clientY}px`;
+
+          updateCursorPointer(event.clientX, event.clientY);
         }
       );
     </script>
