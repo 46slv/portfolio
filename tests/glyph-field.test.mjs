@@ -15,17 +15,59 @@ test('fixed grid stays within the point budget at desktop, mobile and 4K sizes',
   }
 });
 
-test('one luminance field has true empty and fully white samples, and moves slowly', () => {
+test('one luminance field retains empty, intermediate and fully white samples on desktop and portrait', () => {
   const pointer = { x: 0, y: 0, active: false };
-  const points = makeGrid(1440, 900);
-  const samples = points.map(({ x, y }) => sampleLuminance(x, y, 0, pointer));
-  assert.equal(Math.min(...samples), 0);
-  assert.equal(Math.max(...samples), 1);
-  assert.ok(samples.some((value) => value > 0.1 && value < 0.9));
-  const later = points.map(({ x, y }) => sampleLuminance(x, y, 10, pointer));
-  assert.notDeepEqual(samples, later);
-  const nextFrame = points.map(({ x, y }) => sampleLuminance(x, y, 1 / 30, pointer));
-  assert.ok(Math.max(...samples.map((sample, i) => Math.abs(sample - nextFrame[i]))) < 0.01);
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 740]]) {
+    const samples = makeGrid(width, height).map(({ x, y }) => sampleLuminance(x, y, 0, pointer));
+    assert.equal(Math.min(...samples), 0);
+    assert.equal(Math.max(...samples), 1);
+    assert.ok(samples.filter((value) => value === 0).length > samples.length * 0.1);
+    assert.ok(samples.filter((value) => value === 1).length > samples.length * 0.05);
+    assert.ok(samples.some((value) => value > 0.1 && value < 0.9));
+  }
+});
+
+test('pointer-free waves visibly flow within 1–2 seconds but stay smooth frame to frame', () => {
+  const pointer = { x: 0, y: 0, active: false };
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 740]]) {
+    const points = makeGrid(width, height);
+    // Multiple phases prevent passing only because of a lucky initial frame.
+    for (const seconds of [0, 2, 5, 10, 20, 30]) {
+      const samples = points.map(({ x, y }) => sampleLuminance(x, y, seconds, pointer));
+      const differences = (elapsed) => points.map(({ x, y }, index) => {
+        const later = sampleLuminance(x, y, seconds + elapsed, pointer);
+        assert.ok(Number.isFinite(later) && later >= 0 && later <= 1);
+        return Math.abs(samples[index] - later);
+      });
+      const mean = (values) => values.reduce((sum, value) => sum + value, 0) / values.length;
+      const afterOneSecond = differences(1);
+      assert.ok(mean(afterOneSecond) > 0.08, 'reject static or imperceptibly slow fields');
+      assert.ok(afterOneSecond.filter((value) => value > 0.12).length > points.length * 0.2);
+      assert.ok(mean(differences(2)) > 0.18, 'flow is appreciable without waiting many seconds');
+      // This is a brightness-change bound, not an exact frame/deadline assertion.
+      assert.ok(Math.max(...differences(1 / 30)) < 0.04, 'smooth motion, not temporal noise');
+    }
+  }
+});
+
+test('portrait and desktop contain finer spatial variation without a denser point grid', () => {
+  const pointer = { x: 0, y: 0, active: false };
+  for (const [width, height, count] of [[1440, 900, 2560], [390, 844, 646], [320, 740, 462]]) {
+    for (const seconds of [0, 2, 5, 10, 20, 30]) {
+      // Mean vertical total variation at three independent cross-sections. A
+      // broad, nearly single-lobe portrait field cannot meet this lower bound.
+      let variation = 0;
+      for (const x of [width * 0.2, width * 0.5, width * 0.8]) {
+        for (let y = 22; y < height; y += 22) {
+          variation += Math.abs(sampleLuminance(x, y, seconds, pointer)
+            - sampleLuminance(x, y - 22, seconds, pointer));
+        }
+      }
+      assert.ok(variation / 3 > 1.3, 'multiple light/dark lobes fit inside the viewport');
+    }
+    const points = makeGrid(width, height);
+    assert.equal(points.length, count, 'point spacing and the existing budget are unchanged');
+  }
 });
 
 test('pointer light contributes to the same field and falls off with distance', () => {

@@ -12,12 +12,12 @@ const {
 } = Astro.props;
 ---
 
-<header class="flex justify-between items-end mb-12 animate-fade-slide">
-  <div class="text-[10px] tracking-[0.4em] font-black text-white uppercase opacity-50 pb-1">
-    SS_Portfolio v2.05
+<header class="home-readability flex justify-between items-end mb-12">
+  <div class="animate-fade-slide text-[10px] tracking-[0.4em] font-black text-white uppercase pb-1">
+    <span class="opacity-50">SS_Portfolio v2.05</span>
   </div>
 
-  <div class="flex-grow mx-12 h-8 border-b border-zinc-900/50 relative overflow-hidden">
+  <div class="animate-fade-slide flex-grow mx-12 h-8 border-b border-zinc-900/50 relative overflow-hidden">
     <a
       href="/visualizer"
       class="block w-36 h-6 mx-auto cursor-default opacity-55 transition-opacity duration-300 hover:opacity-70"
@@ -27,7 +27,7 @@ const {
     </a>
   </div>
 
-  <div class="text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
+  <div class="animate-fade-slide text-[10px] tracking-widest uppercase font-mono text-right space-y-1">
     <div class="flex items-center justify-end gap-2">
       Status: <span class="text-green-500 animate-pulse">ONLINE</span>
     </div>
@@ -43,11 +43,13 @@ const {
   </div>
 </header>
 
-<div class="border-b border-zinc-900 pb-8 mb-12 animate-fade-slide delay-100">
-  <h1 data-glyph-source class="text-4xl md:text-6xl font-bold text-white mb-6">
-    {name}
-    <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">{jpName}</span>
-  </h1>
+<div class="home-readability mb-12">
+  <div class="border-b border-zinc-900 pb-8 animate-fade-slide delay-100">
+    <h1 data-glyph-source class="text-4xl md:text-6xl font-bold text-white mb-6">
+      {name}
+      <span class="text-zinc-600 font-light text-xl md:text-2xl italic ml-4">{jpName}</span>
+    </h1>
+  </div>
 </div>
 
 <script>
