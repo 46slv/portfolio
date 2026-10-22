@@ -1,0 +1,540 @@
+---
+---
+
+<canvas id="luminance-glyph-background" aria-hidden="true"></canvas>
+
+<style>
+  #luminance-glyph-background {
+    position: fixed;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 0;
+    pointer-events: none;
+  }
+</style>
+
+<script>
+  const canvas = document.querySelector('#luminance-glyph-background');
+
+  if (!(canvas instanceof HTMLCanvasElement)) {
+    throw new Error('Luminance glyph background canvas is missing.');
+  }
+
+  const ctx = canvas.getContext('2d', { alpha: false });
+
+  if (!ctx) {
+    throw new Error('Canvas 2D context is unavailable.');
+  }
+
+  const clamp = (value, min = 0, max = 1) =>
+    Math.min(max, Math.max(min, value));
+
+  const smoothstep = (edge0, edge1, value) => {
+    const t = clamp((value - edge0) / Math.max(0.0001, edge1 - edge0));
+    return t * t * (3 - 2 * t);
+  };
+
+  const prefersReducedMotion =
+    window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  const pointer = {
+    x: -1000,
+    y: -1000,
+    present: false,
+  };
+
+  let width = 1;
+  let height = 1;
+  let dpr = 1;
+  let spacing = 17;
+  let points = [];
+  let currentChar = '';
+  let previousChar = '';
+  let glyphTransition = 1;
+  let hoverStrength = 0;
+  let lastTime = performance.now();
+
+  const segmenter =
+    typeof Intl !== 'undefined' && 'Segmenter' in Intl
+      ? new Intl.Segmenter('ja', { granularity: 'grapheme' })
+      : null;
+
+  function hash01(value) {
+    const x = Math.sin(value * 91.3458) * 47453.5453;
+    return x - Math.floor(x);
+  }
+
+  function graphemeRanges(element) {
+    const ranges = [];
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_TEXT,
+      {
+        acceptNode(node) {
+          return node.textContent?.trim()
+            ? NodeFilter.FILTER_ACCEPT
+            : NodeFilter.FILTER_REJECT;
+        },
+      }
+    );
+
+    let node;
+
+    while ((node = walker.nextNode())) {
+      const text = node.textContent ?? '';
+      const segments = segmenter
+        ? [...segmenter.segment(text)]
+        : Array.from(text).map((segment, index) => ({ segment, index }));
+
+      let fallbackOffset = 0;
+
+      for (const item of segments) {
+        const char = item.segment;
+
+        if (!char.trim()) {
+          fallbackOffset += char.length;
+          continue;
+        }
+
+        const start =
+          typeof item.index === 'number'
+            ? item.index
+            : fallbackOffset;
+
+        const range = document.createRange();
+        range.setStart(node, start);
+        range.setEnd(node, start + char.length);
+
+        const rects = [...range.getClientRects()];
+
+        for (const rect of rects) {
+          if (rect.width > 0 && rect.height > 0) {
+            ranges.push({ char, rect });
+          }
+        }
+
+        fallbackOffset = start + char.length;
+      }
+    }
+
+    return ranges;
+  }
+
+  function charAtPointer(element, x, y) {
+    const ranges = graphemeRanges(element);
+
+    if (!ranges.length) {
+      return '';
+    }
+
+    let nearest = null;
+    let nearestDistance = Infinity;
+
+    for (const item of ranges) {
+      const { rect } = item;
+
+      if (
+        x >= rect.left &&
+        x <= rect.right &&
+        y >= rect.top &&
+        y <= rect.bottom
+      ) {
+        return item.char;
+      }
+
+      const cx = rect.left + rect.width * 0.5;
+      const cy = rect.top + rect.height * 0.5;
+      const distance = Math.hypot(x - cx, y - cy);
+
+      if (distance < nearestDistance) {
+        nearestDistance = distance;
+        nearest = item;
+      }
+    }
+
+    return nearest?.char ?? '';
+  }
+
+  function triggerAtPointer(x, y) {
+    const element = document.elementFromPoint(x, y);
+
+    if (!(element instanceof Element)) {
+      return null;
+    }
+
+    return element.closest('[data-bg-glyph]');
+  }
+
+  function setGlyph(char) {
+    if (!char || char === currentChar) {
+      return;
+    }
+
+    previousChar = currentChar;
+    currentChar = char;
+    glyphTransition = 0;
+  }
+
+  function gradientState(time) {
+    const t = time * (prefersReducedMotion ? 0.000035 : 0.00011);
+
+    return {
+      t,
+      c1x: 0.18 + Math.sin(t * 1.55) * 0.22,
+      c1y: 0.28 + Math.cos(t * 1.05) * 0.20,
+      c2x: 0.76 + Math.cos(t * 0.92 + 1.2) * 0.21,
+      c2y: 0.65 + Math.sin(t * 1.38 + 0.4) * 0.24,
+      c3x: 0.48 + Math.sin(t * 0.74 + 2.3) * 0.28,
+      c3y: 0.25 + Math.cos(t * 0.88 + 0.9) * 0.20,
+    };
+  }
+
+  function baseLuminance(point, state) {
+    const nx = point.x / width;
+    const ny = point.y / height;
+
+    const waveA =
+      Math.sin((nx * 1.35 + ny * 0.72 + state.t * 1.35) * Math.PI * 2);
+    const waveB =
+      Math.sin((nx * -0.92 + ny * 1.82 - state.t * 1.08) * Math.PI * 2);
+    const waveC =
+      Math.cos((nx * 2.10 - ny * 1.18 + state.t * 0.82) * Math.PI * 2);
+
+    const dx1 = nx - state.c1x;
+    const dy1 = ny - state.c1y;
+    const dx2 = nx - state.c2x;
+    const dy2 = ny - state.c2y;
+    const dx3 = nx - state.c3x;
+    const dy3 = ny - state.c3y;
+
+    const blob1 = Math.exp(-(dx1 * dx1 * 9.0 + dy1 * dy1 * 8.0));
+    const blob2 = Math.exp(-(dx2 * dx2 * 7.2 + dy2 * dy2 * 9.5));
+    const blob3 = Math.exp(-(dx3 * dx3 * 10.5 + dy3 * dy3 * 7.8));
+
+    const drift =
+      waveA * 0.055 +
+      waveB * 0.045 +
+      waveC * 0.035;
+
+    const seedBias = (point.bias - 0.5) * 0.03;
+
+    return clamp(
+      0.035 +
+      drift +
+      blob1 * 0.38 +
+      blob2 * 0.48 +
+      blob3 * 0.32 +
+      seedBias
+    );
+  }
+
+  function cursorGlowLuminance(point) {
+    if (!pointer.present) {
+      return 0;
+    }
+
+    const radius = width < 700 ? 180 : 240;
+    const distance = Math.hypot(
+      point.x - pointer.x,
+      point.y - pointer.y
+    );
+
+    const falloff =
+      1 - smoothstep(0, radius, distance);
+
+    return Math.pow(falloff, 1.35);
+  }
+
+  function combinedLuminance(point, state) {
+    const base = baseLuminance(point, state);
+    const glow = cursorGlowLuminance(point);
+
+    return 1 - (1 - base) * (1 - glow * 0.98);
+  }
+
+  function shapeGlyphLuminance(luminance) {
+    const normalized =
+      clamp((luminance - 0.055) / 0.945);
+
+    return Math.pow(normalized, 1.12);
+  }
+
+  function drawBackgroundGradient(state) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'screen';
+
+    const blobs = [
+      [state.c1x, state.c1y, 0.34, 'rgba(145,160,184,0.045)'],
+      [state.c2x, state.c2y, 0.40, 'rgba(172,182,198,0.055)'],
+      [state.c3x, state.c3y, 0.30, 'rgba(130,145,170,0.035)'],
+    ];
+
+    for (const [nx, ny, radiusNorm, color] of blobs) {
+      const x = nx * width;
+      const y = ny * height;
+      const radius =
+        Math.max(width, height) * radiusNorm;
+
+      const gradient =
+        ctx.createRadialGradient(x, y, 0, x, y, radius);
+
+      gradient.addColorStop(0, color);
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+
+      ctx.fillStyle = gradient;
+      ctx.fillRect(0, 0, width, height);
+    }
+
+    ctx.restore();
+  }
+
+  function resize() {
+    width = Math.max(1, window.innerWidth);
+    height = Math.max(1, window.innerHeight);
+    dpr = Math.min(window.devicePixelRatio || 1, 1.5);
+    spacing = width < 700 ? 15 : clamp(width / 88, 16, 21);
+
+    canvas.width = Math.round(width * dpr);
+    canvas.height = Math.round(height * dpr);
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+    points = [];
+
+    const offsetX = (width % spacing) * 0.5;
+    const offsetY = (height % spacing) * 0.5;
+    let index = 0;
+
+    for (let y = offsetY; y <= height; y += spacing) {
+      for (let x = offsetX; x <= width; x += spacing) {
+        points.push({
+          x,
+          y,
+          bias: hash01(index + 17),
+          scale: 0.45,
+          alpha: 0.12,
+          scaleVelocity: 0,
+          alphaVelocity: 0,
+        });
+
+        index += 1;
+      }
+    }
+  }
+
+  function updateTarget() {
+    if (!pointer.present) {
+      hoverStrength +=
+        (0 - hoverStrength) *
+        (prefersReducedMotion ? 0.32 : 0.11);
+
+      return;
+    }
+
+    const trigger =
+      triggerAtPointer(pointer.x, pointer.y);
+
+    if (!(trigger instanceof HTMLElement)) {
+      hoverStrength +=
+        (0 - hoverStrength) *
+        (prefersReducedMotion ? 0.32 : 0.11);
+
+      return;
+    }
+
+    const char =
+      charAtPointer(trigger, pointer.x, pointer.y);
+
+    if (char) {
+      setGlyph(char);
+    }
+
+    hoverStrength +=
+      (1 - hoverStrength) *
+      (prefersReducedMotion ? 0.34 : 0.16);
+  }
+
+  function drawPoint(point, alpha, scale) {
+    if (alpha <= 0.003) {
+      return;
+    }
+
+    const radius =
+      Math.max(
+        0.3,
+        spacing * 0.07 * (0.65 + scale * 0.9)
+      );
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#f4f4f5';
+    ctx.beginPath();
+    ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  function drawGlyph(point, char, alpha, scale) {
+    if (!char || alpha <= 0.003) {
+      return;
+    }
+
+    const fontSize =
+      Math.max(5, spacing * (0.34 + scale * 0.52));
+
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#f4f4f5';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.font =
+      '600 ' +
+      fontSize +
+      'px ui-monospace, SFMono-Regular, Menlo, "Yu Gothic", "Hiragino Sans", "Noto Sans JP", monospace';
+
+    ctx.fillText(
+      char,
+      point.x,
+      point.y + fontSize * 0.03
+    );
+  }
+
+  function draw(now) {
+    const dt = Math.min(34, now - lastTime);
+    lastTime = now;
+
+    updateTarget();
+
+    const transitionSpeed =
+      prefersReducedMotion ? 0.28 : 0.064;
+
+    glyphTransition =
+      clamp(
+        glyphTransition +
+        transitionSpeed * (dt / 16.67)
+      );
+
+    const glyphEase =
+      smoothstep(0, 1, glyphTransition);
+
+    ctx.fillStyle = '#080808';
+    ctx.fillRect(0, 0, width, height);
+
+    const state = gradientState(now);
+    drawBackgroundGradient(state);
+
+    const spring =
+      prefersReducedMotion ? 0.34 : 0.12;
+
+    const damping =
+      prefersReducedMotion ? 0.44 : 0.76;
+
+    const instanceMix =
+      smoothstep(0.04, 0.92, hoverStrength);
+
+    for (const point of points) {
+      const field =
+        combinedLuminance(point, state);
+
+      const glyphLuminance =
+        shapeGlyphLuminance(field);
+
+      const pointScale =
+        0.40 + field * 0.62;
+
+      const pointOpacity =
+        0.035 + Math.pow(field, 0.82) * 0.17;
+
+      const glyphScale =
+        0.06 + glyphLuminance * 1.82;
+
+      const glyphOpacity =
+        glyphLuminance < 0.012
+          ? 0
+          : 0.015 + glyphLuminance * 0.96;
+
+      const targetScale =
+        pointScale * (1 - instanceMix) +
+        glyphScale * instanceMix;
+
+      const targetAlpha =
+        pointOpacity * (1 - instanceMix) +
+        glyphOpacity * instanceMix;
+
+      point.scaleVelocity =
+        (
+          point.scaleVelocity +
+          (targetScale - point.scale) * spring
+        ) * damping;
+
+      point.alphaVelocity =
+        (
+          point.alphaVelocity +
+          (targetAlpha - point.alpha) * spring
+        ) * damping;
+
+      point.scale += point.scaleVelocity;
+      point.alpha += point.alphaVelocity;
+
+      drawPoint(
+        point,
+        point.alpha * (1 - instanceMix),
+        point.scale
+      );
+
+      const glyphAlpha =
+        point.alpha * instanceMix;
+
+      if (
+        previousChar &&
+        glyphEase < 0.999
+      ) {
+        drawGlyph(
+          point,
+          previousChar,
+          glyphAlpha * (1 - glyphEase),
+          point.scale
+        );
+      }
+
+      drawGlyph(
+        point,
+        currentChar,
+        glyphAlpha * glyphEase,
+        point.scale
+      );
+    }
+
+    ctx.globalAlpha = 1;
+    requestAnimationFrame(draw);
+  }
+
+  window.addEventListener(
+    'pointermove',
+    (event) => {
+      if (event.pointerType === 'touch') {
+        return;
+      }
+
+      pointer.x = event.clientX;
+      pointer.y = event.clientY;
+      pointer.present = true;
+    },
+    { passive: true }
+  );
+
+  window.addEventListener(
+    'pointerleave',
+    () => {
+      pointer.present = false;
+    }
+  );
+
+  window.addEventListener(
+    'resize',
+    resize
+  );
+
+  resize();
+  requestAnimationFrame(draw);
+</script>
