@@ -5,8 +5,9 @@
 - Home only, on a fixed, decorative canvas below the existing content shell.
 - The canvas has `pointer-events: none` and `aria-hidden="true"`. There is no DOM
   text splitting, layout replacement, added interaction layer, or new dependency.
-- The name heading (English and Japanese) and Recent Logs text links explicitly
-  opt in with `data-glyph-source`. Other text does not activate the field.
+- The name heading, both English/Japanese biography paragraphs (including their
+  nested link text), and Recent Logs text links explicitly opt in with
+  `data-glyph-source`. Other text does not activate the field.
 - The existing `#cursor-light` styles, dimensions, stacking, blend mode and
   mousemove positioning remain unchanged. Its existing event handler also shares
   numeric coordinates with the background. No second UI glow is created.
@@ -14,12 +15,20 @@
 ## Rendering and interaction
 
 The point positions are fixed between viewport resizes. Each point samples one
-analytic grayscale field made from broad, slowly moving waves and a localized
+analytic grayscale field made from smoothly flowing waves and a localized
 contribution from the existing mouse position. Luminance controls both point size
 and alpha, with true zero and one endpoints, not a global dimming overlay. Idle
 points are dots. While an opted-in grapheme is hit, each visible point independently
 renders a small instance of that same grapheme. This is not a large letter mask
 filled with particles.
+
+The waves use a 2.6× spatial scale relative to the original broad field, so smaller
+light/dark lobes fit in narrow portrait viewports without changing point spacing.
+Their phase advances 6× faster: individual wave periods are about 8, 12 and 15
+seconds rather than 48, 70 and 90 seconds. The field visibly evolves within 1–2
+seconds, continuously and without random per-frame noise. The mouse contribution
+keeps its original 105px falloff and is combined before the same luminance mapping;
+pointer activation is not required for idle animation on desktop or mobile.
 
 Hit testing uses `elementFromPoint`, a text TreeWalker, `Intl.Segmenter`, and each
 grapheme's `Range.getClientRects()`. Whitespace, gaps, and non-opted-in elements
@@ -41,6 +50,29 @@ pending glyph or resetting to a fully formed previous character. Two shared
 off-DOM atlases flatten those snapshots, so historical glyph layers cannot grow.
 Each visible point draws at most two glyph images plus its dot. Sprite alpha is
 white, including for otherwise colored emoji.
+
+## Local text readability
+
+The home page imports `home-readability.css` only on its own route. Six explicit
+regions cover the header, name, biography, Recent Logs, Work Scope and Direct Link
+information. Each keeps its original dimensions, spacing, text colors and link
+classes. The biography wash follows its existing `max-w-3xl` text width. Existing
+Direct Link card styling is unchanged; no new cards, borders or padding are added.
+
+Each unanimated owner has a positioned negative-z pseudo-element with a 55% dark
+tint and a real 5px `backdrop-filter` blur, including the WebKit-prefixed form.
+The pseudo-element alone has a 12px feather mask and `pointer-events: none`. The
+foreground has no filter and remains sharp; the canvas outside these local regions
+is untouched. Browsers without backdrop-filter retain the tint as a fallback.
+
+The wash must not move inside `.animate-fade-slide` or the rotary viewport's
+existing mask: animated opacity and masks establish backdrop roots that can stop
+the filter from sampling the canvas. Existing entrance animations therefore remain
+on the inner foreground, while the wash lives on an unanimated outer owner. The
+rotary mask, 320px viewport, scroll handling, hover behavior and point renderer are
+unchanged. Bio opt-in is on each paragraph, not a global text selector; the existing
+`closest`/TreeWalker hit test already includes descendant link text and ignores
+whitespace and inter-paragraph gaps.
 
 ## Lifecycle and budget
 
@@ -66,7 +98,8 @@ white, including for otherwise colored emoji.
 
 `npm test` uses Node's built-in runner and TypeScript stripping (Node >=22.12,
 already required by the project). Pure tests cover the point budget, fixed
-positions, grayscale endpoints, slow temporal change, pointer contribution,
+positions, grayscale endpoints, meaningful 1–2 second pointer-free change, bounded
+frame-to-frame change, finer spatial variation in desktop/portrait, pointer contribution,
 bright-before-dark timing, snapshot deadlines, interrupted transitions, stale
 target cancellation, return-to-dot, 10,000 rapid target alternations, atlas sizing,
 200 repeated grid resizes, and both grapheme-segmentation paths.
@@ -78,6 +111,12 @@ DPR capping, unchanged deadlines on repeated hits, settling back to dots, hidden
 document pause/resume, reduced-motion immediate updates without RAF, pagehide /
 pageshow, and idempotent Astro cleanup. These doubles do not verify real raster
 pixels, browser memory/GC, font rendering, or layout.
+
+The renderer test also records the real canvas draw commands at desktop and
+390×844 portrait sizes with no active pointer. It verifies substantial dot-alpha
+changes after approximately one and two seconds of its RAF clock, without
+requiring hover, text hit tests or glyph transitions. Assertions use broad
+brightness-change bounds rather than exact frame timestamps.
 
 Read-only diagnostics on `#glyph-field` expose `data-glyph`, `data-point-count`,
 `data-render-mode`, `data-transition-policy`, `data-transition-revision`,
@@ -150,6 +189,66 @@ changing once settled. There is no global debug API.
   behavior and real browser memory/GC were not verified by these browser checks;
   lifecycle/resource ownership coverage above remains based on test doubles.
 
+### Finer, faster field revision verification on 2026-10-22
+
+- Only the analytic field coordinates/phase changed: spatial scale 2.6×, phase
+  rate 6×. The three wave periods are now 8.06, 11.64 and 14.96 seconds. Grid
+  spacing, pointer falloff, luminance endpoints, glyph transitions and renderer
+  lifecycle are unchanged.
+- Deterministic pointer-free samples at phases 0, 2, 5, 10, 20 and 30 seconds:
+  - At 1440×900, mean absolute luminance change after one second rose from 0.031
+    to 0.188, and after two seconds from 0.063 to 0.360. Average vertical total
+    variation across three cross-sections rose from 0.933 to 2.084 (2.23×).
+  - At 390×844, the same one/two-second changes rose from 0.023/0.045 to
+    0.178/0.354. Vertical variation rose from 0.901 to 1.954 (2.17×).
+  - At 320×740, one/two-second changes rose from 0.025/0.047 to 0.171/0.340.
+    Vertical variation rose from 0.884 to 1.795 (2.03×).
+  - The largest single-frame luminance change at 30fps stayed below 0.035 across
+    these samples, with no random temporal noise. Initial frames contain true
+    zero, intermediate and fully white samples on all three viewports.
+- `npm test`: **22 passed**, including 14 glyph/renderer tests and the eight
+  visualizer-color regression tests inherited from the base. The renderer's
+  actual dot-alpha commands change without any pointer/text-hit event at desktop
+  and portrait sizes. Hidden/pagehide pauses resume without fast-forward; reduced
+  motion has no standing RAF and remains frozen on an idle redraw.
+- Astro type check: **passed**, 26 files, zero errors/warnings/hints, using an
+  external frontend-only config. Cloudflare production build: **passed**, all
+  four routes, using an external `cloudflare({ inspectorPort: false })` config.
+  The sandbox's default-command network-interface limitation is unchanged.
+  Request.cf discovery used its existing placeholder fallback. Repository deploy
+  configuration and dependencies are unchanged.
+- These measurements are formula/test-double evidence, not real-browser or
+  native-phone motion acceptance. The supplied phone screenshot documents static
+  composition only; it does not establish that the animation stopped. Desktop
+  and portrait browser acceptance of this revision remains separate.
+
+### Biography opt-in and readability revision verification on 2026-10-22
+
+- `npm test`: **26 passed**, including four new focused tests. Astro element-tree
+  checks confirm explicit paragraph opt-in and six local backdrop owners outside
+  both animated opacity and the rotary mask. CSS checks cover real prefixed and
+  standard backdrop blur, negative-z placement and nonintercepting pointer events.
+- A test invokes the real production hit-test function with DOM/Range doubles for
+  English, Japanese, both nested CDs links, whitespace, inter-paragraph gaps and
+  unmarked elements. These are coordinate/traversal checks, not browser font or
+  actual mouse acceptance.
+- Astro type check: **passed**, 27 files, zero errors/warnings/hints, using the
+  external frontend-only config. Cloudflare production build: **passed**, all
+  four routes, using the external `cloudflare({ inspectorPort: false })` config.
+  Request.cf discovery used its existing placeholder fallback. Repository
+  deployment configuration and dependencies are unchanged.
+- Built HTML comparison with the parent revision confirms all 17 link
+  href/class/target/rel tuples, visible text and script count are unchanged. The
+  compiled home CSS retains both backdrop-filter forms; the three other routes
+  do not receive the readability CSS. These static comparisons do not prove
+  visual layout, actual filtering or interactive behavior.
+- Analytic 2.6× spatial / 6× phase math, fixed grid, 0–420ms snapshot delays,
+  renderer code, profile source, all link targets and deployment config are
+  unchanged.
+- Real desktop/portrait blur pixels, typography/layout parity, English/Japanese
+  pointer hits, nested-link clicks and rotary scrolling require separate browser
+  acceptance. No browser/server/DevTools was used for this implementation pass.
+
 ## Additional acceptance checks not yet completed
 
 Core desktop English/Japanese interaction and the baseline comparison above are
@@ -162,8 +261,9 @@ coverage must not be mistaken for real-browser coverage:
    brightness and genuinely white points. Point positions must not move.
 3. Verify a Recent Logs link, including after scroll. Rapid heading-to-biography
    interruption and return-to-dot behavior are covered by the desktop checks above.
-4. Extend no-hit testing beyond the verified biography to unmarked links, padding,
-   whitespace and viewport exit. Check ordinary text selection.
+4. Verify the newly opted-in biography in English/Japanese, including both nested
+   CDs links. Check no-hit behavior on unmarked links, padding, whitespace,
+   inter-paragraph gaps and viewport exit, plus ordinary text selection.
 5. Test combining/emoji graphemes using a temporary opted-in test fixture, without
    changing production content. Test both normal and reduced-motion modes.
 6. Test mobile/responsive rendering, reduced-motion idle pixels, hidden-tab

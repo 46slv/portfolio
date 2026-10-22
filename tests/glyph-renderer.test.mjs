@@ -14,15 +14,20 @@ const javascript = ts.transpileModule(source, {
   (_, path) => `from '${new URL(`${path}.ts`, new URL('../src/scripts/', import.meta.url)).href}'`);
 const { mountGlyphField } = await import(`data:text/javascript;base64,${Buffer.from(javascript).toString('base64')}`);
 
-test('renderer reuses two atlas buffers, cancels stale targets and cleans up through resize/motion/visibility', () => {
+test('renderer flows without a pointer on desktop/portrait and preserves buffers, targets and lifecycle', () => {
   const canvases = [];
   let drawCalls = 0;
   class Canvas {
     width = 300;
     height = 150;
     dataset = {};
+    dots = new Map();
+    pointKey = '';
     pen = {
-      clearRect() {}, setTransform() {}, beginPath() {}, arc() {}, fill() {}, fillText() {}, fillRect() {},
+      clearRect: () => { this.dots.clear(); },
+      arc: (x, y) => { this.pointKey = `${x},${y}`; },
+      fill: () => { this.dots.set(this.pointKey, this.pen.globalAlpha); },
+      setTransform() {}, beginPath() {}, fillText() {}, fillRect() {},
       measureText() { return { width: 28 }; },
       drawImage(image) {
         assert.ok(image.width > 0 && image.height > 0, 'never draw a released buffer');
@@ -47,7 +52,10 @@ test('renderer reuses two atlas buffers, cancels stale targets and cleans up thr
     hidden: false,
     documentElement: new EventTarget(),
     createElement(name) { assert.equal(name, 'canvas'); return new Canvas(); },
-    elementFromPoint() { return hit ? sourceElement : null; },
+    elementFromPoint() {
+      hitTests++;
+      return hit ? sourceElement : null;
+    },
     createTreeWalker() {
       let visited = false;
       return { nextNode() { if (visited) return null; visited = true; return { textContent: hit }; } };
@@ -62,6 +70,7 @@ test('renderer reuses two atlas buffers, cancels stale targets and cleans up thr
   const canvas = new Canvas();
   let cleanup;
   let time = 0;
+  let hitTests = 0;
   const frame = () => {
     const [id, callback] = callbacks.entries().next().value;
     callbacks.delete(id);
@@ -75,6 +84,33 @@ test('renderer reuses two atlas buffers, cancels stale targets and cleans up thr
     assert.equal(canvas.width, window.innerWidth * MAX_DPR);
     assert.equal(canvas.height, window.innerHeight * MAX_DPR);
     frame();
+    // Exercise the actual RAF clock and canvas dot alphas with no mouse events.
+    // A mobile field must animate independently of hover/pointer activation.
+    for (const [width, height] of [[1180, 757], [390, 844]]) {
+      [window.innerWidth, window.innerHeight] = [width, height];
+      window.dispatchEvent(new Event('resize'));
+      const initial = new Map(canvas.dots);
+      const change = () => {
+        const keys = new Set([...initial.keys(), ...canvas.dots.keys()]);
+        const differences = Array.from(keys, (key) => Math.abs((initial.get(key) ?? 0) - (canvas.dots.get(key) ?? 0)));
+        return {
+          mean: differences.reduce((sum, value) => sum + value, 0) / Number(canvas.dataset.pointCount),
+          changed: differences.filter((value) => value > 0.12).length / Number(canvas.dataset.pointCount),
+        };
+      };
+      for (let i = 0; i < 30; i++) frame();
+      assert.ok(change().mean > 0.08, 'rendered brightness visibly changes in about one second');
+      assert.ok(change().changed > 0.2, 'motion is not confined to a few points');
+      for (let i = 0; i < 30; i++) frame();
+      assert.ok(change().mean > 0.18, 'rendered flow continues through about two seconds');
+      assert.equal(canvas.dataset.glyph, '');
+      assert.equal(canvas.dataset.transitionRevision, '0');
+      assert.equal(canvas.dataset.renderMode, 'animated');
+      assert.equal(callbacks.size, 1);
+    }
+    assert.equal(hitTests, 0, 'idle motion does not require text hit tests');
+    [window.innerWidth, window.innerHeight] = [1180, 757];
+    window.dispatchEvent(new Event('resize'));
     for (let i = 0; i < 120; i++) {
       hit = String.fromCodePoint(0x4e00 + i);
       updateCursorPointer(1, 1);
@@ -107,17 +143,24 @@ test('renderer reuses two atlas buffers, cancels stale targets and cleans up thr
     assert.equal(canvas.dataset.transitionPending, '0');
     assert.equal(canvas.dataset.transitionActive, '0');
 
+    const beforeHidden = new Map(canvas.dots);
     document.hidden = true;
     document.dispatchEvent(new Event('visibilitychange'));
     assert.equal(callbacks.size, 0);
+    time += 60000;
     document.hidden = false;
     document.dispatchEvent(new Event('visibilitychange'));
     assert.equal(callbacks.size, 1);
     frame();
+    assert.deepEqual(canvas.dots, beforeHidden, 'visibility resumes the paused clock without fast-forward');
 
     motion.matches = true;
     motion.dispatchEvent(new Event('change'));
     assert.equal(callbacks.size, 0, 'reduced motion has no standing RAF');
+    const reducedMotionDots = new Map(canvas.dots);
+    time += 5000;
+    window.dispatchEvent(new Event('resize'));
+    assert.deepEqual(canvas.dots, reducedMotionDots, 'reduced-motion redraws keep the idle field frozen');
     hit = '藤';
     updateCursorPointer(1, 1);
     assert.equal(canvas.dataset.glyph, '藤');
@@ -126,11 +169,16 @@ test('renderer reuses two atlas buffers, cancels stale targets and cleans up thr
     motion.matches = false;
     motion.dispatchEvent(new Event('change'));
     assert.equal(callbacks.size, 1);
+    clearCursorPointer();
+    for (let i = 0; i < 30; i++) frame();
+    const beforePageHide = new Map(canvas.dots);
     window.dispatchEvent(new Event('pagehide'));
     assert.equal(callbacks.size, 0);
+    time += 60000;
     window.dispatchEvent(new Event('pageshow'));
     assert.equal(callbacks.size, 1);
     frame();
+    assert.deepEqual(canvas.dots, beforePageHide, 'pageshow resumes without an elapsed-time jump');
 
     document.dispatchEvent(new Event('astro:before-swap'));
     assert.equal(callbacks.size, 0);

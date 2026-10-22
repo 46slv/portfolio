@@ -28,12 +28,21 @@ const smoothstep = (low: number, high: number, value: number) => {
   return t * t * (3 - 2 * t);
 };
 
-/** A few broad, slow waves form one continuous grayscale luminance field. */
+// Smaller lobes keep several light/dark regions visible even in portrait. The
+// phase advances six times faster than the original 48–90s waves (now 8–15s),
+// producing visible flow within 1–2s without moving the points or adding noise.
+const FIELD_SPATIAL_SCALE = 2.6;
+const FIELD_TIME_SCALE = 6;
+
+/** Continuous grayscale waves; motion never depends on an active pointer. */
 export function sampleLuminance(x: number, y: number, seconds: number, pointer: FieldPointer): number {
+  const fieldX = x * FIELD_SPATIAL_SCALE;
+  const fieldY = y * FIELD_SPATIAL_SCALE;
+  const fieldTime = seconds * FIELD_TIME_SCALE;
   const field = 0.46
-    + 0.30 * Math.sin(x / 285 + y / 410 + seconds * 0.13)
-    + 0.23 * Math.cos(y / 240 - x / 610 - seconds * 0.09)
-    + 0.17 * Math.sin(x / 510 - y / 330 + seconds * 0.07);
+    + 0.30 * Math.sin(fieldX / 285 + fieldY / 410 + fieldTime * 0.13)
+    + 0.23 * Math.cos(fieldY / 240 - fieldX / 610 - fieldTime * 0.09)
+    + 0.17 * Math.sin(fieldX / 510 - fieldY / 330 + fieldTime * 0.07);
   const distanceSquared = (x - pointer.x) ** 2 + (y - pointer.y) ** 2;
   const pointerLight = pointer.active ? 0.82 * Math.exp(-distanceSquared / (2 * 105 ** 2)) : 0;
   // Explicit endpoints matter: some areas really are empty, others are white.

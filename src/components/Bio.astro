@@ -51,8 +51,10 @@ const jaText = extractSection(profileSource, 'Japanese');
 ---
 
 <section class="mb-24">
-  <div class="focus-container space-y-8 text-sm md:text-base leading-loose max-w-3xl font-light animate-fade-slide delay-200">
-    <p class="text-zinc-400 dim-text" set:html={renderBioText(enText, 'en')} />
-    <p class="text-zinc-600 italic dim-text" set:html={renderBioText(jaText, 'ja')} />
+  <div class="home-readability max-w-3xl">
+    <div class="focus-container space-y-8 text-sm md:text-base leading-loose max-w-3xl font-light animate-fade-slide delay-200">
+      <p data-glyph-source class="text-zinc-400 dim-text" set:html={renderBioText(enText, 'en')} />
+      <p data-glyph-source class="text-zinc-600 italic dim-text" set:html={renderBioText(jaText, 'ja')} />
+    </div>
   </div>
 </section>

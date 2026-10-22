@@ -4,6 +4,7 @@ import Bio from '../components/Bio.astro';
 import Header from '../components/Header.astro';
 import RotaryLogs from '../components/RotaryLogs.astro';
 import GlyphField from '../components/GlyphField.astro';
+import '../styles/home-readability.css';
 
 const name = 'Shishu Fujishiro';
 const jpName = '藤白 詩集';
@@ -49,35 +50,39 @@ const directLinks = [
     <div class="grid lg:grid-cols-2 gap-24 items-start">
       <RotaryLogs />
 
-      <section class="space-y-20 animate-fade-slide delay-400">
-        <div>
-          <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Work Scope</h2>
-          <div class="space-y-6">
-            {workScope.map(work => (
-              <div>
-                <h3 class="text-sm font-bold text-zinc-200">{work.title}</h3>
-                <p class="text-xs text-zinc-500 mt-1">{work.desc}</p>
-              </div>
-            ))}
+      <section class="space-y-20">
+        <div class="home-readability">
+          <div class="animate-fade-slide delay-400">
+            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Work Scope</h2>
+            <div class="space-y-6">
+              {workScope.map(work => (
+                <div>
+                  <h3 class="text-sm font-bold text-zinc-200">{work.title}</h3>
+                  <p class="text-xs text-zinc-500 mt-1">{work.desc}</p>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
 
-        <div>
-          <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
-          {directLinks.map((link, i) => (
-            <a
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              class={`block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center ${i < directLinks.length - 1 ? 'mb-4' : ''}`}
-            >
-              <div class="flex justify-between items-center">
-                <span class="text-sm text-white font-bold tracking-widest uppercase">{link.title}</span>
-                <span class="text-xl group-hover:translate-x-2 transition-transform">-&gt;</span>
-              </div>
-              <p class="text-[10px] text-zinc-500 mt-2">{link.desc}</p>
-            </a>
-          ))}
+        <div class="home-readability">
+          <div class="animate-fade-slide delay-400">
+            <h2 class="text-[10px] tracking-[0.3em] font-bold text-zinc-600 uppercase mb-10 border-b border-zinc-900 pb-2">Direct Link</h2>
+            {directLinks.map((link, i) => (
+              <a
+                href={link.href}
+                target="_blank"
+                rel="noopener noreferrer"
+                class={`block group p-6 bg-zinc-950 border border-zinc-900 hover:border-zinc-500 transition-all hover:scale-[1.02] origin-center ${i < directLinks.length - 1 ? 'mb-4' : ''}`}
+              >
+                <div class="flex justify-between items-center">
+                  <span class="text-sm text-white font-bold tracking-widest uppercase">{link.title}</span>
+                  <span class="text-xl group-hover:translate-x-2 transition-transform">-&gt;</span>
+                </div>
+                <p class="text-[10px] text-zinc-500 mt-2">{link.desc}</p>
+              </a>
+            ))}
+          </div>
         </div>
       </section>
     </div>

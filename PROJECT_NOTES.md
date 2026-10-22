@@ -14,6 +14,17 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
+## Home Text Readability - 2026-10-22
+
+- The home route alone imports `src/styles/home-readability.css`. Its six explicit
+  local backplates blur/darken only the background beneath informational regions,
+  without new cards or layout spacing.
+- Backplate owners must stay outside animated opacity and the masked rotary
+  viewport so their backdrop filter can sample the canvas; text stays unfiltered.
+- Both Bio paragraphs explicitly opt into glyph sourcing, including nested links.
+  The field, renderer timing and source profile text remain unchanged.
+- See `docs/luminance-glyph-background.md` for checks and remaining browser QA.
+
 ## Stable Content Boundaries
 
 - Bio content is isolated in `src/components/Bio.astro`.
