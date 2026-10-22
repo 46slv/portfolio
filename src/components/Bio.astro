@@ -42,7 +42,7 @@ function renderBioText(text: string, lang: 'en' | 'ja'): string {
   return escapeHtml(text).replace(
     /\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g,
     (_match, label: string, href: string) =>
-      `<a href="${href}" target="_blank" rel="noopener noreferrer" class="${linkClass}">${label}</a>`
+      `<a href="${href}" target="_blank" rel="noopener noreferrer" data-bg-glyph class="${linkClass}">${label}</a>`
   );
 }
 
