@@ -3,28 +3,34 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 ---
 
 <BaseLayout
-  title="Luminance Point Typography | SS_Portfolio"
+  title="Luminance Glyph Instances | SS_Portfolio"
   showShell={false}
   bodyClass="bg-[#080808] text-zinc-300 font-sans antialiased overflow-hidden"
 >
-  <main class="point-demo" aria-label="Luminance Point Typography prototype">
+  <main class="point-demo" aria-label="Luminance driven glyph instance prototype">
     <canvas id="point-field" aria-hidden="true"></canvas>
 
     <div class="demo-meta" aria-hidden="true">
-      <span>LUMINANCE POINT / PROTOTYPE</span>
-      <span id="glyph-readout">GLYPH: —</span>
+      <span>GLYPH INSTANCES / LUMINANCE FIELD</span>
+      <span id="glyph-readout">INSTANCE: POINT</span>
     </div>
 
     <section class="demo-nav" aria-label="Prototype navigation">
-      <p class="demo-index">SS_PORTFOLIO / FIELD TEST</p>
+      <p class="demo-index">SS_PORTFOLIO / INSTANCE TEST</p>
       <div class="demo-words">
         <button type="button" data-point-word>WORKS</button>
         <button type="button" data-point-word>REEL</button>
         <button type="button" data-point-word>ABOUT</button>
         <button type="button" data-point-word>CONTACT</button>
       </div>
-      <p class="demo-note">move across each letter</p>
+      <p class="demo-note">hover a letter / tap on touch</p>
     </section>
+
+    <div class="demo-legend" aria-hidden="true">
+      <span>LUMINANCE → SCALE</span>
+      <span>LUMINANCE → OPACITY</span>
+      <span>POINT → GLYPH INSTANCE</span>
+    </div>
   </main>
 
   <style is:global>
@@ -44,25 +50,36 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     #point-field {
       position: fixed;
       inset: 0;
+      z-index: 0;
       width: 100%;
       height: 100%;
-      z-index: 0;
+      pointer-events: none;
+    }
+
+    .demo-meta,
+    .demo-legend {
+      position: fixed;
+      z-index: 2;
+      display: flex;
+      gap: 18px;
+      color: rgba(255,255,255,.34);
+      font: 500 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      letter-spacing: .14em;
       pointer-events: none;
     }
 
     .demo-meta {
-      position: fixed;
       top: 20px;
       left: 24px;
       right: 24px;
-      z-index: 2;
-      display: flex;
       justify-content: space-between;
-      gap: 24px;
-      color: rgba(255,255,255,.34);
-      font: 500 10px/1.2 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-      letter-spacing: .16em;
-      pointer-events: none;
+    }
+
+    .demo-legend {
+      right: 24px;
+      bottom: 20px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
     }
 
     .demo-nav {
@@ -104,11 +121,15 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
     .point-letter {
       display: inline-block;
-      transition: opacity 140ms linear;
+      transition: opacity 140ms linear, filter 140ms linear;
+    }
+
+    .point-letter[data-near="true"] {
+      filter: brightness(1.25);
     }
 
     [data-point-word]:has(.point-letter[data-near="true"]) .point-letter:not([data-near="true"]) {
-      opacity: .36;
+      opacity: .28;
     }
 
     .demo-note {
@@ -120,6 +141,14 @@ import BaseLayout from '../layouts/BaseLayout.astro';
         top: 16px;
         left: 16px;
         right: 16px;
+      }
+
+      .demo-legend {
+        right: 16px;
+        bottom: 14px;
+        left: 16px;
+        justify-content: flex-start;
+        font-size: 8px;
       }
 
       .demo-nav {
@@ -148,14 +177,13 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }
 
     const ctx = canvas.getContext('2d', { alpha: false });
-    const glyphCanvas = document.createElement('canvas');
-    const glyphCtx = glyphCanvas.getContext('2d', { willReadFrequently: true });
 
-    if (!ctx || !glyphCtx) {
+    if (!ctx) {
       throw new Error('Canvas 2D context is unavailable.');
     }
 
     const clamp = (value, min = 0, max = 1) => Math.min(max, Math.max(min, value));
+
     const smoothstep = (edge0, edge1, value) => {
       const t = clamp((value - edge0) / Math.max(0.0001, edge1 - edge0));
       return t * t * (3 - 2 * t);
@@ -167,12 +195,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     let width = 1;
     let height = 1;
     let dpr = 1;
-    let spacing = 16;
+    let spacing = 17;
     let points = [];
     let letterMetrics = [];
     let currentChar = '';
-    let previousGlyph = new Float32Array(0);
-    let currentGlyph = new Float32Array(0);
+    let previousChar = '';
     let glyphTransition = 1;
     let hoverStrength = 0;
     let lastTime = performance.now();
@@ -203,12 +230,11 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     function rebuildLetterMetrics() {
       letterMetrics = [...document.querySelectorAll('.point-letter')].map((node) => {
         const rect = node.getBoundingClientRect();
+
         return {
           node,
           char: node.dataset.char ?? '',
           rect,
-          cx: rect.left + rect.width * 0.5,
-          cy: rect.top + rect.height * 0.5,
         };
       });
     }
@@ -219,88 +245,90 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       return Math.hypot(dx, dy);
     }
 
-    function makeSourceLuminance(x, y, time) {
-      const nx = x / width;
-      const ny = y / height;
-      const drift = time * 0.00008;
+    function hash01(value) {
+      const x = Math.sin(value * 91.3458) * 47453.5453;
+      return x - Math.floor(x);
+    }
 
-      const waveA = Math.sin((nx * 2.6 + ny * 1.25 + drift) * Math.PI * 2) * 0.5 + 0.5;
-      const waveB = Math.sin((nx * -1.15 + ny * 3.1 - drift * 0.72) * Math.PI * 2) * 0.5 + 0.5;
+    function sourceLuminance(point, time) {
+      const nx = point.x / width;
+      const ny = point.y / height;
+      const t = time * 0.000055;
 
-      const rx = nx - (0.72 + Math.sin(drift * 2.1) * 0.08);
-      const ry = ny - (0.34 + Math.cos(drift * 1.6) * 0.09);
-      const radial = Math.exp(-(rx * rx * 4.2 + ry * ry * 7.2));
+      const waveA = Math.sin((nx * 1.72 + ny * 0.68 + t * 1.1) * Math.PI * 2);
+      const waveB = Math.sin((nx * -0.82 + ny * 2.15 - t * 0.72) * Math.PI * 2);
+      const waveC = Math.cos((nx * 2.54 - ny * 1.17 + t * 0.43) * Math.PI * 2);
 
-      return clamp(0.08 + waveA * 0.16 + waveB * 0.1 + radial * 0.52);
+      const c1x = 0.18 + Math.sin(t * 1.31) * 0.13;
+      const c1y = 0.33 + Math.cos(t * 0.87) * 0.17;
+      const c2x = 0.73 + Math.cos(t * 0.71) * 0.16;
+      const c2y = 0.62 + Math.sin(t * 1.09) * 0.19;
+      const c3x = 0.48 + Math.sin(t * 0.51 + 2.3) * 0.21;
+      const c3y = 0.22 + Math.cos(t * 0.63 + 0.9) * 0.13;
+
+      const dx1 = nx - c1x;
+      const dy1 = ny - c1y;
+      const dx2 = nx - c2x;
+      const dy2 = ny - c2y;
+      const dx3 = nx - c3x;
+      const dy3 = ny - c3y;
+
+      const blob1 = Math.exp(-(dx1 * dx1 * 9.5 + dy1 * dy1 * 7.5));
+      const blob2 = Math.exp(-(dx2 * dx2 * 7.0 + dy2 * dy2 * 10.5));
+      const blob3 = Math.exp(-(dx3 * dx3 * 13.0 + dy3 * dy3 * 8.0));
+
+      const drift = (waveA * 0.13 + waveB * 0.09 + waveC * 0.06);
+      const seedBias = (point.bias - 0.5) * 0.08;
+
+      return clamp(0.16 + drift + blob1 * 0.34 + blob2 * 0.42 + blob3 * 0.24 + seedBias);
     }
 
     function resize() {
       width = Math.max(1, window.innerWidth);
       height = Math.max(1, window.innerHeight);
       dpr = Math.min(window.devicePixelRatio || 1, 1.5);
-      spacing = width < 700 ? 13 : clamp(width / 92, 14, 20);
+      spacing = width < 700 ? 15 : clamp(width / 88, 16, 21);
 
       canvas.width = Math.round(width * dpr);
       canvas.height = Math.round(height * dpr);
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
+      canvas.style.width = width + 'px';
+      canvas.style.height = height + 'px';
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-
-      glyphCanvas.width = Math.round(width);
-      glyphCanvas.height = Math.round(height);
 
       points = [];
       const offsetX = (width % spacing) * 0.5;
       const offsetY = (height % spacing) * 0.5;
+      let index = 0;
 
       for (let y = offsetY; y <= height; y += spacing) {
         for (let x = offsetX; x <= width; x += spacing) {
-          points.push({ x, y, scale: 0.2, velocity: 0 });
+          points.push({
+            x,
+            y,
+            bias: hash01(index + 17),
+            scale: 0.45,
+            alpha: 0.2,
+            scaleVelocity: 0,
+            alphaVelocity: 0,
+          });
+          index += 1;
         }
       }
-
-      previousGlyph = new Float32Array(points.length);
-      currentGlyph = currentChar ? rasterizeGlyph(currentChar) : new Float32Array(points.length);
-      glyphTransition = 1;
 
       requestAnimationFrame(rebuildLetterMetrics);
     }
 
-    function rasterizeGlyph(char) {
-      const mask = new Float32Array(points.length);
-      glyphCtx.clearRect(0, 0, width, height);
-
-      const fontSize = Math.min(width * 0.48, height * 0.72);
-      glyphCtx.fillStyle = '#fff';
-      glyphCtx.textAlign = 'center';
-      glyphCtx.textBaseline = 'middle';
-      glyphCtx.font = `700 ${fontSize}px Arial, Helvetica, sans-serif`;
-      glyphCtx.fillText(char, width * 0.56, height * 0.5);
-
-      const pixels = glyphCtx.getImageData(0, 0, width, height).data;
-
-      points.forEach((point, index) => {
-        const px = clamp(Math.round(point.x), 0, width - 1);
-        const py = clamp(Math.round(point.y), 0, height - 1);
-        const alpha = pixels[(py * width + px) * 4 + 3] / 255;
-        mask[index] = alpha;
-      });
-
-      return mask;
-    }
-
     function setGlyph(char) {
-      if (!char || char === currentChar) return;
+      if (!char || char === currentChar) {
+        return;
+      }
 
-      previousGlyph = currentGlyph.length === points.length
-        ? currentGlyph.slice()
-        : new Float32Array(points.length);
+      previousChar = currentChar;
       currentChar = char;
-      currentGlyph = rasterizeGlyph(char);
       glyphTransition = 0;
 
       if (glyphReadout) {
-        glyphReadout.textContent = `GLYPH: ${char}`;
+        glyphReadout.textContent = 'INSTANCE: ' + char;
       }
     }
 
@@ -308,7 +336,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
       letterMetrics.forEach(({ node }) => node.removeAttribute('data-near'));
 
       if (!pointer.present || letterMetrics.length === 0) {
-        hoverStrength += (0 - hoverStrength) * 0.12;
+        hoverStrength += (0 - hoverStrength) * (prefersReducedMotion ? 0.32 : 0.11);
+
+        if (hoverStrength < 0.01 && glyphReadout) {
+          glyphReadout.textContent = 'INSTANCE: POINT';
+        }
+
         return;
       }
 
@@ -317,20 +350,44 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       for (const metric of letterMetrics) {
         const distance = distanceToRect(pointer.x, pointer.y, metric.rect);
+
         if (distance < nearestDistance) {
           nearestDistance = distance;
           nearest = metric;
         }
       }
 
-      const radius = width < 700 ? 72 : 110;
+      const radius = width < 700 ? 82 : 118;
       const targetStrength = 1 - smoothstep(0, radius, nearestDistance);
-      hoverStrength += (targetStrength - hoverStrength) * 0.16;
+      hoverStrength += (targetStrength - hoverStrength) * (prefersReducedMotion ? 0.34 : 0.16);
 
       if (nearest && targetStrength > 0.015) {
         nearest.node.dataset.near = 'true';
         setGlyph(pointer.lockedChar || nearest.char);
       }
+    }
+
+    function drawPoint(point, alpha, scale) {
+      const radius = Math.max(0.55, spacing * 0.115 * scale);
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#f4f4f5';
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    function drawGlyph(point, char, alpha, scale) {
+      if (!char || alpha <= 0.002) {
+        return;
+      }
+
+      const fontSize = Math.max(7, spacing * (0.74 + scale * 0.9));
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = '#f4f4f5';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.font = '600 ' + fontSize + 'px ui-monospace, SFMono-Regular, Menlo, Consolas, monospace';
+      ctx.fillText(char, point.x, point.y + fontSize * 0.035);
     }
 
     function draw(now) {
@@ -339,43 +396,49 @@ import BaseLayout from '../layouts/BaseLayout.astro';
 
       updateHoverTarget();
 
-      const transitionSpeed = prefersReducedMotion ? 0.22 : 0.055;
+      const transitionSpeed = prefersReducedMotion ? 0.28 : 0.064;
       glyphTransition = clamp(glyphTransition + transitionSpeed * (dt / 16.67));
       const glyphEase = smoothstep(0, 1, glyphTransition);
 
       ctx.fillStyle = '#080808';
       ctx.fillRect(0, 0, width, height);
 
-      const baseRadius = spacing * 0.43;
-      const spring = prefersReducedMotion ? 0.32 : 0.115;
-      const damping = prefersReducedMotion ? 0.45 : 0.76;
+      const spring = prefersReducedMotion ? 0.34 : 0.12;
+      const damping = prefersReducedMotion ? 0.44 : 0.76;
 
-      points.forEach((point, index) => {
-        const source = makeSourceLuminance(point.x, point.y, now);
-        const glyph = previousGlyph[index] * (1 - glyphEase) + currentGlyph[index] * glyphEase;
-        const glyphLift = glyph * hoverStrength * 0.82;
-        const mixed = clamp(source + glyphLift * (1 - source));
+      for (const point of points) {
+        const luminance = sourceLuminance(point, now);
 
-        const targetScale = 0.16 + Math.pow(mixed, 0.92) * 1.04;
-        point.velocity = (point.velocity + (targetScale - point.scale) * spring) * damping;
-        point.scale += point.velocity;
+        const targetScale = 0.35 + Math.pow(luminance, 0.9) * 1.2;
+        const targetAlpha = 0.06 + Math.pow(luminance, 0.72) * 0.82;
 
-        const radius = Math.max(0.45, baseRadius * point.scale);
-        const alpha = 0.22 + mixed * 0.62;
+        point.scaleVelocity = (point.scaleVelocity + (targetScale - point.scale) * spring) * damping;
+        point.alphaVelocity = (point.alphaVelocity + (targetAlpha - point.alpha) * spring) * damping;
+        point.scale += point.scaleVelocity;
+        point.alpha += point.alphaVelocity;
 
-        ctx.globalAlpha = alpha;
-        ctx.fillStyle = '#f4f4f5';
-        ctx.beginPath();
-        ctx.arc(point.x, point.y, radius, 0, Math.PI * 2);
-        ctx.fill();
-      });
+        const instanceMix = smoothstep(0.04, 0.92, hoverStrength);
+        const pointAlpha = point.alpha * (1 - instanceMix * 0.96);
+        const glyphAlpha = point.alpha * instanceMix;
+
+        drawPoint(point, pointAlpha, point.scale);
+
+        if (previousChar && glyphEase < 0.999) {
+          drawGlyph(point, previousChar, glyphAlpha * (1 - glyphEase), point.scale);
+        }
+
+        drawGlyph(point, currentChar, glyphAlpha * glyphEase, point.scale);
+      }
 
       ctx.globalAlpha = 1;
       requestAnimationFrame(draw);
     }
 
     window.addEventListener('pointermove', (event) => {
-      if (event.pointerType === 'touch') return;
+      if (event.pointerType === 'touch') {
+        return;
+      }
+
       pointer.x = event.clientX;
       pointer.y = event.clientY;
       pointer.present = true;
@@ -383,13 +446,12 @@ import BaseLayout from '../layouts/BaseLayout.astro';
     }, { passive: true });
 
     window.addEventListener('pointerleave', () => {
-      pointer.present = false;
-      pointer.lockedChar = '';
+      if (!pointer.lockedChar) {
+        pointer.present = false;
+      }
     });
 
-    window.addEventListener('resize', () => {
-      resize();
-    });
+    window.addEventListener('resize', resize);
 
     resize();
     requestAnimationFrame(draw);
