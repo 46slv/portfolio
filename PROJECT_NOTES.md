@@ -1,6 +1,6 @@
 # SS_Portfolio Project Notes
 
-Last updated: 2026-06-08 JST
+Last updated: 2026-10-22 JST
 
 This file is the working specification and implementation log for this repository. Keep it current when changing architecture, data ownership, UI behavior, or operational assumptions.
 
@@ -40,25 +40,40 @@ This file is the working specification and implementation log for this repositor
   - The rendered card structure and classes should remain stable.
 - Gear entries still use the Astro content collection under `src/content/gear`.
 
-## Visualizer Notes
+## Visualizer Workspace Redevelopment - 2026-10-22
 
-- `src/components/Visualizer.astro` imports and uses `AudioEngine`.
-- Audio graph ownership belongs in `src/lib/audio/AudioEngine.ts`.
-- Monitor output volume is controlled directly through `AudioEngine.setMonitorLevel()`.
-- Output volume defaults to `0` to avoid feedback.
-- The previous output ON/OFF button state should not be reintroduced.
-- Knob handling is centralized in `KnobEngine` inside `Visualizer.astro`.
-- Rendering prefers `src/scripts/visualizer-worker.ts` with OffscreenCanvas.
-- Main-thread rendering remains as fallback for unsupported environments and mini mode.
-- `Tab` toggles wave-only mode:
-  - hides HUD
-  - hides control panel
-  - hides topbar via `ss-scope-only`
-  - leaves only the waveform on black background
-- Mobile support requirements:
-  - control panel must scroll internally
-  - safe-area insets must be respected
-  - narrow widths should avoid HUD/topbar overlap
+This supersedes the earlier v4 knob, full-screen engagement gate, global Tab shortcut,
+DSP and silent-right duplication requirements in the historical entries below.
+
+- `/visualizer` is an inspection/presentation workspace with an unobstructed canvas,
+  a 300px desktop sidebar, and normal stacked document scrolling on mobile.
+- Native labeled controls group Input, View, Appearance and optional Diagnostics.
+  OSC, Spectrum and XY are primary; Radial, Waterfall and Particles are secondary.
+- Source states are explicit: idle, requesting, mic, demo, error, disposed. Demo is
+  generated PCM with ideal frequency magnitudes, silent and independent of Web Audio.
+  Microphone permission is requested only from the user's microphone action.
+- `AudioEngine` owns a raw analysis graph, generation-guarded stream acquisition,
+  device-ended listeners, and exactly-zero default monitor/analysis sink gains.
+  Display gain does not change monitor volume. Stop, source changes, hidden pages
+  and cleanup release microphone tracks, including late permission completions.
+  Hidden microphone capture requires an explained, explicit restart; demo resumes.
+- Known mono inputs explicitly duplicate L into R. Unknown/stereo inputs preserve a
+  genuinely silent right channel. XY uses common paired sample indices, equal axis
+  scale, positive Y upward and no hidden rotation.
+- `src/lib/visualizer/Renderer.ts` is the shared Canvas 2D renderer for worker and
+  main-thread fallback, with all six modes in both paths. Worker failure replaces
+  the transferred canvas and reports the degraded path visibly.
+- `FramePump` owns one main RAF deadline and at most one unacknowledged frame.
+  Worker rendering occurs only on a frame message and ACKs ID, generation and
+  actual draw cost. No capture/render work is scheduled when stopped or hidden.
+- Coherent Eco/Balanced/High budgets set FPS, FFT, frequency bands and backing area.
+  Balanced defaults to 30fps / 0.92MP, and every preset is capped at FHD area plus
+  an independent dimension cap regardless of DPR. Waterfall is a 128×96 ring/bitmap,
+  with accumulated 20Hz history; motion and persistence use elapsed visible time.
+- Cosmetic glow, persistence and CRT scanlines default off. Color preserves the
+  existing exact preset, hue, pastel lightness, neutral-white and reset contracts.
+- Focus view has an explicit exit and Escape; Tab remains normal keyboard navigation.
+- See `docs/visualizer-workspace.md` for architecture, verification and limitations.
 
 ## Header Notes
 
