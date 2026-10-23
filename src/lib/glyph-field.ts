@@ -8,12 +8,14 @@ export interface FieldPointer {
 export const POINT_BUDGET = 2600;
 export const MAX_DPR = 2;
 export const GLYPH_ATLAS_TILE_SIZE = 32;
-export const POINT_DRIFT_RADIUS = 4.5;
+export const FIELD_PADDING = 32;
+export const EDGE_FADE = 18;
+export const POINT_VELOCITY = { x: 1.8, y: 1.2 };
+export const GRADIENT_VELOCITY = { x: 2.4, y: 1.6 };
 
 export interface FieldPoint {
   x: number;
   y: number;
-  phase: number;
 }
 
 /** Two RGBA atlases, independent of viewport DPR: at most 20.32 MiB total. */
@@ -35,46 +37,95 @@ const smoothstep = (low: number, high: number, value: number) => {
   return t * t * (3 - 2 * t);
 };
 
-// Smaller lobes keep several light/dark regions visible even in portrait. The
-// phase advances six times faster than the original 48–90s waves (now 8–15s),
-// producing visible flow within 1–2s independently of the slower point drift, without temporal noise.
+// Preserve the existing 2.6x spatial detail and 6x color evolution. A separate
+// common translation carries that evolving field diagonally down and right.
 const FIELD_SPATIAL_SCALE = 2.6;
-const FIELD_TIME_SCALE = 6;
+const EVOLUTION_RATES = [0.13 * 6, -0.09 * 6, 0.07 * 6];
+const TRANSLATION_RATES = [
+  -FIELD_SPATIAL_SCALE * (GRADIENT_VELOCITY.x / 285 + GRADIENT_VELOCITY.y / 410),
+  -FIELD_SPATIAL_SCALE * (GRADIENT_VELOCITY.y / 240 - GRADIENT_VELOCITY.x / 610),
+  -FIELD_SPATIAL_SCALE * (GRADIENT_VELOCITY.x / 510 - GRADIENT_VELOCITY.y / 330),
+];
+const TAU = Math.PI * 2;
+const wrap = (value: number, span: number) => {
+  const remainder = value % span;
+  return remainder < 0 ? remainder + span : remainder;
+};
+const advanceCycle = (value: number, rate: number, elapsed: number, span: number) =>
+  wrap(value + (elapsed % (span / Math.abs(rate))) * rate, span);
 
-/** Continuous grayscale waves; motion never depends on an active pointer. */
-export function sampleLuminance(x: number, y: number, seconds: number, pointer: FieldPointer): number {
+export interface FieldMotion {
+  offsetX: number;
+  offsetY: number;
+  evolution: number[];
+  translation: number[];
+}
+
+export function createFieldMotion(): FieldMotion {
+  return { offsetX: 0, offsetY: 0, evolution: [0, 0, 0], translation: [0, 0, 0] };
+}
+
+/** Bounded shared offsets/phases, never an accumulating world coordinate.
+ * Zero elapsed normalizes offsets after resize without restarting motion. */
+export function advanceFieldMotion(motion: FieldMotion, elapsed: number, width: number, height: number): void {
+  const delta = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+  motion.offsetX = advanceCycle(motion.offsetX, POINT_VELOCITY.x, delta, width + 2 * FIELD_PADDING);
+  motion.offsetY = advanceCycle(motion.offsetY, POINT_VELOCITY.y, delta, height + 2 * FIELD_PADDING);
+  for (let index = 0; index < 3; index++) {
+    motion.evolution[index] = advanceCycle(motion.evolution[index], EVOLUTION_RATES[index], delta, TAU);
+    motion.translation[index] = advanceCycle(motion.translation[index], TRANSLATION_RATES[index], delta, TAU);
+  }
+}
+
+/** Evolving grayscale plus common diagonal advection. Pointer light stays in
+ * screen coordinates. Numeric time remains available for pure sampling tests. */
+export function sampleLuminance(x: number, y: number, time: number | FieldMotion, pointer: FieldPointer): number {
   const fieldX = x * FIELD_SPATIAL_SCALE;
   const fieldY = y * FIELD_SPATIAL_SCALE;
-  const fieldTime = seconds * FIELD_TIME_SCALE;
+  const seconds = typeof time === 'number' && Number.isFinite(time) ? time : 0;
+  const evolution = typeof time === 'number'
+    ? EVOLUTION_RATES.map((rate) => advanceCycle(0, rate, seconds, TAU)) : time.evolution;
+  const translation = typeof time === 'number'
+    ? TRANSLATION_RATES.map((rate) => advanceCycle(0, rate, seconds, TAU)) : time.translation;
   const field = 0.46
-    + 0.30 * Math.sin(fieldX / 285 + fieldY / 410 + fieldTime * 0.13)
-    + 0.23 * Math.cos(fieldY / 240 - fieldX / 610 - fieldTime * 0.09)
-    + 0.17 * Math.sin(fieldX / 510 - fieldY / 330 + fieldTime * 0.07);
+    + 0.30 * Math.sin(fieldX / 285 + fieldY / 410 + evolution[0] + translation[0])
+    + 0.23 * Math.cos(fieldY / 240 - fieldX / 610 + evolution[1] + translation[1])
+    + 0.17 * Math.sin(fieldX / 510 - fieldY / 330 + evolution[2] + translation[2]);
   const distanceSquared = (x - pointer.x) ** 2 + (y - pointer.y) ** 2;
   const pointerLight = pointer.active ? 0.82 * Math.exp(-distanceSquared / (2 * 105 ** 2)) : 0;
-  // Explicit endpoints matter: some areas really are empty, others are white.
   return smoothstep(0.26, 0.87, field + pointerLight);
 }
 
+/** A uniform torus extends beyond every screen edge. Recycling occurs only in
+ * the invisible padding; point count and spacing stay bounded across wraps. */
 export function makeGrid(width: number, height: number): FieldPoint[] {
-  const spacing = Math.max(22, Math.sqrt(width * height / POINT_BUDGET));
-  const columns = Math.min(POINT_BUDGET, Math.max(1, Math.floor(width / spacing)));
-  const rows = Math.min(Math.floor(POINT_BUDGET / columns), Math.max(1, Math.floor(height / spacing)));
+  const spanX = width + 2 * FIELD_PADDING;
+  const spanY = height + 2 * FIELD_PADDING;
+  const spacing = Math.max(22, Math.sqrt(spanX * spanY / POINT_BUDGET));
+  const columns = Math.min(POINT_BUDGET, Math.max(1, Math.floor(spanX / spacing)));
+  const rows = Math.min(Math.floor(POINT_BUDGET / columns), Math.max(1, Math.floor(spanY / spacing)));
   return Array.from({ length: columns * rows }, (_, index) => ({
-    x: (index % columns + 0.5) * width / columns,
-    y: (Math.floor(index / columns) + 0.5) * height / rows,
-    phase: index * 2.399963229728653 % (Math.PI * 2),
+    x: -FIELD_PADDING + (index % columns + 0.5) * spanX / columns,
+    y: -FIELD_PADDING + (Math.floor(index / columns) + 0.5) * spanY / rows,
   }));
 }
 
-/** Continuous, bounded orbits around stable anchors. No wrap or random steps.
- * Reduced motion freezes the renderer's existing clock at its current time. */
-export function pointPosition(point: FieldPoint, seconds: number): { x: number; y: number } {
-  const radius = Math.min(POINT_DRIFT_RADIUS, point.x / 2, point.y / 2);
+export function pointPosition(point: FieldPoint, motion: FieldMotion, width: number, height: number): { x: number; y: number } {
   return {
-    x: point.x + radius * Math.sin(seconds * 0.065 + point.phase),
-    y: point.y + radius * Math.cos(seconds * 0.053 + point.phase * 1.61803398875),
+    x: wrap(point.x + FIELD_PADDING + motion.offsetX, width + 2 * FIELD_PADDING) - FIELD_PADDING,
+    y: wrap(point.y + FIELD_PADDING + motion.offsetY, height + 2 * FIELD_PADDING) - FIELD_PADDING,
   };
+}
+
+export function pointVisibility(x: number, y: number, width: number, height: number): number {
+  const fade = Math.min(EDGE_FADE, width / 4, height / 4);
+  return fade > 0 ? smoothstep(0, fade, Math.min(x, y, width - x, height - y)) : 0;
+}
+
+/** One visible sample owns drawing, text readability and transition delays. */
+export function samplePoint(point: FieldPoint, motion: FieldMotion, width: number, height: number, pointer: FieldPointer) {
+  const { x, y } = pointPosition(point, motion, width, height);
+  return { x, y, luminance: sampleLuminance(x, y, motion, pointer) * pointVisibility(x, y, width, height) };
 }
 
 export const GLYPH_MAX_DELAY_SECONDS = 0.42;

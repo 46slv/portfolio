@@ -14,11 +14,17 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
-## Home Dot Motion And Text Response - 2026-10-23
+## Home Directional Flow And Text Response - 2026-10-23
 
 - Home reuses its existing Canvas 2D field, stable grid anchors and paused 30fps
-  clock. Actual point positions drift on independent smooth 4.5px orbits; the
-  grayscale field, cursor glow and glyph transition timing remain separate.
+  clock. The clarified motion is permanent down-right translation at (1.8, 1.2)
+  CSS px/s, replacing the previous bounded orbits. A padded torus recycles only
+  off-screen; an 18px screen-edge fade keeps entries/exits continuous.
+- The grayscale field has a separate down-right translation at (2.4, 1.6) CSS
+  px/s while retaining its existing color evolution. Bounded per-wave phases
+  avoid moving an unbounded world coordinate; pointer light stays screen-anchored.
+- Drawing, transition delays and local text response share the same final sample
+  at each moving point, including the screen-edge fade.
 - Every rendered Home text block supplies glyphs, including header clock/status,
   log dates, section labels, Direct Link details and the shared footer. Other
   routes do not enable the Home flag, field or palette.
@@ -30,7 +36,7 @@ This file is the working specification and implementation log for this repositor
   readability change. Bio hover dimming and entrance motion are retained.
 - Reduced motion freezes dot positions and the field without a standing field
   RAF; hidden/pagehide pauses resume without a spatial jump.
-- Local verification: 61 tests pass; frontend-only Astro check has no diagnostics
+- Local verification: 65 tests pass; frontend-only Astro check has no diagnostics
   and its static build emits all four routes. Built Home covers all 50 visible
   text runs. Cloudflare adapter initialization is blocked in the restricted
   environment, so full adapter build and real-browser acceptance remain open.

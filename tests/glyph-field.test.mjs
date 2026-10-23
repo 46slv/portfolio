@@ -4,7 +4,8 @@ import {
   createGlyphTransition, GLYPH_ATLAS_MAX_BYTES, GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS,
   GLYPH_MAX_DELAY_SECONDS, glyphAtlasLayout, luminanceDelay, makeGrid, POINT_BUDGET,
   retargetGlyphTransition, sampleLuminance, segmentGraphemes, transitionDotWeight, transitionProgress,
-  pointPosition, POINT_DRIFT_RADIUS,
+  advanceFieldMotion, createFieldMotion, FIELD_PADDING, EDGE_FADE, POINT_VELOCITY,
+  GRADIENT_VELOCITY, pointPosition, pointVisibility, samplePoint,
 } from '../src/lib/glyph-field.ts';
 
 test('stable anchors stay within the point budget at desktop, mobile and 4K sizes', () => {
@@ -12,44 +13,156 @@ test('stable anchors stay within the point budget at desktop, mobile and 4K size
     const points = makeGrid(width, height);
     assert.ok(points.length > 0 && points.length <= POINT_BUDGET);
     assert.deepEqual(points, makeGrid(width, height));
-    assert.ok(points.every(({ x, y }) => x > 0 && x < width && y > 0 && y < height));
+    assert.ok(points.every(({ x, y }) => x > -FIELD_PADDING && x < width + FIELD_PADDING && y > -FIELD_PADDING && y < height + FIELD_PADDING));
   }
 });
 
-test('dot positions drift independently on bounded, continuous slow orbits', () => {
-  const anchors = makeGrid(390, 844);
-  const original = structuredClone(anchors);
-  const moved = anchors.map((point) => {
-    const start = pointPosition(point, 0);
-    const later = pointPosition(point, 10);
-    return [later.x - start.x, later.y - start.y];
-  });
-  assert.ok(moved.filter(([x, y]) => Math.hypot(x, y) > 0.5).length > anchors.length * 0.8);
-  assert.ok(new Set(moved.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)).size > 100,
-    'independent phases, not a rigid translation');
-  for (const point of anchors.filter((_, index) => index % 13 === 0)) {
-    for (const seconds of [0, 1, 5, 30, 60, 96.66, 118.55, 180]) {
-      const position = pointPosition(point, seconds);
-      const next = pointPosition(point, seconds + 1 / 30);
-      assert.ok(Math.abs(position.x - point.x) <= POINT_DRIFT_RADIUS);
-      assert.ok(Math.abs(position.y - point.y) <= POINT_DRIFT_RADIUS);
-      assert.ok(Math.hypot(next.x - position.x, next.y - position.y) < 0.5 / 30,
-        'no frame-sized wrap, step or jump near period boundaries');
-    }
+test('points translate diagonally for an hour without reversing or returning to their anchors', () => {
+  const [width, height] = [10000, 10000];
+  const point = makeGrid(width, height)[0];
+  const original = structuredClone(point);
+  const motion = createFieldMotion();
+  const start = pointPosition(point, motion, width, height);
+  let previous = start;
+  let elapsed = 0;
+  for (const seconds of [1, 10, 30, 180, 600, 1800, 3600]) {
+    advanceFieldMotion(motion, seconds - elapsed, width, height);
+    const current = pointPosition(point, motion, width, height);
+    assert.ok(current.x > previous.x && current.y > previous.y, 'both axes keep their direction away from wraps');
+    assert.ok(Math.abs(current.x - start.x - seconds * POINT_VELOCITY.x) < 1e-8);
+    assert.ok(Math.abs(current.y - start.y - seconds * POINT_VELOCITY.y) < 1e-8);
+    previous = current;
+    elapsed = seconds;
   }
-  assert.deepEqual(anchors, original, 'rendered coordinates never replace the stable anchors');
+  assert.deepEqual(point, original, 'anchors never accumulate displacement');
 });
 
-test('drift retains the viewport edges and point budget on mobile and tiny viewports', () => {
-  for (const [width, height] of [[1440, 900], [390, 844], [320, 740], [1, 1], [1, 100000], [100000, 1]]) {
-    const anchors = makeGrid(width, height);
-    assert.ok(anchors.length <= POINT_BUDGET);
-    for (const point of anchors) for (const seconds of [0, 10, 60, 120]) {
-      const { x, y } = pointPosition(point, seconds);
-      assert.ok(Number.isFinite(x) && Number.isFinite(y));
-      assert.ok(x > 0 && x < width && y > 0 && y < height);
+test('padded wrapping is invisible, smooth at the viewport edge and preserves density', () => {
+  const off = { x: 0, y: 0, active: false };
+  for (const [width, height] of [[390, 844], [1440, 900]]) {
+    const grid = makeGrid(width, height);
+    const columns = new Set(grid.map(({ x }) => x)).size;
+    const rows = grid.length / columns;
+    const counts = [];
+    for (let seconds = 0; seconds <= 2000; seconds += 25) {
+      const motion = createFieldMotion();
+      advanceFieldMotion(motion, seconds, width, height);
+      const positions = grid.map((point) => samplePoint(point, motion, width, height, off));
+      counts.push(positions.filter(({ x, y }) => x > 0 && x < width && y > 0 && y < height).length);
+      assert.equal(new Set(positions.map(({ x, y }) => `${x.toFixed(6)},${y.toFixed(6)}`)).size, grid.length);
+      assert.ok(positions.every(({ x, y, luminance }) => x >= -FIELD_PADDING && x < width + FIELD_PADDING
+        && y >= -FIELD_PADDING && y < height + FIELD_PADDING && luminance >= 0 && luminance <= 1));
+    }
+    assert.ok(Math.max(...counts) - Math.min(...counts) <= columns + rows + 1,
+      'screen population varies by at most one translated row/column, without gaps or accumulating points');
+    for (const axis of ['x', 'y']) {
+      const size = axis === 'x' ? width : height;
+      const point = grid.reduce((best, next) => next[axis] > best[axis] ? next : best);
+      const untilWrap = (size + FIELD_PADDING - point[axis]) / POINT_VELOCITY[axis];
+      const motion = createFieldMotion();
+      advanceFieldMotion(motion, untilWrap - 1 / 60, width, height);
+      const before = samplePoint(point, motion, width, height, off);
+      advanceFieldMotion(motion, 1 / 30, width, height);
+      const after = samplePoint(point, motion, width, height, off);
+      assert.equal(before.luminance, 0);
+      assert.equal(after.luminance, 0, 'a recycled dot/glyph is fully invisible in the padded seam');
+      assert.ok(before[axis] > size && after[axis] < 0);
+      assert.ok(Math.abs(after[axis] + size + 2 * FIELD_PADDING - before[axis]
+        - POINT_VELOCITY[axis] / 30) < 1e-9);
+    }
+    assert.equal(pointVisibility(0, height / 2, width, height), 0);
+    assert.equal(pointVisibility(EDGE_FADE, height / 2, width, height), 1);
+    assert.equal(pointVisibility(width, height / 2, width, height), 0);
+    assert.ok(pointVisibility(0.001, height / 2, width, height) < 1e-7);
+    assert.ok(pointVisibility(EDGE_FADE / 2, height / 2, width, height) > 0);
+  }
+});
+
+test('translation offsets and wave phases stay bounded through long use and resize', () => {
+  const motion = createFieldMotion();
+  for (let step = 0; step < 50000; step++) advanceFieldMotion(motion, 0.1, 390, 844);
+  assert.ok(Math.abs(motion.offsetX - (5000 * POINT_VELOCITY.x % (390 + 2 * FIELD_PADDING))) < 1e-7);
+  assert.ok(Math.abs(motion.offsetY - (5000 * POINT_VELOCITY.y % (844 + 2 * FIELD_PADDING))) < 1e-7);
+  const off = { x: 0, y: 0, active: false };
+  for (const [x, y] of [[40, 600], [300, 300], [800, 500]]) {
+    assert.ok(Math.abs(sampleLuminance(x, y, motion, off) - sampleLuminance(x, y, 5000, off)) < 1e-8,
+      'many short frame steps agree with the analytic long-time field');
+  }
+  for (const [width, height] of [[390, 844], [1440, 900], [1, 1], [1, 100000], [100000, 1]]) {
+    const phaseBefore = [...motion.evolution, ...motion.translation];
+    advanceFieldMotion(motion, 0, width, height);
+    assert.deepEqual([...motion.evolution, ...motion.translation], phaseBefore, 'resize preserves field phase');
+    assert.ok(motion.offsetX >= 0 && motion.offsetX < width + 2 * FIELD_PADDING);
+    assert.ok(motion.offsetY >= 0 && motion.offsetY < height + 2 * FIELD_PADDING);
+    assert.ok(makeGrid(width, height).length <= POINT_BUDGET);
+    advanceFieldMotion(motion, 30 * 24 * 3600, width, height);
+    assert.ok([...motion.evolution, ...motion.translation].every((phase) => Number.isFinite(phase) && phase >= 0 && phase < Math.PI * 2));
+    assert.ok(motion.offsetX >= 0 && motion.offsetX < width + 2 * FIELD_PADDING);
+    assert.ok(motion.offsetY >= 0 && motion.offsetY < height + 2 * FIELD_PADDING);
+  }
+});
+
+test('gradient advection translates diagonally while the original color evolution stays live', () => {
+  const off = { x: 0, y: 0, active: false };
+  for (const seconds of [1, 30, 600, 3600]) {
+    const motion = createFieldMotion();
+    advanceFieldMotion(motion, seconds, 390, 844);
+    const evolving = { ...motion, translation: [0, 0, 0] };
+    const translating = { ...motion, evolution: [0, 0, 0] };
+    [0.78, -0.54, 0.42].forEach((rate, index) => {
+      assert.ok(Math.abs(Math.sin(motion.evolution[index]) - Math.sin(rate * seconds)) < 1e-11);
+    });
+    for (const [x, y] of [[25, 35], [340, 390], [800, 300]]) {
+      const dx = GRADIENT_VELOCITY.x * seconds;
+      const dy = GRADIENT_VELOCITY.y * seconds;
+      assert.ok(Math.abs(sampleLuminance(x, y, motion, off)
+        - sampleLuminance(x - dx, y - dy, evolving, off)) < 1e-11,
+      'same evolving field sampled at the inverse common displacement');
+      assert.ok(Math.abs(sampleLuminance(x + dx, y + dy, translating, off)
+        - sampleLuminance(x, y, createFieldMotion(), off)) < 1e-11,
+      'a gradient feature follows the chosen diagonal velocity when evolution is held fixed');
+      assert.ok(Math.abs(sampleLuminance(x, y, motion, off) - sampleLuminance(x, y, seconds, off)) < 1e-11);
     }
   }
+});
+
+test('gradient phase wraps stay continuous and pointer light stays in screen space', () => {
+  const off = { x: 0, y: 0, active: false };
+  const rates = [0.78, -0.54, 0.42,
+    -2.6 * (2.4 / 285 + 1.6 / 410), -2.6 * (1.6 / 240 - 2.4 / 610), -2.6 * (2.4 / 510 - 1.6 / 330)];
+  for (const rate of rates) {
+    const motion = createFieldMotion();
+    advanceFieldMotion(motion, Math.PI * 2 / Math.abs(rate) - 0.001, 390, 844);
+    const points = makeGrid(390, 844).filter((_, index) => index % 37 === 0);
+    const before = points.map(({ x, y }) => sampleLuminance(x, y, motion, off));
+    advanceFieldMotion(motion, 0.002, 390, 844);
+    assert.ok(points.every(({ x, y }, index) => Math.abs(sampleLuminance(x, y, motion, off) - before[index]) < 0.003),
+      'each evolution/advection phase wraps independently without resetting the combined field');
+  }
+  for (const seconds of [0, 10, 120]) {
+    const state = createFieldMotion();
+    advanceFieldMotion(state, seconds, 1440, 900);
+    const point = makeGrid(1440, 900).find(({ x, y }) => sampleLuminance(x, y, state, off) < 0.2);
+    assert.ok(point);
+    const on = { ...point, active: true };
+    assert.ok(sampleLuminance(point.x, point.y, state, on) > sampleLuminance(point.x, point.y, state, off) + 0.5);
+    assert.ok(Math.abs(sampleLuminance(point.x + 1000, point.y, state, on)
+      - sampleLuminance(point.x + 1000, point.y, state, off)) < 1e-10);
+  }
+});
+
+test('visible samples use moving positions, the current gradient and the same edge fade', () => {
+  const off = { x: 0, y: 0, active: false };
+  const motion = createFieldMotion();
+  advanceFieldMotion(motion, 160, 390, 844);
+  let differsFromAnchor = 0;
+  for (const point of makeGrid(390, 844)) {
+    const sample = samplePoint(point, motion, 390, 844, off);
+    const expected = sampleLuminance(sample.x, sample.y, motion, off) * pointVisibility(sample.x, sample.y, 390, 844);
+    assert.equal(sample.luminance, expected);
+    if (Math.abs(expected - sampleLuminance(point.x, point.y, motion, off)) > 0.2) differsFromAnchor++;
+  }
+  assert.ok(differsFromAnchor > 100, 'stale grid-anchor sampling would miss the rendered background');
 });
 
 test('one luminance field retains empty, intermediate and fully white samples on desktop and portrait', () => {
@@ -89,7 +202,7 @@ test('pointer-free waves visibly flow within 1–2 seconds but stay smooth frame
 
 test('portrait and desktop contain finer spatial variation without a denser point grid', () => {
   const pointer = { x: 0, y: 0, active: false };
-  for (const [width, height, count] of [[1440, 900, 2560], [390, 844, 646], [320, 740, 462]]) {
+  for (const [width, height, count] of [[1440, 900, 2520], [390, 844, 820], [320, 740, 612]]) {
     for (const seconds of [0, 2, 5, 10, 20, 30]) {
       // Mean vertical total variation at three independent cross-sections. A
       // broad, nearly single-lobe portrait field cannot meet this lower bound.
@@ -103,7 +216,7 @@ test('portrait and desktop contain finer spatial variation without a denser poin
       assert.ok(variation / 3 > 1.3, 'multiple light/dark lobes fit inside the viewport');
     }
     const points = makeGrid(width, height);
-    assert.equal(points.length, count, 'point spacing and the existing budget are unchanged');
+    assert.equal(points.length, count, 'padded grid density stays stable with no extra points during recycling');
   }
 });
 

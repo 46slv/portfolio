@@ -44,8 +44,8 @@ Feel free to check [our documentation](https://docs.astro.build) or jump into ou
 
 ## Home glyph background
 
-The Home page has a luminance-driven point field with subtle independent spatial
-drift. All rendered Home text supplies glyphs through explicit `data-glyph-source`
+The Home page has a luminance-driven point field with continuous slow diagonal
+translation and a separately translating/evolving grayscale field. All rendered Home text supplies glyphs through explicit `data-glyph-source`
 markers and receives the Home-only background-aware palette. Other routes retain
 their existing appearance.
 Run `npm test` for field, renderer, Home text coverage and existing visualizer regressions.
