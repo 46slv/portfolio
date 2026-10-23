@@ -5,17 +5,26 @@
 - Home only, on a fixed, decorative canvas below the existing content shell.
 - The canvas has `pointer-events: none` and `aria-hidden="true"`. There is no DOM
   text splitting, layout replacement, added interaction layer, or new dependency.
-- The name heading, both English/Japanese biography paragraphs (including their
-  nested link text), and Recent Logs text links explicitly opt in with
-  `data-glyph-source`. Other text does not activate the field.
+- All rendered Home text opts in with `data-glyph-source`: branding, status,
+  live clock/load labels, both names, English/Japanese biography and nested links,
+  Recent Logs heading/dates/links, Work Scope labels/descriptions, Direct Link
+  labels/arrows/descriptions, and both footer labels. Shared footer opt-in and the
+  adaptive palette are conditional on Home. Responsive layouts reuse that same
+  covered text tree; accessible-only canvas labels are not visible text sources.
 - The existing `#cursor-light` styles, dimensions, stacking, blend mode and
   mousemove positioning remain unchanged. Its existing event handler also shares
   numeric coordinates with the background. No second UI glow is created.
 
 ## Rendering and interaction
 
-The point positions are fixed between viewport resizes. Each point samples one
-analytic grayscale field made from smoothly flowing waves and a localized
+Grid anchors remain stable between viewport resizes. Rendered positions follow
+small continuous orbits with independent deterministic phases, at most 4.5px per
+axis and below 0.4px/s. The two drift periods are about 97 and 119 seconds; they
+are independent of the faster luminance waves. There is no wrap, respawn, random
+per-frame step or position feedback. Tiny viewports reduce the radius to retain
+points inside their cells. Dots and glyphs share the same moving position.
+
+Each rendered position samples one analytic grayscale field made from smoothly flowing waves and a localized
 contribution from the existing mouse position. Luminance controls both point size
 and alpha, with true zero and one endpoints, not a global dimming overlay. Idle
 points are dots. While an opted-in grapheme is hit, each visible point independently
@@ -53,26 +62,37 @@ white, including for otherwise colored emoji.
 
 ## Local text readability
 
-The home page imports `home-readability.css` only on its own route. Six explicit
-regions cover the header, name, biography, Recent Logs, Work Scope and Direct Link
-information. Each keeps its original dimensions, spacing, text colors and link
-classes. The biography wash follows its existing `max-w-3xl` text width. Existing
-Direct Link card styling is unchanged; no new cards, borders or padding are added.
+The Home route alone imports `home-readability.css` and enables the layout's
+`homeBackground` flag. Seven local regions cover Header, Name, Bio, Recent Logs,
+Work Scope, Direct Link and Footer. Owners remain outside entrance opacity and
+the rotary mask. They preserve dimensions, spacing, font classes and link/hover
+classes. The Bio wash still follows its existing `max-w-3xl` width.
 
-Each unanimated owner has a positioned negative-z pseudo-element with a 55% dark
-tint and a real 5px `backdrop-filter` blur, including the WebKit-prefixed form.
-The pseudo-element alone has a 12px feather mask and `pointer-events: none`. The
-foreground has no filter and remains sharp; the canvas outside these local regions
-is untouched. Browsers without backdrop-filter retain the tint as a fallback.
+Each region has the existing sharp-foreground/blurred-backdrop separation: only a
+negative-z, noninteractive pseudo-element receives the 5px prefixed/unprefixed
+backdrop blur and 12px feather. Its dark tint is now 65%, including the CSS-only
+fallback. The canvas outside these local regions is unchanged.
 
-The wash must not move inside `.animate-fade-slide` or the rotary viewport's
-existing mask: animated opacity and masks establish backdrop roots that can stop
-the filter from sampling the canvas. Existing entrance animations therefore remain
-on the inner foreground, while the wash lives on an unanimated outer owner. The
-rotary mask, 320px viewport, scroll handling, hover behavior and point renderer are
-unchanged. Bio opt-in is on each paragraph, not a global text selector; the existing
-`closest`/TreeWalker hit test already includes descendant link text and ignores
-whitespace and inter-paragraph gaps.
+During the existing draw pass, regions sample the maximum live luminance of the
+nearby rendered points. Their bounds are cached and refreshed only after scroll,
+resize or pageshow; no per-frame DOM layout measurement is added. Idle palette
+updates are capped at about eight per second, with 0.2 luminance headroom. Pointer
+and scroll changes request a fresh sample on the next existing render frame.
+There are no extra animation loops or timers.
+
+Home-scoped palette variables adapt existing white/zinc/green text tokens to the
+measured field. Inherited status/arrow text receives the region's default tone.
+Existing utility hover/focus colors, link transforms, pulse timing and Bio hover
+dimming keep their ownership. Branding opacity and the status pulse minimum
+increase in bright regions. The status pulse retains its two-second easing.
+The palette uses `color-mix` behind `@supports`; unsupported browsers retain the
+original text utilities over the local dark tint.
+
+Numeric tests evaluate the declared palette, branding opacity, status pulse and
+existing blue hover color over black-to-white source states and a conservative
+sampling lag. They cover normal settled text states, not entrance opacity or the
+intentional Bio hover dimming. Actual font pixels, blur compositing, CSS color-mix
+rendering and hover readability remain real-browser acceptance items.
 
 ## Lifecycle and budget
 
@@ -86,7 +106,7 @@ whitespace and inter-paragraph gaps.
   atlases and the full sprite cache).
 - Resizes reuse the same two atlas objects, clear their cells, and initialize new
   points to only the latest target. There are no per-point canvases or timers.
-- Field drawing capped at 30 frames per second.
+- Field drawing, spatial drift and target transitions share the same 30fps cap.
 - Hidden documents and pagehide stop the animation. Visibility/pageshow resume
   without a large elapsed-time jump.
 - Reduced motion freezes the field and changes glyphs without animation. It draws
@@ -97,8 +117,8 @@ whitespace and inter-paragraph gaps.
 ## Automated checks
 
 `npm test` uses Node's built-in runner and TypeScript stripping (Node >=22.12,
-already required by the project). Pure tests cover the point budget, fixed
-positions, grayscale endpoints, meaningful 1–2 second pointer-free change, bounded
+already required by the project). Pure tests cover the point budget, stable
+anchors, bounded independent drift, grayscale endpoints, meaningful 1–2 second pointer-free change, bounded
 frame-to-frame change, finer spatial variation in desktop/portrait, pointer contribution,
 bright-before-dark timing, snapshot deadlines, interrupted transitions, stale
 target cancellation, return-to-dot, 10,000 rapid target alternations, atlas sizing,
@@ -251,18 +271,19 @@ changing once settled. There is no global debug API.
 
 ## Additional acceptance checks not yet completed
 
-Core desktop English/Japanese interaction and the baseline comparison above are
-verified. The following additional checks remain; unit-test or implementation
+Historical desktop English/Japanese interaction and baseline comparisons above
+apply to their named revisions. This spatial-drift/Home-text revision has no new
+real-browser acceptance. The following additional checks remain; unit-test or implementation
 coverage must not be mistaken for real-browser coverage:
 
 1. Exercise link clicks, hover/scale effects, rotary scrolling and existing
    animations. Matching baseline classes alone do not establish these interactions.
-2. Observe the idle grid over time, with fully empty areas, intermediate
-   brightness and genuinely white points. Point positions must not move.
+2. Observe the idle field over time, with empty/intermediate/white points and
+   subtle continuous position drift independent of the luminance waves.
 3. Verify a Recent Logs link, including after scroll. Rapid heading-to-biography
    interruption and return-to-dot behavior are covered by the desktop checks above.
 4. Verify the newly opted-in biography in English/Japanese, including both nested
-   CDs links. Check no-hit behavior on unmarked links, padding, whitespace,
+   CDs links. Check all Home labels/links/footer and no-hit behavior on padding, whitespace,
    inter-paragraph gaps and viewport exit, plus ordinary text selection.
 5. Test combining/emoji graphemes using a temporary opted-in test fixture, without
    changing production content. Test both normal and reduced-motion modes.
@@ -274,3 +295,28 @@ coverage must not be mistaken for real-browser coverage:
 The transition-delay revision has its own desktop acceptance evidence above;
 remaining checks must not be inferred from either that evidence or the unit tests.
 Verification results do not by themselves authorize publication.
+
+
+## Local revision verification - 2026-10-23
+
+- All 61 committed production-function/renderer-fixture and existing regression
+  tests pass. Contrast checks read the declared palette, inherited labels, the
+  branding opacity rule and the status pulse rule separately.
+- Frontend-only Astro check reports 38 files with zero errors, warnings or hints.
+  A temporary static configuration without the Cloudflare adapter builds all four
+  routes using the existing production frontend bundler and Tailwind plugin.
+- Built Home HTML has 50 nonempty visible text runs, all within explicit glyph
+  sources and the seven local readability regions. Clock, Gear and Visualizer
+  output has neither the Home flag nor any glyph sources.
+- Template comparison against the starting revision preserves text, structure,
+  existing layout/hover classes, link attributes and interaction scripts. The
+  intentional differences are Home opt-in attributes and the conditional footer
+  readability owner.
+- The ordinary adapter-aware check stops during Cloudflare initialization because
+  the restricted environment cannot write the adapter log or open its local
+  connection. That path was not retried; a full Cloudflare production build is
+  not verified by the static frontend build above.
+- No browser, GUI, server or publication was used for this revision. Source-derived
+  motion plots/previews illustrate the implemented math, not browser compositing.
+  Real Home desktop/mobile readability, hover/link/rotary behavior, reduced-motion
+  appearance and device rendering cost remain acceptance checks.

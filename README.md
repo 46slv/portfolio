@@ -44,8 +44,10 @@ Feel free to check [our documentation](https://docs.astro.build) or jump into ou
 
 ## Home glyph background
 
-The home page has an isolated, luminance-driven point grid. Only text explicitly
-marked with `data-glyph-source` can supply a glyph; the rest of the UI is unchanged.
-Run `npm test` for the dependency-free field, transition and grapheme tests.
+The Home page has a luminance-driven point field with subtle independent spatial
+drift. All rendered Home text supplies glyphs through explicit `data-glyph-source`
+markers and receives the Home-only background-aware palette. Other routes retain
+their existing appearance.
+Run `npm test` for field, renderer, Home text coverage and existing visualizer regressions.
 See [implementation and acceptance checks](docs/luminance-glyph-background.md)
 for rendering details, accessibility behavior and verification limitations.
