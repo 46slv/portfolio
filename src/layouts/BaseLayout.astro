@@ -9,6 +9,7 @@ interface Props {
   showFooter?: boolean;
   footerLeft?: string;
   footerRight?: string;
+  homeBackground?: boolean;
 }
 
 const {
@@ -18,7 +19,8 @@ const {
   showShell = true,
   showFooter = false,
   footerLeft = '',
-  footerRight = ''
+  footerRight = '',
+  homeBackground = false,
 } = Astro.props;
 ---
 
@@ -92,7 +94,7 @@ const {
       }
     </style>
   </head>
-  <body class={bodyClass}>
+  <body class={bodyClass} data-home-background={homeBackground || undefined}>
     <div id="cursor-light"></div>
     <slot name="background" />
 
@@ -101,7 +103,10 @@ const {
         <slot />
 
         {showFooter && (
-          <footer class="mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500 italic">
+          <footer
+            class:list={['mt-40 pt-10 border-t border-zinc-900 flex justify-between items-center text-[10px] font-mono text-zinc-500 italic', { 'home-readability': homeBackground }]}
+            data-glyph-source={homeBackground || undefined}
+          >
             <div>{footerLeft}</div>
             <div>{footerRight}</div>
           </footer>

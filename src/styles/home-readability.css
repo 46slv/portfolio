@@ -11,7 +11,7 @@
   inset: -12px;
   z-index: -1;
   pointer-events: none;
-  background: rgb(10 10 10 / 55%);
+  background: rgb(10 10 10 / 65%);
   -webkit-backdrop-filter: blur(5px);
   backdrop-filter: blur(5px);
   /* Feather only this decorative layer, never the foreground text or owner. */
@@ -23,4 +23,33 @@
     linear-gradient(to right, transparent, #000 12px, #000 calc(100% - 12px), transparent),
     linear-gradient(to bottom, transparent, #000 12px, #000 calc(100% - 12px), transparent);
   mask-composite: intersect;
+}
+
+/* One measured value per local Home region. Reuse the existing text tokens so
+   utility hover/focus colors and transforms continue to work. No text filtering. */
+@supports (color: color-mix(in srgb, #000, #fff)) {
+  @layer base {
+    [data-home-background] .home-readability {
+      color: color-mix(in srgb, #a1a1a1, #fff calc(var(--home-background-luminance, 0) * 100%));
+    }
+  }
+
+  [data-home-background] [data-glyph-source] {
+    --animate-pulse: home-status-pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+    --color-white: color-mix(in srgb, #f4f4f5, #fff calc(var(--home-background-luminance, 0) * 100%));
+    --color-zinc-200: color-mix(in srgb, #e4e4e7, #fff calc(var(--home-background-luminance, 0) * 100%));
+    --color-zinc-300: color-mix(in srgb, #d4d4d8, #fff calc(var(--home-background-luminance, 0) * 100%));
+    --color-zinc-400: color-mix(in srgb, #b1b1ba, #fff calc(var(--home-background-luminance, 0) * 100%));
+    --color-zinc-500: color-mix(in srgb, #a1a1aa, #fff calc(var(--home-background-luminance, 0) * 100%));
+    --color-zinc-600: color-mix(in srgb, #95959f, #fff calc(var(--home-background-luminance, 0) * 100%));
+    --color-green-500: color-mix(in srgb, #65cf8c, #bcffce calc(var(--home-background-luminance, 0) * 100%));
+  }
+
+  @keyframes home-status-pulse {
+    50% { opacity: calc(0.8 + 0.18 * var(--home-background-luminance, 0)); }
+  }
+
+  [data-home-background] [data-glyph-source] .opacity-50 {
+    opacity: calc(0.5 + 0.35 * var(--home-background-luminance, 0));
+  }
 }

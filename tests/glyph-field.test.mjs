@@ -4,14 +4,51 @@ import {
   createGlyphTransition, GLYPH_ATLAS_MAX_BYTES, GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS,
   GLYPH_MAX_DELAY_SECONDS, glyphAtlasLayout, luminanceDelay, makeGrid, POINT_BUDGET,
   retargetGlyphTransition, sampleLuminance, segmentGraphemes, transitionDotWeight, transitionProgress,
+  pointPosition, POINT_DRIFT_RADIUS,
 } from '../src/lib/glyph-field.ts';
 
-test('fixed grid stays within the point budget at desktop, mobile and 4K sizes', () => {
+test('stable anchors stay within the point budget at desktop, mobile and 4K sizes', () => {
   for (const [width, height] of [[1440, 900], [390, 844], [3840, 2160], [100000, 1], [1, 100000], [1, 1]]) {
     const points = makeGrid(width, height);
     assert.ok(points.length > 0 && points.length <= POINT_BUDGET);
     assert.deepEqual(points, makeGrid(width, height));
     assert.ok(points.every(({ x, y }) => x > 0 && x < width && y > 0 && y < height));
+  }
+});
+
+test('dot positions drift independently on bounded, continuous slow orbits', () => {
+  const anchors = makeGrid(390, 844);
+  const original = structuredClone(anchors);
+  const moved = anchors.map((point) => {
+    const start = pointPosition(point, 0);
+    const later = pointPosition(point, 10);
+    return [later.x - start.x, later.y - start.y];
+  });
+  assert.ok(moved.filter(([x, y]) => Math.hypot(x, y) > 0.5).length > anchors.length * 0.8);
+  assert.ok(new Set(moved.map(([x, y]) => `${x.toFixed(2)},${y.toFixed(2)}`)).size > 100,
+    'independent phases, not a rigid translation');
+  for (const point of anchors.filter((_, index) => index % 13 === 0)) {
+    for (const seconds of [0, 1, 5, 30, 60, 96.66, 118.55, 180]) {
+      const position = pointPosition(point, seconds);
+      const next = pointPosition(point, seconds + 1 / 30);
+      assert.ok(Math.abs(position.x - point.x) <= POINT_DRIFT_RADIUS);
+      assert.ok(Math.abs(position.y - point.y) <= POINT_DRIFT_RADIUS);
+      assert.ok(Math.hypot(next.x - position.x, next.y - position.y) < 0.5 / 30,
+        'no frame-sized wrap, step or jump near period boundaries');
+    }
+  }
+  assert.deepEqual(anchors, original, 'rendered coordinates never replace the stable anchors');
+});
+
+test('drift retains the viewport edges and point budget on mobile and tiny viewports', () => {
+  for (const [width, height] of [[1440, 900], [390, 844], [320, 740], [1, 1], [1, 100000], [100000, 1]]) {
+    const anchors = makeGrid(width, height);
+    assert.ok(anchors.length <= POINT_BUDGET);
+    for (const point of anchors) for (const seconds of [0, 10, 60, 120]) {
+      const { x, y } = pointPosition(point, seconds);
+      assert.ok(Number.isFinite(x) && Number.isFinite(y));
+      assert.ok(x > 0 && x < width && y > 0 && y < height);
+    }
   }
 });
 

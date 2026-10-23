@@ -8,6 +8,13 @@ export interface FieldPointer {
 export const POINT_BUDGET = 2600;
 export const MAX_DPR = 2;
 export const GLYPH_ATLAS_TILE_SIZE = 32;
+export const POINT_DRIFT_RADIUS = 4.5;
+
+export interface FieldPoint {
+  x: number;
+  y: number;
+  phase: number;
+}
 
 /** Two RGBA atlases, independent of viewport DPR: at most 20.32 MiB total. */
 const maxAtlasColumns = Math.ceil(Math.sqrt(POINT_BUDGET));
@@ -30,7 +37,7 @@ const smoothstep = (low: number, high: number, value: number) => {
 
 // Smaller lobes keep several light/dark regions visible even in portrait. The
 // phase advances six times faster than the original 48–90s waves (now 8–15s),
-// producing visible flow within 1–2s without moving the points or adding noise.
+// producing visible flow within 1–2s independently of the slower point drift, without temporal noise.
 const FIELD_SPATIAL_SCALE = 2.6;
 const FIELD_TIME_SCALE = 6;
 
@@ -49,14 +56,25 @@ export function sampleLuminance(x: number, y: number, seconds: number, pointer: 
   return smoothstep(0.26, 0.87, field + pointerLight);
 }
 
-export function makeGrid(width: number, height: number): Array<{ x: number; y: number }> {
+export function makeGrid(width: number, height: number): FieldPoint[] {
   const spacing = Math.max(22, Math.sqrt(width * height / POINT_BUDGET));
   const columns = Math.min(POINT_BUDGET, Math.max(1, Math.floor(width / spacing)));
   const rows = Math.min(Math.floor(POINT_BUDGET / columns), Math.max(1, Math.floor(height / spacing)));
   return Array.from({ length: columns * rows }, (_, index) => ({
     x: (index % columns + 0.5) * width / columns,
     y: (Math.floor(index / columns) + 0.5) * height / rows,
+    phase: index * 2.399963229728653 % (Math.PI * 2),
   }));
+}
+
+/** Continuous, bounded orbits around stable anchors. No wrap or random steps.
+ * Reduced motion freezes the renderer's existing clock at its current time. */
+export function pointPosition(point: FieldPoint, seconds: number): { x: number; y: number } {
+  const radius = Math.min(POINT_DRIFT_RADIUS, point.x / 2, point.y / 2);
+  return {
+    x: point.x + radius * Math.sin(seconds * 0.065 + point.phase),
+    y: point.y + radius * Math.cos(seconds * 0.053 + point.phase * 1.61803398875),
+  };
 }
 
 export const GLYPH_MAX_DELAY_SECONDS = 0.42;

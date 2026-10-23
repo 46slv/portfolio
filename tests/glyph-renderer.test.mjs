@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import ts from 'typescript';
-import { GLYPH_ATLAS_MAX_BYTES, MAX_DPR } from '../src/lib/glyph-field.ts';
+import { GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makeGrid } from '../src/lib/glyph-field.ts';
 import { clearCursorPointer, updateCursorPointer } from '../src/lib/cursor-pointer.ts';
 
 // Run the real renderer against small DOM/Canvas doubles. This checks scheduling,
@@ -17,16 +17,38 @@ const { mountGlyphField } = await import(`data:text/javascript;base64,${Buffer.f
 test('renderer flows without a pointer on desktop/portrait and preserves buffers, targets and lifecycle', () => {
   const canvases = [];
   let drawCalls = 0;
+  let columns = 1;
+  let rows = 1;
+  let gridSize = '';
   class Canvas {
     width = 300;
     height = 150;
     dataset = {};
     dots = new Map();
     pointKey = '';
+    positions = new Map();
+    position = [0, 0];
     pen = {
-      clearRect: () => { this.dots.clear(); },
-      arc: (x, y) => { this.pointKey = `${x},${y}`; },
-      fill: () => { this.dots.set(this.pointKey, this.pen.globalAlpha); },
+      clearRect: () => {
+        this.dots.clear();
+        this.positions.clear();
+        if (gridSize !== `${window.innerWidth},${window.innerHeight}`) {
+          const grid = makeGrid(window.innerWidth, window.innerHeight);
+          columns = new Set(grid.map(({ x }) => x)).size;
+          rows = grid.length / columns;
+          gridSize = `${window.innerWidth},${window.innerHeight}`;
+        }
+      },
+      arc: (x, y) => {
+        // Drift is less than a half-cell. Identify the same anchor across frames,
+        // so movement alone cannot masquerade as a brightness-change assertion.
+        this.pointKey = `${Math.floor(x / window.innerWidth * columns)},${Math.floor(y / window.innerHeight * rows)}`;
+        this.position = [x, y];
+      },
+      fill: () => {
+        this.dots.set(this.pointKey, this.pen.globalAlpha);
+        this.positions.set(this.pointKey, this.position);
+      },
       setTransform() {}, beginPath() {}, fillText() {}, fillRect() {},
       measureText() { return { width: 28 }; },
       drawImage(image) {
@@ -46,11 +68,31 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     requestAnimationFrame(callback) { callbacks.set(++frameId, callback); return frameId; },
     cancelAnimationFrame(id) { callbacks.delete(id); },
   });
+  let boundsReads = 0;
+  const region = (initial = '') => {
+    const values = new Map(initial ? [['--home-background-luminance', initial]] : []);
+    return {
+      style: {
+        getPropertyValue: (key) => values.get(key) ?? '',
+        setProperty: (key, value) => values.set(key, value),
+        removeProperty: (key) => values.delete(key),
+      },
+      getBoundingClientRect() {
+        boundsReads++;
+        return { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+      },
+    };
+  };
+  const regions = [region('0.333'), region()];
   let hit = '';
   const sourceElement = { closest() { return this; } };
   const document = Object.assign(new EventTarget(), {
     hidden: false,
     documentElement: new EventTarget(),
+    querySelectorAll(selector) {
+      assert.equal(selector, '[data-home-background] .home-readability');
+      return regions;
+    },
     createElement(name) { assert.equal(name, 'canvas'); return new Canvas(); },
     elementFromPoint() {
       hitTests++;
@@ -90,6 +132,8 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       [window.innerWidth, window.innerHeight] = [width, height];
       window.dispatchEvent(new Event('resize'));
       const initial = new Map(canvas.dots);
+      const initialPositions = new Map(canvas.positions);
+      const initialBoundsReads = boundsReads;
       const change = () => {
         const keys = new Set([...initial.keys(), ...canvas.dots.keys()]);
         const differences = Array.from(keys, (key) => Math.abs((initial.get(key) ?? 0) - (canvas.dots.get(key) ?? 0)));
@@ -100,6 +144,14 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       };
       for (let i = 0; i < 30; i++) frame();
       assert.ok(change().mean > 0.08, 'rendered brightness visibly changes in about one second');
+      const displacements = Array.from(canvas.positions, ([key, value]) => initialPositions.has(key)
+        ? Math.hypot(value[0] - initialPositions.get(key)[0], value[1] - initialPositions.get(key)[1]) : null)
+        .filter((value) => value !== null);
+      assert.ok(displacements.length > 50);
+      assert.ok(displacements.filter((value) => value > 0.04).length > displacements.length * 0.6,
+        'actual production draw commands change position independently of alpha');
+      assert.equal(boundsReads, initialBoundsReads, 'idle frames never remeasure Home layout');
+      assert.ok(regions.every(({ style }) => Number(style.getPropertyValue('--home-background-luminance')) >= 0.2));
       assert.ok(change().changed > 0.2, 'motion is not confined to a few points');
       for (let i = 0; i < 30; i++) frame();
       assert.ok(change().mean > 0.18, 'rendered flow continues through about two seconds');
@@ -109,6 +161,10 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       assert.equal(callbacks.size, 1);
     }
     assert.equal(hitTests, 0, 'idle motion does not require text hit tests');
+    const beforeScrollBounds = boundsReads;
+    window.dispatchEvent(new Event('scroll'));
+    frame();
+    assert.equal(boundsReads, beforeScrollBounds + regions.length, 'scroll invalidates cached bounds once');
     [window.innerWidth, window.innerHeight] = [1180, 757];
     window.dispatchEvent(new Event('resize'));
     for (let i = 0; i < 120; i++) {
@@ -144,6 +200,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     assert.equal(canvas.dataset.transitionActive, '0');
 
     const beforeHidden = new Map(canvas.dots);
+    const beforeHiddenPositions = new Map(canvas.positions);
     document.hidden = true;
     document.dispatchEvent(new Event('visibilitychange'));
     assert.equal(callbacks.size, 0);
@@ -153,14 +210,20 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     assert.equal(callbacks.size, 1);
     frame();
     assert.deepEqual(canvas.dots, beforeHidden, 'visibility resumes the paused clock without fast-forward');
+    assert.deepEqual(canvas.positions, beforeHiddenPositions, 'spatial drift also resumes without a jump');
 
+    const beforeReducedMotion = new Map(canvas.positions);
     motion.matches = true;
     motion.dispatchEvent(new Event('change'));
+    assert.deepEqual(canvas.positions, beforeReducedMotion,
+      'switching reduced motion on freezes the current position without a reset jump');
     assert.equal(callbacks.size, 0, 'reduced motion has no standing RAF');
     const reducedMotionDots = new Map(canvas.dots);
+    const reducedMotionPositions = new Map(canvas.positions);
     time += 5000;
     window.dispatchEvent(new Event('resize'));
     assert.deepEqual(canvas.dots, reducedMotionDots, 'reduced-motion redraws keep the idle field frozen');
+    assert.deepEqual(canvas.positions, reducedMotionPositions, 'reduced motion freezes position as well as luminance');
     hit = '藤';
     updateCursorPointer(1, 1);
     assert.equal(canvas.dataset.glyph, '藤');
@@ -172,6 +235,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     clearCursorPointer();
     for (let i = 0; i < 30; i++) frame();
     const beforePageHide = new Map(canvas.dots);
+    const beforePageHidePositions = new Map(canvas.positions);
     window.dispatchEvent(new Event('pagehide'));
     assert.equal(callbacks.size, 0);
     time += 60000;
@@ -179,9 +243,12 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     assert.equal(callbacks.size, 1);
     frame();
     assert.deepEqual(canvas.dots, beforePageHide, 'pageshow resumes without an elapsed-time jump');
+    assert.deepEqual(canvas.positions, beforePageHidePositions);
 
     document.dispatchEvent(new Event('astro:before-swap'));
     assert.equal(callbacks.size, 0);
+    assert.equal(regions[0].style.getPropertyValue('--home-background-luminance'), '0.333');
+    assert.equal(regions[1].style.getPropertyValue('--home-background-luminance'), '');
     assert.ok(canvases.slice(1).every((image) => image.width === 0 && image.height === 0));
     const drawsBefore = drawCalls;
     const countBefore = canvases.length;

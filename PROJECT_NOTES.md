@@ -1,6 +1,6 @@
 # SS_Portfolio Project Notes
 
-Last updated: 2026-10-22 JST
+Last updated: 2026-10-23 JST
 
 This file is the working specification and implementation log for this repository. Keep it current when changing architecture, data ownership, UI behavior, or operational assumptions.
 
@@ -14,16 +14,28 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
-## Home Text Readability - 2026-10-22
+## Home Dot Motion And Text Response - 2026-10-23
 
-- The home route alone imports `src/styles/home-readability.css`. Its six explicit
-  local backplates blur/darken only the background beneath informational regions,
-  without new cards or layout spacing.
-- Backplate owners must stay outside animated opacity and the masked rotary
-  viewport so their backdrop filter can sample the canvas; text stays unfiltered.
-- Both Bio paragraphs explicitly opt into glyph sourcing, including nested links.
-  The field, renderer timing and source profile text remain unchanged.
-- See `docs/luminance-glyph-background.md` for checks and remaining browser QA.
+- Home reuses its existing Canvas 2D field, stable grid anchors and paused 30fps
+  clock. Actual point positions drift on independent smooth 4.5px orbits; the
+  grayscale field, cursor glow and glyph transition timing remain separate.
+- Every rendered Home text block supplies glyphs, including header clock/status,
+  log dates, section labels, Direct Link details and the shared footer. Other
+  routes do not enable the Home flag, field or palette.
+- Seven local backplates retain the existing blur/stacking geometry. A sampled
+  luminance value adapts the existing text color tokens and metadata opacity.
+  Cached region bounds avoid repeated layout measurement; no new loop is added.
+- Foreground strings, profile/log data, link targets, hover/rotary handlers and
+  layout classes remain unchanged. The new palette is an intentional Home-only
+  readability change. Bio hover dimming and entrance motion are retained.
+- Reduced motion freezes dot positions and the field without a standing field
+  RAF; hidden/pagehide pauses resume without a spatial jump.
+- Local verification: 61 tests pass; frontend-only Astro check has no diagnostics
+  and its static build emits all four routes. Built Home covers all 50 visible
+  text runs. Cloudflare adapter initialization is blocked in the restricted
+  environment, so full adapter build and real-browser acceptance remain open.
+- See `docs/luminance-glyph-background.md` for exact evidence boundaries. Changes
+  remain local until reviewed.
 
 ## Stable Content Boundaries
 

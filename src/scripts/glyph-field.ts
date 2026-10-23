@@ -1,6 +1,6 @@
 import {
   createGlyphTransition, GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
-  glyphAtlasLayout, makeGrid, MAX_DPR,
+  glyphAtlasLayout, makeGrid, MAX_DPR, pointPosition, POINT_DRIFT_RADIUS, type FieldPoint,
   retargetGlyphTransition, sampleLuminance, segmentGraphemes, transitionDotWeight, transitionProgress,
 } from '../lib/glyph-field';
 import { clearCursorPointer, cursorPointer, subscribeCursorPointer } from '../lib/cursor-pointer';
@@ -44,10 +44,18 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   };
   let sourceAtlas = makeAtlas();
   let captureAtlas = makeAtlas();
-  let points: Array<{
-    x: number; y: number; cellX: number; cellY: number; fromHasGlyph: boolean;
+  let points: Array<FieldPoint & {
+    cellX: number; cellY: number; fromHasGlyph: boolean;
     transition: ReturnType<typeof createGlyphTransition>;
   }> = [];
+  const readability = Array.from(document.querySelectorAll<HTMLElement>('[data-home-background] .home-readability'))
+    .map((element) => ({
+      element, previous: element.style.getPropertyValue('--home-background-luminance'),
+      bounds: { left: 0, right: 0, top: 0, bottom: 0 }, light: 0,
+    }));
+  let readabilityBoundsDirty = true;
+  let readabilityNeeded = true;
+  let lastReadability = -1;
   let width = 0;
   let height = 0;
   let target = '';
@@ -65,6 +73,8 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.transitionFadeMs = String(GLYPH_FADE_SECONDS * 1000);
   canvas.dataset.glyph = target;
   canvas.dataset.transitionRevision = String(revision);
+  canvas.dataset.pointMotion = 'slow-drift';
+  canvas.dataset.driftRadiusPx = String(POINT_DRIFT_RADIUS);
 
   const spriteFor = (glyph: string): HTMLCanvasElement => {
     const cached = sprites.get(glyph);
@@ -116,8 +126,9 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
         captureAtlas.pen.drawImage(previousSprite!, point.cellX, point.cellY, tileSize, tileSize);
       }
       point.fromHasGlyph = fromHasGlyph || targetHasGlyph;
+      const { x, y } = pointPosition(point, seconds);
       retargetGlyphTransition(point.transition, next,
-        sampleLuminance(point.x, point.y, seconds, cursorPointer), seconds);
+        sampleLuminance(x, y, seconds, cursorPointer), seconds);
       const delay = point.transition.startsAt - seconds;
       minDelay = Math.min(minDelay, delay);
       maxDelay = Math.max(maxDelay, delay);
@@ -139,11 +150,28 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
 
   const draw = () => {
     context.clearRect(0, 0, width, height);
+    const sampleReadability = readabilityNeeded || lastReadability < 0
+      || seconds - lastReadability >= 0.12 || motion.matches;
+    if (sampleReadability) {
+      for (const region of readability) {
+        if (readabilityBoundsDirty) {
+          const rect = region.element.getBoundingClientRect();
+          // Include nearby glyph pixels and the existing local backdrop blur.
+          region.bounds = {
+            left: Math.max(0, rect.left - 16), right: Math.min(width, rect.right + 16),
+            top: Math.max(0, rect.top - 16), bottom: Math.min(height, rect.bottom + 16),
+          };
+        }
+        region.light = 0;
+      }
+      readabilityBoundsDirty = false;
+    }
     const sprite = target ? spriteFor(target) : null;
     let pending = 0;
     let active = 0;
     context.fillStyle = '#fff';
     for (const point of points) {
+      const { x, y } = pointPosition(point, seconds);
       const progress = transitionProgress(point.transition, seconds);
       if (progress < 1) {
         if (seconds < point.transition.startsAt) pending++;
@@ -151,12 +179,20 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       }
       const dotWeight = transitionDotWeight(point.transition, progress);
       // Brightness and size stay live. Only the transition deadline is frozen.
-      const luminance = sampleLuminance(point.x, point.y, seconds, cursorPointer);
+      const luminance = sampleLuminance(x, y, seconds, cursorPointer);
+      if (sampleReadability) {
+        for (const region of readability) {
+          const bounds = region.bounds;
+          if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+            region.light = Math.max(region.light, luminance);
+          }
+        }
+      }
       if (luminance <= 0.002) continue;
       if (dotWeight > 0) {
         context.globalAlpha = luminance * dotWeight;
         context.beginPath();
-        context.arc(point.x, point.y, 0.24 + luminance * 1.01, 0, Math.PI * 2);
+        context.arc(x, y, 0.24 + luminance * 1.01, 0, Math.PI * 2);
         context.fill();
       }
       const size = 5 + luminance * 9;
@@ -169,15 +205,28 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       if (drawSource) {
         context.globalAlpha = luminance * (1 - progress);
         context.drawImage(sourceAtlas.image, point.cellX, point.cellY, tileSize, tileSize,
-          point.x - size / 2, point.y - size / 2, size, size);
+          x - size / 2, y - size / 2, size, size);
       }
       if (drawTarget) {
         context.globalAlpha = luminance * progress;
-        context.drawImage(sprite!, point.x - size / 2, point.y - size / 2, size, size);
+        context.drawImage(sprite!, x - size / 2, y - size / 2, size, size);
       }
       if (additive) context.globalCompositeOperation = 'source-over';
     }
     context.globalAlpha = 1;
+    if (sampleReadability) {
+      for (const region of readability) {
+        if (region.bounds.right <= region.bounds.left || region.bounds.bottom <= region.bounds.top) continue;
+        // Headroom for field movement between capped updates. Pointer and scroll
+        // changes request a fresh sample on the very next draw.
+        const light = Math.min(1, region.light + 0.2).toFixed(3);
+        if (region.element.style.getPropertyValue('--home-background-luminance') !== light) {
+          region.element.style.setProperty('--home-background-luminance', light);
+        }
+      }
+      lastReadability = seconds;
+      readabilityNeeded = false;
+    }
     // Lightweight DOM-backed diagnostics for read-only browser verification.
     // At most ~8 updates/second while a transition is changing, none when stable.
     if (lastDiagnostics < 0 || seconds - lastDiagnostics >= 0.12 || motion.matches) {
@@ -226,6 +275,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   const resize = () => {
     width = window.innerWidth;
     height = window.innerHeight;
+    readabilityBoundsDirty = readabilityNeeded = true;
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
@@ -257,11 +307,12 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
 
   const pointerChanged = () => {
     hitTestNeeded = true;
+    readabilityNeeded = true;
     if (motion.matches && !document.hidden && !pageHidden) staticDraw();
   };
   const unsubscribe = subscribeCursorPointer(pointerChanged);
   // Text can move beneath a stationary cursor when the page/rotary scrolls.
-  const scroll = () => { pointerChanged(); };
+  const scroll = () => { readabilityBoundsDirty = true; pointerChanged(); };
   const leave = () => { clearCursorPointer(); };
   const visibility = () => {
     if (document.hidden) {
@@ -274,12 +325,16 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   };
   const motionChanged = () => {
     stop();
-    // Reduced motion freezes the luminance field, without a standing RAF loop.
-    if (motion.matches) seconds = 0;
+    // Freeze at the current phase/position; toggling the preference must not
+    // reset either animation clock or snap points back to their initial orbit.
     start();
   };
   const pageHide = () => { pageHidden = true; stop(); };
-  const pageShow = () => { pageHidden = false; hitTestNeeded = true; start(); };
+  const pageShow = () => {
+    pageHidden = false;
+    hitTestNeeded = readabilityBoundsDirty = readabilityNeeded = true;
+    start();
+  };
 
   const cleanup = () => {
     if (disposed) return;
@@ -289,6 +344,10 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     for (const sprite of sprites.values()) sprite.width = sprite.height = 0;
     sprites.clear();
     points = [];
+    for (const { element, previous } of readability) {
+      if (previous) element.style.setProperty('--home-background-luminance', previous);
+      else element.style.removeProperty('--home-background-luminance');
+    }
     for (const atlas of [sourceAtlas, captureAtlas]) atlas.image.width = atlas.image.height = 0;
     window.removeEventListener('resize', resize);
     window.removeEventListener('scroll', scroll, true);
