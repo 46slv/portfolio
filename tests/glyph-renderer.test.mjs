@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import ts from 'typescript';
-import { GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makeGrid } from '../src/lib/glyph-field.ts';
+import { advanceFieldMotion, createFieldMotion, FIELD_PADDING, GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makeGrid, samplePoint } from '../src/lib/glyph-field.ts';
 import { clearCursorPointer, updateCursorPointer } from '../src/lib/cursor-pointer.ts';
 
 // Run the real renderer against small DOM/Canvas doubles. This checks scheduling,
@@ -20,6 +20,11 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
   let columns = 1;
   let rows = 1;
   let gridSize = '';
+  let grid = [];
+  const expectedMotion = createFieldMotion();
+  let expectedLastTime = 0;
+  let verifyIdleAlpha = true;
+  const wrap = (value, span) => ((value % span) + span) % span;
   class Canvas {
     width = 300;
     height = 150;
@@ -33,25 +38,41 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
         this.dots.clear();
         this.positions.clear();
         if (gridSize !== `${window.innerWidth},${window.innerHeight}`) {
-          const grid = makeGrid(window.innerWidth, window.innerHeight);
+          grid = makeGrid(window.innerWidth, window.innerHeight);
           columns = new Set(grid.map(({ x }) => x)).size;
           rows = grid.length / columns;
           gridSize = `${window.innerWidth},${window.innerHeight}`;
         }
       },
       arc: (x, y) => {
-        // Drift is less than a half-cell. Identify the same anchor across frames,
-        // so movement alone cannot masquerade as a brightness-change assertion.
-        this.pointKey = `${Math.floor(x / window.innerWidth * columns)},${Math.floor(y / window.innerHeight * rows)}`;
+        const spanX = window.innerWidth + FIELD_PADDING * 2;
+        const spanY = window.innerHeight + FIELD_PADDING * 2;
+        const column = Math.round(wrap(x + FIELD_PADDING - expectedMotion.offsetX, spanX) / spanX * columns - 0.5);
+        const row = Math.round(wrap(y + FIELD_PADDING - expectedMotion.offsetY, spanY) / spanY * rows - 0.5);
+        this.pointKey = `${column},${row}`;
+        const point = grid[row * columns + column];
+        assert.ok(point, 'a draw belongs to one stable padded-grid anchor');
+        const expected = samplePoint(point, expectedMotion, window.innerWidth, window.innerHeight,
+          { x: 0, y: 0, active: false });
+        assert.ok(Math.abs(x - expected.x) < 1e-8 && Math.abs(y - expected.y) < 1e-8,
+          'production draw follows the known paused clock through diagonal wraps');
+        this.expectedLuminance = expected.luminance;
         this.position = [x, y];
       },
       fill: () => {
+        if (verifyIdleAlpha) assert.ok(Math.abs(this.pen.globalAlpha - this.expectedLuminance) < 1e-10,
+          'actual dot alpha samples the moving position, translated/evolving gradient and edge fade');
         this.dots.set(this.pointKey, this.pen.globalAlpha);
         this.positions.set(this.pointKey, this.position);
       },
       setTransform() {}, beginPath() {}, fillText() {}, fillRect() {},
       measureText() { return { width: 28 }; },
-      drawImage(image) {
+      drawImage: (image, ...args) => {
+        if (this === canvas) {
+          const [x, y, width, height] = args.slice(-4);
+          this.pen.arc(x + width / 2, y + height / 2);
+          this.positions.set(this.pointKey, this.position);
+        }
         assert.ok(image.width > 0 && image.height > 0, 'never draw a released buffer');
         drawCalls++;
       },
@@ -69,7 +90,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     cancelAnimationFrame(id) { callbacks.delete(id); },
   });
   let boundsReads = 0;
-  const region = (initial = '') => {
+  const region = (initial = '', small = false) => {
     const values = new Map(initial ? [['--home-background-luminance', initial]] : []);
     return {
       style: {
@@ -79,11 +100,12 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       },
       getBoundingClientRect() {
         boundsReads++;
-        return { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+        return small ? { left: 100, right: 124, top: 100, bottom: 124 }
+          : { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
       },
     };
   };
-  const regions = [region('0.333'), region()];
+  const regions = [region('0.333'), region(), region('', true)];
   let hit = '';
   const sourceElement = { closest() { return this; } };
   const document = Object.assign(new EventTarget(), {
@@ -113,10 +135,18 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
   let cleanup;
   let time = 0;
   let hitTests = 0;
+  window.addEventListener('resize', () => advanceFieldMotion(expectedMotion, 0, window.innerWidth, window.innerHeight));
+  window.addEventListener('pagehide', () => { expectedLastTime = 0; });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) expectedLastTime = 0; });
+  motion.addEventListener('change', () => { expectedLastTime = 0; });
   const frame = () => {
     const [id, callback] = callbacks.entries().next().value;
     callbacks.delete(id);
-    callback(time += 34);
+    time += 34;
+    const elapsed = expectedLastTime ? Math.min((time - expectedLastTime) / 1000, 0.1) : 0;
+    advanceFieldMotion(expectedMotion, elapsed, window.innerWidth, window.innerHeight);
+    expectedLastTime = time;
+    callback(time);
   };
   try {
     cleanup = mountGlyphField(canvas);
@@ -161,10 +191,17 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       assert.equal(callbacks.size, 1);
     }
     assert.equal(hitTests, 0, 'idle motion does not require text hit tests');
+    assert.equal(canvas.dataset.pointMotion, 'diagonal-flow');
     const beforeScrollBounds = boundsReads;
     window.dispatchEvent(new Event('scroll'));
     frame();
     assert.equal(boundsReads, beforeScrollBounds + regions.length, 'scroll invalidates cached bounds once');
+    const localSamples = [...canvas.positions].filter(([, [x, y]]) => x >= 84 && x <= 140 && y >= 84 && y <= 140)
+      .map(([key]) => canvas.dots.get(key));
+    const localLight = Math.min(1, Math.max(0, ...localSamples) + 0.2);
+    assert.ok(Math.abs(Number(regions[2].style.getPropertyValue('--home-background-luminance')) - localLight) < 0.003,
+      'local text response uses actual visible dot alphas at the current locations, including edge fades');
+    verifyIdleAlpha = false;
     [window.innerWidth, window.innerHeight] = [1180, 757];
     window.dispatchEvent(new Event('resize'));
     for (let i = 0; i < 120; i++) {
@@ -199,6 +236,14 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     assert.equal(canvas.dataset.transitionPending, '0');
     assert.equal(canvas.dataset.transitionActive, '0');
 
+    // Run both spatial seams through the actual RAF handler at low point count.
+    // This supplements the pure long-interval/density checks without a browser.
+    verifyIdleAlpha = true;
+    [window.innerWidth, window.innerHeight] = [80, 60];
+    window.dispatchEvent(new Event('resize'));
+    for (let index = 0; index < 3500; index++) frame();
+    [window.innerWidth, window.innerHeight] = [390, 844];
+    window.dispatchEvent(new Event('resize'));
     const beforeHidden = new Map(canvas.dots);
     const beforeHiddenPositions = new Map(canvas.positions);
     document.hidden = true;
@@ -224,14 +269,19 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     window.dispatchEvent(new Event('resize'));
     assert.deepEqual(canvas.dots, reducedMotionDots, 'reduced-motion redraws keep the idle field frozen');
     assert.deepEqual(canvas.positions, reducedMotionPositions, 'reduced motion freezes position as well as luminance');
+    verifyIdleAlpha = false;
     hit = '藤';
     updateCursorPointer(1, 1);
     assert.equal(canvas.dataset.glyph, '藤');
     assert.equal(canvas.dataset.transitionPending, '0');
     assert.equal(canvas.dataset.transitionActive, '0');
+    const staticGlyphPositions = new Map(canvas.positions);
+    assert.ok(staticGlyphPositions.size > 0, 'resume comparison observes actual glyph draw commands');
     motion.matches = false;
     motion.dispatchEvent(new Event('change'));
     assert.equal(callbacks.size, 1);
+    frame();
+    assert.deepEqual(canvas.positions, staticGlyphPositions, 'turning motion back on resumes from the same phase');
     clearCursorPointer();
     for (let i = 0; i < 30; i++) frame();
     const beforePageHide = new Map(canvas.dots);

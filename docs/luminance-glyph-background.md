@@ -17,15 +17,32 @@
 
 ## Rendering and interaction
 
-Grid anchors remain stable between viewport resizes. Rendered positions follow
-small continuous orbits with independent deterministic phases, at most 4.5px per
-axis and below 0.4px/s. The two drift periods are about 97 and 119 seconds; they
-are independent of the faster luminance waves. There is no wrap, respawn, random
-per-frame step or position feedback. Tiny viewports reduce the radius to retain
-points inside their cells. Dots and glyphs share the same moving position.
+Grid anchors remain stable between viewport resizes. Positions translate
+permanently down-right at (1.8, 1.2) CSS px/s (about 2.16px/s diagonally), without
+reversing. This supersedes PR #6's bounded 4.5px orbits; no subordinate jitter is
+currently added. The grayscale field separately advects down-right at (2.4, 1.6)
+CSS px/s while retaining the existing color evolution and screen-anchored pointer
+light. These are separate motions, not only changing sine amplitudes.
+
+The uniform grid extends 32px beyond each viewport edge. Shared position offsets
+wrap within this padded torus, so a recycled point is fully off-screen even at
+maximum glyph size. An 18px smooth fade inside the screen makes entry/exit gradual.
+Point count and toroidal spacing do not change during recycling; the visible
+population varies naturally by at most a row/column. At 390x844 the padded grid has
+820 points (including off-screen padding), still below the unchanged 2600 cap.
+Tiny viewports shorten the edge fade. Resizes rebuild anchors and normalize the
+existing bounded offsets without restarting the wave phases.
+
+Offsets and each of the three wave evolution/advection phases are bounded and
+advanced by the existing paused clock. No growing absolute position, randomized
+respawn, wrapping time reset or additional animation loop is used. Phase wrapping
+is periodic for each wave, so it cannot reset the combined gradient at a seam.
+Dots and glyphs share one moving position. Drawing, local text readability and
+transition delays sample that actual position and the same final edge-faded
+luminance; grid anchors never substitute for the visible background.
 
 Each rendered position samples one analytic grayscale field made from smoothly flowing waves and a localized
-contribution from the existing mouse position. Luminance controls both point size
+contribution from the existing mouse position. The edge-faded luminance controls both point size
 and alpha, with true zero and one endpoints, not a global dimming overlay. Idle
 points are dots. While an opted-in grapheme is hit, each visible point independently
 renders a small instance of that same grapheme. This is not a large letter mask
@@ -33,7 +50,7 @@ filled with particles.
 
 The waves use a 2.6× spatial scale relative to the original broad field, so smaller
 light/dark lobes fit in narrow portrait viewports without changing point spacing.
-Their phase advances 6× faster: individual wave periods are about 8, 12 and 15
+Their intrinsic evolution phase advances 6× faster: individual wave periods are about 8, 12 and 15
 seconds rather than 48, 70 and 90 seconds. The field visibly evolves within 1–2
 seconds, continuously and without random per-frame noise. The mouse contribution
 keeps its original 105px falloff and is combined before the same luminance mapping;
@@ -106,7 +123,7 @@ rendering and hover readability remain real-browser acceptance items.
   atlases and the full sprite cache).
 - Resizes reuse the same two atlas objects, clear their cells, and initialize new
   points to only the latest target. There are no per-point canvases or timers.
-- Field drawing, spatial drift and target transitions share the same 30fps cap.
+- Point translation, gradient advection/evolution and target transitions share the same 30fps cap.
 - Hidden documents and pagehide stop the animation. Visibility/pageshow resume
   without a large elapsed-time jump.
 - Reduced motion freezes the field and changes glyphs without animation. It draws
@@ -118,7 +135,8 @@ rendering and hover readability remain real-browser acceptance items.
 
 `npm test` uses Node's built-in runner and TypeScript stripping (Node >=22.12,
 already required by the project). Pure tests cover the point budget, stable
-anchors, bounded independent drift, grayscale endpoints, meaningful 1–2 second pointer-free change, bounded
+anchors, sustained diagonal displacement, padded seams/density, bounded motion phases,
+gradient translation/evolution correspondence, edge-faded sampling, grayscale endpoints, meaningful 1–2 second pointer-free change, bounded
 frame-to-frame change, finer spatial variation in desktop/portrait, pointer contribution,
 bright-before-dark timing, snapshot deadlines, interrupted transitions, stale
 target cancellation, return-to-dot, 10,000 rapid target alternations, atlas sizing,
@@ -130,7 +148,10 @@ repeated mobile/desktop/4K resizes it checks two-buffer reuse, the 32-sprite lim
 DPR capping, unchanged deadlines on repeated hits, settling back to dots, hidden
 document pause/resume, reduced-motion immediate updates without RAF, pagehide /
 pageshow, and idempotent Astro cleanup. These doubles do not verify real raster
-pixels, browser memory/GC, font rendering, or layout.
+pixels, browser memory/GC, font rendering, or layout. The directional revision
+also runs both wraps through the actual RAF handler, records dot/glyph positions
+and alphas, checks local text samples, and verifies reduced-motion/hidden-page
+resumption and resize without restarting phases.
 
 The renderer test also records the real canvas draw commands at desktop and
 390×844 portrait sizes with no active pointer. It verifies substantial dot-alpha
@@ -279,7 +300,8 @@ coverage must not be mistaken for real-browser coverage:
 1. Exercise link clicks, hover/scale effects, rotary scrolling and existing
    animations. Matching baseline classes alone do not establish these interactions.
 2. Observe the idle field over time, with empty/intermediate/white points and
-   subtle continuous position drift independent of the luminance waves.
+   continuous down-right point translation, invisible off-screen recycling,
+   smooth edge fades and independently translating/evolving luminance waves.
 3. Verify a Recent Logs link, including after scroll. Rapid heading-to-biography
    interruption and return-to-dot behavior are covered by the desktop checks above.
 4. Verify the newly opted-in biography in English/Japanese, including both nested
@@ -297,7 +319,7 @@ remaining checks must not be inferred from either that evidence or the unit test
 Verification results do not by themselves authorize publication.
 
 
-## Local revision verification - 2026-10-23
+## PR #6 bounded-drift verification - 2026-10-23 (historical)
 
 - All 61 committed production-function/renderer-fixture and existing regression
   tests pass. Contrast checks read the declared palette, inherited labels, the
@@ -320,3 +342,29 @@ Verification results do not by themselves authorize publication.
   motion plots/previews illustrate the implemented math, not browser compositing.
   Real Home desktop/mobile readability, hover/link/rotary behavior, reduced-motion
   appearance and device rendering cost remain acceptance checks.
+
+
+## Directional correction verification - 2026-10-23
+
+The clarified contract requires permanent diagonal translation rather than only
+bounded oscillation. The previous orbit reverses direction after 27 seconds in
+the recorded negative control. This correction starts from the merged PR #6 tree.
+
+- All 65 tests pass. They include one hour of monotonic displacement away from
+  wraps; padded seam invisibility and stable density over multiple cycles;
+  many small steps agreeing with long-time analytic samples; bounded offsets and
+  each individual wave phase; gradient translation with preserved evolution;
+  screen-anchored pointer light; and actual visible-position/edge-fade sampling.
+- The production renderer fixture exercises both spatial wraps, dot/glyph draw
+  coordinates and alpha, local text sampling, resize, reduced-motion toggles,
+  hidden/pagehide resume and cleanup. It runs the production handler, not a
+  separate renderer implementation. Its fake DOM/Canvas is not browser evidence.
+- The existing adapter-free frontend check reports zero diagnostics across 38
+  files, and its static build emits all four routes. The built Home still covers
+  all 50 text runs in seven local regions; other routes remain opted out.
+- Home templates, profile/log content, hover/layout classes, cursor producer,
+  readability CSS, dependency files and deployment config match the parent main.
+- Browser acceptance: NOT_RUN. No GUI, browser, server, ordinary Cloudflare
+  listener/build retry, configuration change or publication was performed for
+  this correction. Full adapter build, actual compositing/edge appearance,
+  sustained device frame cost and physical-input behavior remain unverified.

@@ -1,7 +1,8 @@
 import {
-  createGlyphTransition, GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
-  glyphAtlasLayout, makeGrid, MAX_DPR, pointPosition, POINT_DRIFT_RADIUS, type FieldPoint,
-  retargetGlyphTransition, sampleLuminance, segmentGraphemes, transitionDotWeight, transitionProgress,
+  advanceFieldMotion, createFieldMotion, createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
+  GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
+  glyphAtlasLayout, makeGrid, MAX_DPR, POINT_VELOCITY, samplePoint, type FieldPoint,
+  retargetGlyphTransition, segmentGraphemes, transitionDotWeight, transitionProgress,
 } from '../lib/glyph-field';
 import { clearCursorPointer, cursorPointer, subscribeCursorPointer } from '../lib/cursor-pointer';
 
@@ -63,6 +64,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   let previousTime = 0;
   let lastDraw = 0;
   let seconds = 0;
+  const fieldMotion = createFieldMotion();
   let hitTestNeeded = false;
   let disposed = false;
   let pageHidden = false;
@@ -73,8 +75,10 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.transitionFadeMs = String(GLYPH_FADE_SECONDS * 1000);
   canvas.dataset.glyph = target;
   canvas.dataset.transitionRevision = String(revision);
-  canvas.dataset.pointMotion = 'slow-drift';
-  canvas.dataset.driftRadiusPx = String(POINT_DRIFT_RADIUS);
+  canvas.dataset.pointMotion = 'diagonal-flow';
+  canvas.dataset.pointVelocity = `${POINT_VELOCITY.x},${POINT_VELOCITY.y}`;
+  canvas.dataset.gradientVelocity = `${GRADIENT_VELOCITY.x},${GRADIENT_VELOCITY.y}`;
+  canvas.dataset.fieldPaddingPx = String(FIELD_PADDING);
 
   const spriteFor = (glyph: string): HTMLCanvasElement => {
     const cached = sprites.get(glyph);
@@ -126,9 +130,8 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
         captureAtlas.pen.drawImage(previousSprite!, point.cellX, point.cellY, tileSize, tileSize);
       }
       point.fromHasGlyph = fromHasGlyph || targetHasGlyph;
-      const { x, y } = pointPosition(point, seconds);
-      retargetGlyphTransition(point.transition, next,
-        sampleLuminance(x, y, seconds, cursorPointer), seconds);
+      const { luminance } = samplePoint(point, fieldMotion, width, height, cursorPointer);
+      retargetGlyphTransition(point.transition, next, luminance, seconds);
       const delay = point.transition.startsAt - seconds;
       minDelay = Math.min(minDelay, delay);
       maxDelay = Math.max(maxDelay, delay);
@@ -171,7 +174,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     let active = 0;
     context.fillStyle = '#fff';
     for (const point of points) {
-      const { x, y } = pointPosition(point, seconds);
+      const { x, y, luminance } = samplePoint(point, fieldMotion, width, height, cursorPointer);
       const progress = transitionProgress(point.transition, seconds);
       if (progress < 1) {
         if (seconds < point.transition.startsAt) pending++;
@@ -179,7 +182,6 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       }
       const dotWeight = transitionDotWeight(point.transition, progress);
       // Brightness and size stay live. Only the transition deadline is frozen.
-      const luminance = sampleLuminance(x, y, seconds, cursorPointer);
       if (sampleReadability) {
         for (const region of readability) {
           const bounds = region.bounds;
@@ -251,6 +253,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     if (!lastDraw || time - lastDraw >= 1000 / 30) {
       const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.1) : 0;
       seconds += delta;
+      advanceFieldMotion(fieldMotion, delta, width, height);
       previousTime = time;
       lastDraw = time;
       if (hitTestNeeded || target) updateTarget();
@@ -275,6 +278,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   const resize = () => {
     width = window.innerWidth;
     height = window.innerHeight;
+    advanceFieldMotion(fieldMotion, 0, width, height);
     readabilityBoundsDirty = readabilityNeeded = true;
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     canvas.width = Math.round(width * dpr);
@@ -326,7 +330,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   const motionChanged = () => {
     stop();
     // Freeze at the current phase/position; toggling the preference must not
-    // reset either animation clock or snap points back to their initial orbit.
+    // reset the field phases or snap the shared translation back to its origin.
     start();
   };
   const pageHide = () => { pageHidden = true; stop(); };
