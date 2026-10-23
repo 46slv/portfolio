@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import ts from 'typescript';
-import { advanceFieldMotion, createFieldMotion, FIELD_PADDING, GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makeGrid, samplePoint } from '../src/lib/glyph-field.ts';
+import { advanceFieldMotion, createFieldMotion, GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makePoints, samplePoint } from '../src/lib/glyph-field.ts';
 import { clearCursorPointer, updateCursorPointer } from '../src/lib/cursor-pointer.ts';
 
 // Run the real renderer against small DOM/Canvas doubles. This checks scheduling,
@@ -17,14 +17,13 @@ const { mountGlyphField } = await import(`data:text/javascript;base64,${Buffer.f
 test('renderer flows without a pointer on desktop/portrait and preserves buffers, targets and lifecycle', () => {
   const canvases = [];
   let drawCalls = 0;
-  let columns = 1;
-  let rows = 1;
-  let gridSize = '';
-  let grid = [];
+  let expectedSamples = new Map();
+  let expectedById = new Map();
+  let resizeFrames = 100;
   const expectedMotion = createFieldMotion();
   let expectedLastTime = 0;
   let verifyIdleAlpha = true;
-  const wrap = (value, span) => ((value % span) + span) % span;
+  const positionKey = (x, y) => `${Math.round(x * 1e6)},${Math.round(y * 1e6)}`;
   class Canvas {
     width = 300;
     height = 150;
@@ -37,30 +36,30 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       clearRect: () => {
         this.dots.clear();
         this.positions.clear();
-        if (gridSize !== `${window.innerWidth},${window.innerHeight}`) {
-          grid = makeGrid(window.innerWidth, window.innerHeight);
-          columns = new Set(grid.map(({ x }) => x)).size;
-          rows = grid.length / columns;
-          gridSize = `${window.innerWidth},${window.innerHeight}`;
+        if (this === canvas) {
+          const points = makePoints(window.innerWidth, window.innerHeight, Number(canvas.dataset.pointCount));
+          expectedSamples = new Map();
+          expectedById = new Map();
+          for (const point of points) {
+            const expected = samplePoint(point, expectedMotion, window.innerWidth, window.innerHeight,
+              { x: 0, y: 0, active: false });
+            expectedSamples.set(positionKey(expected.x, expected.y), { point, expected });
+            expectedById.set(String(point.id), expected);
+          }
         }
       },
       arc: (x, y) => {
-        const spanX = window.innerWidth + FIELD_PADDING * 2;
-        const spanY = window.innerHeight + FIELD_PADDING * 2;
-        const column = Math.round(wrap(x + FIELD_PADDING - expectedMotion.offsetX, spanX) / spanX * columns - 0.5);
-        const row = Math.round(wrap(y + FIELD_PADDING - expectedMotion.offsetY, spanY) / spanY * rows - 0.5);
-        this.pointKey = `${column},${row}`;
-        const point = grid[row * columns + column];
-        assert.ok(point, 'a draw belongs to one stable padded-grid anchor');
-        const expected = samplePoint(point, expectedMotion, window.innerWidth, window.innerHeight,
-          { x: 0, y: 0, active: false });
+        const record = expectedSamples.get(positionKey(x, y));
+        assert.ok(record, 'a draw belongs to one stable seeded ID at its independently moving position');
+        const { point, expected } = record;
+        this.pointKey = String(point.id);
         assert.ok(Math.abs(x - expected.x) < 1e-8 && Math.abs(y - expected.y) < 1e-8,
-          'production draw follows the known paused clock through diagonal wraps');
+          'production draw follows the known paused clock through independent-speed wraps');
         this.expectedLuminance = expected.luminance;
         this.position = [x, y];
       },
       fill: () => {
-        if (verifyIdleAlpha) assert.ok(Math.abs(this.pen.globalAlpha - this.expectedLuminance) < 1e-10,
+        if (verifyIdleAlpha && resizeFrames > 20) assert.ok(Math.abs(this.pen.globalAlpha - this.expectedLuminance) < 1e-10,
           'actual dot alpha samples the moving position, translated/evolving gradient and edge fade');
         this.dots.set(this.pointKey, this.pen.globalAlpha);
         this.positions.set(this.pointKey, this.position);
@@ -135,7 +134,10 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
   let cleanup;
   let time = 0;
   let hitTests = 0;
-  window.addEventListener('resize', () => advanceFieldMotion(expectedMotion, 0, window.innerWidth, window.innerHeight));
+  window.addEventListener('resize', () => {
+    advanceFieldMotion(expectedMotion, 0, window.innerWidth, window.innerHeight);
+    resizeFrames = 0;
+  });
   window.addEventListener('pagehide', () => { expectedLastTime = 0; });
   document.addEventListener('visibilitychange', () => { if (document.hidden) expectedLastTime = 0; });
   motion.addEventListener('change', () => { expectedLastTime = 0; });
@@ -146,7 +148,14 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     const elapsed = expectedLastTime ? Math.min((time - expectedLastTime) / 1000, 0.1) : 0;
     advanceFieldMotion(expectedMotion, elapsed, window.innerWidth, window.innerHeight);
     expectedLastTime = time;
+    resizeFrames++;
     callback(time);
+    if (verifyIdleAlpha && window.innerWidth >= 140 && window.innerHeight >= 140) {
+      const local = [...canvas.positions].filter(([, [x, y]]) => x >= 84 && x <= 140 && y >= 84 && y <= 140)
+        .map(([id]) => canvas.dots.get(id));
+      assert.ok(Number(regions[2].style.getPropertyValue('--home-background-luminance')) + 0.003 >= Math.max(0, ...local),
+        'every presented density/population fade is covered immediately by its local text palette');
+    }
   };
   try {
     cleanup = mountGlyphField(canvas);
@@ -191,7 +200,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       assert.equal(callbacks.size, 1);
     }
     assert.equal(hitTests, 0, 'idle motion does not require text hit tests');
-    assert.equal(canvas.dataset.pointMotion, 'diagonal-flow');
+    assert.equal(canvas.dataset.pointMotion, 'seeded-diagonal-flow');
     const beforeScrollBounds = boundsReads;
     window.dispatchEvent(new Event('scroll'));
     frame();
@@ -201,6 +210,27 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     const localLight = Math.min(1, Math.max(0, ...localSamples) + 0.2);
     assert.ok(Math.abs(Number(regions[2].style.getPropertyValue('--home-background-luminance')) - localLight) < 0.003,
       'local text response uses actual visible dot alphas at the current locations, including edge fades');
+    const oldCount = Number(canvas.dataset.pointCount);
+    [window.innerWidth, window.innerHeight] = [1180, 757];
+    window.dispatchEvent(new Event('resize'));
+    for (let index = 0; index < 5; index++) frame();
+    const newborn = [...canvas.dots].find(([id]) => Number(id) >= oldCount && expectedById.get(id).luminance > 0.05);
+    assert.ok(newborn, 'observe a newly enabled star rather than checking only slot counters');
+    const presence = 5 * 0.034 / 0.5;
+    const eased = presence * presence * (3 - 2 * presence);
+    assert.ok(Math.abs(newborn[1] / expectedById.get(newborn[0]).luminance - eased) < 1e-9,
+      'actual new-star alpha follows the smooth bounded resize fade');
+    const fadingDots = new Map(canvas.dots);
+    const fadingPositions = new Map(canvas.positions);
+    document.hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    time += 60000;
+    document.hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    frame();
+    assert.deepEqual(canvas.dots, fadingDots, 'hidden time does not complete a pending population fade');
+    assert.deepEqual(canvas.positions, fadingPositions);
+    for (let index = 0; index < 30; index++) frame();
     verifyIdleAlpha = false;
     [window.innerWidth, window.innerHeight] = [1180, 757];
     window.dispatchEvent(new Event('resize'));
@@ -294,6 +324,26 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     frame();
     assert.deepEqual(canvas.dots, beforePageHide, 'pageshow resumes without an elapsed-time jump');
     assert.deepEqual(canvas.positions, beforePageHidePositions);
+
+    // A reduced-motion resize can arrive while hidden. Settle membership without
+    // drawing or starting RAF, then resume the correct pool at the frozen phase.
+    motion.matches = true;
+    motion.dispatchEvent(new Event('change'));
+    document.hidden = true;
+    document.dispatchEvent(new Event('visibilitychange'));
+    [window.innerWidth, window.innerHeight] = [80, 60];
+    window.dispatchEvent(new Event('resize'));
+    assert.equal(canvas.dataset.pointCount, canvas.dataset.targetPointCount,
+      'hidden reduced-motion resize cannot retain an obsolete retiring tail');
+    assert.equal(callbacks.size, 0);
+    document.hidden = false;
+    document.dispatchEvent(new Event('visibilitychange'));
+    assert.equal(callbacks.size, 0);
+    const resizedStatic = new Map(canvas.positions);
+    motion.matches = false;
+    motion.dispatchEvent(new Event('change'));
+    frame();
+    assert.deepEqual(canvas.positions, resizedStatic);
 
     document.dispatchEvent(new Event('astro:before-swap'));
     assert.equal(callbacks.size, 0);

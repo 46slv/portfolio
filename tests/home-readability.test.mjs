@@ -90,7 +90,7 @@ test('backplates blur the backdrop, not the sharp foreground, and never intercep
   assert.match(plate, /position:\s*absolute/);
   assert.match(plate, /z-index:\s*-1/);
   assert.match(plate, /pointer-events:\s*none/);
-  assert.match(plate, /background:\s*rgb\(10 10 10 \/ 65%\)/);
+  assert.match(plate, /background:\s*rgb\(10 10 10 \/ 64%\)/);
   assert.match(plate, /(?:^|[;\s])backdrop-filter:\s*blur\([1-9][\d.]*px\)/);
   assert.match(plate, /-webkit-backdrop-filter:\s*blur\(/);
   assert.match(plate, /mask-composite:\s*intersect/);
@@ -148,6 +148,23 @@ test('Home palette remains readable across light/dark field states without repla
   assert.ok(ratio(rgb(hover), Array(3).fill(10 + 245 * (1 - tint))) >= 4.5);
   assert.match(css, /@supports \(color: color-mix/);
   assert.doesNotMatch(css, /transition(?:-property)?:/, 'existing hover transitions retain their ownership');
+});
+
+test('only local backplates transmit slightly more light while retaining blur and continuous feathering', async () => {
+  const css = await readFile(new URL('../src/styles/home-readability.css', import.meta.url), 'utf8');
+  const plate = css.match(/\.home-readability::before\s*\{([\s\S]*?)\n\}/)[1];
+  const tint = Number(plate.match(/rgb\(10 10 10 \/ (\d+)%\)/)[1]) / 100;
+  const radius = Number(plate.match(/backdrop-filter:\s*blur\(([\d.]+)px\)/)[1]);
+  assert.ok(tint < 0.65 && tint >= 0.6, 'reduce local darkening, never brighten the global canvas');
+  assert.ok(radius > 0 && radius < 5, 'retain blur while reducing its dilution of small star peaks');
+  assert.match(plate, /inset: -12px/);
+  assert.equal((plate.match(/transparent, #000 12px, #000 calc\(100% - 12px\), transparent/g) ?? []).length, 4);
+  const feather = (distance) => Math.max(0, Math.min(1, distance / 12));
+  for (const edge of [0, 12]) {
+    assert.ok(Math.abs(feather(edge + 0.001) - feather(edge - 0.001)) < 0.001,
+      'existing linear feather has no hard boundary at either stop');
+  }
+  assert.doesNotMatch(css, /(?:body|#glyph-field)\s*\{/);
 });
 
 // Test the real hit-test function without changing its production exports. These

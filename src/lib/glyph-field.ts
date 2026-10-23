@@ -12,10 +12,17 @@ export const FIELD_PADDING = 32;
 export const EDGE_FADE = 18;
 export const POINT_VELOCITY = { x: 1.8, y: 1.2 };
 export const GRADIENT_VELOCITY = { x: 2.4, y: 1.6 };
+export const POINT_SPEED_FACTORS = Array.from({ length: 9 }, (_, index) => 0.84 + index * 0.04);
+export const POINT_PRESENCE_SECONDS = 0.5;
 
 export interface FieldPoint {
+  id: number;
+  seed: number;
   x: number;
   y: number;
+  speedIndex: number;
+  densityRank: number;
+  presence: number;
 }
 
 /** Two RGBA atlases, independent of viewport DPR: at most 20.32 MiB total. */
@@ -55,22 +62,36 @@ const advanceCycle = (value: number, rate: number, elapsed: number, span: number
   wrap(value + (elapsed % (span / Math.abs(rate))) * rate, span);
 
 export interface FieldMotion {
-  offsetX: number;
-  offsetY: number;
+  offsetX: number[];
+  offsetY: number[];
+  spanX: number;
+  spanY: number;
   evolution: number[];
   translation: number[];
 }
 
 export function createFieldMotion(): FieldMotion {
-  return { offsetX: 0, offsetY: 0, evolution: [0, 0, 0], translation: [0, 0, 0] };
+  return {
+    offsetX: POINT_SPEED_FACTORS.map(() => 0), offsetY: POINT_SPEED_FACTORS.map(() => 0),
+    spanX: 0, spanY: 0, evolution: [0, 0, 0], translation: [0, 0, 0],
+  };
 }
 
 /** Bounded shared offsets/phases, never an accumulating world coordinate.
  * Zero elapsed normalizes offsets after resize without restarting motion. */
 export function advanceFieldMotion(motion: FieldMotion, elapsed: number, width: number, height: number): void {
   const delta = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
-  motion.offsetX = advanceCycle(motion.offsetX, POINT_VELOCITY.x, delta, width + 2 * FIELD_PADDING);
-  motion.offsetY = advanceCycle(motion.offsetY, POINT_VELOCITY.y, delta, height + 2 * FIELD_PADDING);
+  const spanX = width + 2 * FIELD_PADDING;
+  const spanY = height + 2 * FIELD_PADDING;
+  for (let index = 0; index < POINT_SPEED_FACTORS.length; index++) {
+    // Preserve normalized locations through a resize, including a resize back.
+    if (motion.spanX && motion.spanX !== spanX) motion.offsetX[index] *= spanX / motion.spanX;
+    if (motion.spanY && motion.spanY !== spanY) motion.offsetY[index] *= spanY / motion.spanY;
+    motion.offsetX[index] = advanceCycle(motion.offsetX[index], POINT_VELOCITY.x * POINT_SPEED_FACTORS[index], delta, spanX);
+    motion.offsetY[index] = advanceCycle(motion.offsetY[index], POINT_VELOCITY.y * POINT_SPEED_FACTORS[index], delta, spanY);
+  }
+  motion.spanX = spanX;
+  motion.spanY = spanY;
   for (let index = 0; index < 3; index++) {
     motion.evolution[index] = advanceCycle(motion.evolution[index], EVOLUTION_RATES[index], delta, TAU);
     motion.translation[index] = advanceCycle(motion.translation[index], TRANSLATION_RATES[index], delta, TAU);
@@ -96,24 +117,47 @@ export function sampleLuminance(x: number, y: number, time: number | FieldMotion
   return smoothstep(0.26, 0.87, field + pointerLight);
 }
 
-/** A uniform torus extends beyond every screen edge. Recycling occurs only in
- * the invisible padding; point count and spacing stay bounded across wraps. */
-export function makeGrid(width: number, height: number): FieldPoint[] {
-  const spanX = width + 2 * FIELD_PADDING;
-  const spanY = height + 2 * FIELD_PADDING;
-  const spacing = Math.max(22, Math.sqrt(spanX * spanY / POINT_BUDGET));
-  const columns = Math.min(POINT_BUDGET, Math.max(1, Math.floor(spanX / spacing)));
-  const rows = Math.min(Math.floor(POINT_BUDGET / columns), Math.max(1, Math.floor(spanY / spacing)));
-  return Array.from({ length: columns * rows }, (_, index) => ({
-    x: -FIELD_PADDING + (index % columns + 0.5) * spanX / columns,
-    y: -FIELD_PADDING + (Math.floor(index / columns) + 0.5) * spanY / rows,
+/** Stable independent hash streams: randomness is assigned once per ID, never
+ * generated during drawing. The same ID keeps its seed, speed and density rank. */
+const seededUnit = (id: number, salt: number) => {
+  let value = (id ^ salt) >>> 0;
+  value = Math.imul(value ^ (value >>> 16), 0x7feb352d);
+  value = Math.imul(value ^ (value >>> 15), 0x846ca68b);
+  return ((value ^ (value >>> 16)) >>> 0) / 4294967296;
+};
+
+export function pointCount(width: number, height: number): number {
+  return Math.max(1, Math.min(POINT_BUDGET, Math.floor((width + 2 * FIELD_PADDING) * (height + 2 * FIELD_PADDING) / 22 ** 2)));
+}
+
+/** A seeded, irregular pool in the padded field. Prefix IDs survive resize;
+ * capacity permits a bounded retiring tail to fade out before release. */
+export function makePoints(width: number, height: number, capacity = pointCount(width, height)): FieldPoint[] {
+  const count = Math.max(1, Math.min(POINT_BUDGET, Math.floor(capacity)));
+  return Array.from({ length: count }, (_, id) => ({
+    id, seed: (id ^ 0xa511e9b3) >>> 0,
+    x: -FIELD_PADDING + seededUnit(id, 0xa511e9b3) * (width + 2 * FIELD_PADDING),
+    y: -FIELD_PADDING + seededUnit(id, 0x63d83595) * (height + 2 * FIELD_PADDING),
+    speedIndex: Math.floor(seededUnit(id, 0xb5297a4d) * POINT_SPEED_FACTORS.length),
+    densityRank: seededUnit(id, 0x68e31da4), presence: 1,
   }));
+}
+
+/** Increasing occupancy, separate from the existing brightness/size mapping.
+ * The fixed rank and broad smooth band fade stars instead of re-rolling them. */
+export function densityVisibility(luminance: number, rank: number): number {
+  const occupancy = 0.12 + 0.78 * clamp(luminance);
+  return smoothstep(rank - 0.16, rank + 0.16, occupancy);
+}
+
+export function advancePointPresence(point: FieldPoint, present: boolean, elapsed: number): void {
+  point.presence = clamp(point.presence + (present ? 1 : -1) * Math.max(0, elapsed) / POINT_PRESENCE_SECONDS);
 }
 
 export function pointPosition(point: FieldPoint, motion: FieldMotion, width: number, height: number): { x: number; y: number } {
   return {
-    x: wrap(point.x + FIELD_PADDING + motion.offsetX, width + 2 * FIELD_PADDING) - FIELD_PADDING,
-    y: wrap(point.y + FIELD_PADDING + motion.offsetY, height + 2 * FIELD_PADDING) - FIELD_PADDING,
+    x: wrap(point.x + FIELD_PADDING + motion.offsetX[point.speedIndex], width + 2 * FIELD_PADDING) - FIELD_PADDING,
+    y: wrap(point.y + FIELD_PADDING + motion.offsetY[point.speedIndex], height + 2 * FIELD_PADDING) - FIELD_PADDING,
   };
 }
 
@@ -125,7 +169,10 @@ export function pointVisibility(x: number, y: number, width: number, height: num
 /** One visible sample owns drawing, text readability and transition delays. */
 export function samplePoint(point: FieldPoint, motion: FieldMotion, width: number, height: number, pointer: FieldPointer) {
   const { x, y } = pointPosition(point, motion, width, height);
-  return { x, y, luminance: sampleLuminance(x, y, motion, pointer) * pointVisibility(x, y, width, height) };
+  const fieldLight = sampleLuminance(x, y, motion, pointer);
+  const brightness = fieldLight * pointVisibility(x, y, width, height);
+  const density = densityVisibility(fieldLight, point.densityRank);
+  return { x, y, brightness, density, luminance: brightness * density * smoothstep(0, 1, point.presence) };
 }
 
 export const GLYPH_MAX_DELAY_SECONDS = 0.42;
