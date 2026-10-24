@@ -84,6 +84,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.transitionRevision = String(revision);
   canvas.dataset.pointMotion = 'seeded-diagonal-flow';
   canvas.dataset.densityPolicy = 'stable-rank-luminance';
+  canvas.dataset.dotSizePolicy = 'gradient-rare-large';
   canvas.dataset.populationPolicy = 'global-field-mean';
   canvas.dataset.pointVelocity = `${POINT_VELOCITY.x},${POINT_VELOCITY.y}`;
   canvas.dataset.gradientVelocity = `${GRADIENT_VELOCITY.x},${GRADIENT_VELOCITY.y}`;
@@ -167,10 +168,10 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     for (const region of readability) {
       if (readabilityBoundsDirty) {
         const rect = region.element.getBoundingClientRect();
-        // Include nearby glyph pixels and the existing local backdrop blur.
+        // Cover the maximum 8.75px dot radius plus three 3px blur sigmas.
         region.bounds = {
-          left: Math.max(0, rect.left - 16), right: Math.min(width, rect.right + 16),
-          top: Math.max(0, rect.top - 16), bottom: Math.min(height, rect.bottom + 16),
+          left: Math.max(0, rect.left - 18), right: Math.min(width, rect.right + 18),
+          top: Math.max(0, rect.top - 18), bottom: Math.min(height, rect.bottom + 18),
         };
       }
       region.light = 0;
@@ -181,7 +182,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     let active = 0;
     context.fillStyle = '#fff';
     for (const point of points) {
-      const { x, y, luminance, brightness } = samplePoint(point, fieldMotion, width, height, cursorPointer);
+      const { x, y, luminance, brightness, radius } = samplePoint(point, fieldMotion, width, height, cursorPointer);
       const progress = transitionProgress(point.transition, seconds);
       if (progress < 1) {
         if (seconds < point.transition.startsAt) pending++;
@@ -199,7 +200,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       if (dotWeight > 0) {
         context.globalAlpha = luminance * dotWeight;
         context.beginPath();
-        context.arc(x, y, 0.24 + brightness * 1.01, 0, Math.PI * 2);
+        context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
       }
       const size = 5 + brightness * 9;

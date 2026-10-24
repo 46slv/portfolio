@@ -204,7 +204,7 @@ test('brighter gradient states contain more stars with deterministic smooth thre
   for (const light of [0.1, 0.3, 0.6, 0.9]) {
     const count = points.filter(({ densityRank }) => densityVisibility(light, densityRank) >= 0.5).length;
     assert.ok(count > previousCount);
-    assert.ok(Math.abs(count / points.length - (0.12 + 0.78 * light)) < 0.04);
+    assert.ok(Math.abs(count / points.length - (0.16 + 0.82 * light)) < 0.04);
     previousCount = count;
   }
   for (const { densityRank } of points.filter((_, index) => index % 11 === 0)) {

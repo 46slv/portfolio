@@ -22,6 +22,8 @@ export interface FieldPoint {
   y: number;
   speedIndex: number;
   densityRank: number;
+  largeRank: number;
+  sizeRank: number;
   presence: number;
 }
 
@@ -100,7 +102,7 @@ export function advanceFieldMotion(motion: FieldMotion, elapsed: number, width: 
 
 /** Evolving grayscale plus common diagonal advection. Pointer light stays in
  * screen coordinates. Numeric time remains available for pure sampling tests. */
-export function sampleLuminance(x: number, y: number, time: number | FieldMotion, pointer: FieldPointer): number {
+function sampleFieldValue(x: number, y: number, time: number | FieldMotion): number {
   const fieldX = x * FIELD_SPATIAL_SCALE;
   const fieldY = y * FIELD_SPATIAL_SCALE;
   const seconds = typeof time === 'number' && Number.isFinite(time) ? time : 0;
@@ -112,9 +114,14 @@ export function sampleLuminance(x: number, y: number, time: number | FieldMotion
     + 0.30 * Math.sin(fieldX / 285 + fieldY / 410 + evolution[0] + translation[0])
     + 0.23 * Math.cos(fieldY / 240 - fieldX / 610 + evolution[1] + translation[1])
     + 0.17 * Math.sin(fieldX / 510 - fieldY / 330 + evolution[2] + translation[2]);
-  const distanceSquared = (x - pointer.x) ** 2 + (y - pointer.y) ** 2;
-  const pointerLight = pointer.active ? 0.82 * Math.exp(-distanceSquared / (2 * 105 ** 2)) : 0;
-  return smoothstep(0.26, 0.87, field + pointerLight);
+  return field;
+}
+
+const pointerLight = (x: number, y: number, pointer: FieldPointer) => pointer.active
+  ? 0.82 * Math.exp(-((x - pointer.x) ** 2 + (y - pointer.y) ** 2) / (2 * 105 ** 2)) : 0;
+
+export function sampleLuminance(x: number, y: number, time: number | FieldMotion, pointer: FieldPointer): number {
+  return smoothstep(0.26, 0.87, sampleFieldValue(x, y, time) + pointerLight(x, y, pointer));
 }
 
 /** Fixed screen samples exclude pointer glow, density, presence and the point
@@ -197,15 +204,31 @@ export function makePoints(width: number, height: number, capacity = pointCount(
     x: -FIELD_PADDING + seededUnit(id, 0xa511e9b3) * (width + 2 * FIELD_PADDING),
     y: -FIELD_PADDING + seededUnit(id, 0x63d83595) * (height + 2 * FIELD_PADDING),
     speedIndex: Math.floor(seededUnit(id, 0xb5297a4d) * POINT_SPEED_FACTORS.length),
-    densityRank: seededUnit(id, 0x68e31da4), presence: 1,
+    densityRank: seededUnit(id, 0x68e31da4),
+    largeRank: seededUnit(id, 0x1b56c4e9), sizeRank: seededUnit(id, 0x9e3779b9), presence: 1,
   }));
 }
 
 /** Increasing occupancy, separate from the existing brightness/size mapping.
  * The fixed rank and broad smooth band fade stars instead of re-rolling them. */
+export const densityOccupancy = (luminance: number) => 0.16 + 0.82 * clamp(luminance);
+
 export function densityVisibility(luminance: number, rank: number): number {
-  const occupancy = 0.12 + 0.78 * clamp(luminance);
-  return smoothstep(rank - 0.16, rank + 0.16, occupancy);
+  return smoothstep(rank - 0.16, rank + 0.16, densityOccupancy(luminance));
+}
+
+export const LARGE_DOT_MIN_MULTIPLIER = 1.3;
+export const LARGE_DOT_MAX_MULTIPLIER = 7;
+
+/** Only the pointer-free gradient selects larger stars. A soft 64-90% local
+ * occupancy gate admits a small fixed-rank tail; the sixth power makes the
+ * largest diameters rare. Multipliers apply to radius and diameter, not area. */
+export function dotSizeMultiplier(gradientLuminance: number, largeRank: number, sizeRank: number): number {
+  const gate = smoothstep(0.64, 0.90, densityOccupancy(gradientLuminance));
+  const selection = gate * smoothstep(largeRank - 0.12, largeRank + 0.12, 0.16 * gate);
+  const size = LARGE_DOT_MIN_MULTIPLIER
+    + (LARGE_DOT_MAX_MULTIPLIER - LARGE_DOT_MIN_MULTIPLIER) * clamp(sizeRank) ** 6;
+  return 1 + selection * (size - 1);
 }
 
 export function advancePointPresence(point: FieldPoint, present: boolean, elapsed: number): void {
@@ -227,10 +250,18 @@ export function pointVisibility(x: number, y: number, width: number, height: num
 /** One visible sample owns drawing, text readability and transition delays. */
 export function samplePoint(point: FieldPoint, motion: FieldMotion, width: number, height: number, pointer: FieldPointer) {
   const { x, y } = pointPosition(point, motion, width, height);
-  const fieldLight = sampleLuminance(x, y, motion, pointer);
-  const brightness = fieldLight * pointVisibility(x, y, width, height);
+  // Evaluate the waves once. Pointer light retains its local brightness/density
+  // effect, but cannot create the larger-dot population by itself.
+  const field = sampleFieldValue(x, y, motion);
+  const gradientLuminance = smoothstep(0.26, 0.87, field);
+  const fieldLight = pointer.active ? smoothstep(0.26, 0.87, field + pointerLight(x, y, pointer)) : gradientLuminance;
+  const edge = pointVisibility(x, y, width, height);
+  const presence = smoothstep(0, 1, point.presence);
+  const brightness = fieldLight * edge;
   const density = densityVisibility(fieldLight, point.densityRank);
-  return { x, y, brightness, density, luminance: brightness * density * smoothstep(0, 1, point.presence) };
+  const sizeMultiplier = 1 + (dotSizeMultiplier(gradientLuminance, point.largeRank, point.sizeRank) - 1) * edge * presence;
+  const radius = (0.24 + brightness * 1.01) * sizeMultiplier;
+  return { x, y, brightness, density, gradientLuminance, sizeMultiplier, radius, luminance: brightness * density * presence };
 }
 
 export const GLYPH_MAX_DELAY_SECONDS = 0.42;

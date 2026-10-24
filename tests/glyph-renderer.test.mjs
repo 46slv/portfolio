@@ -20,6 +20,7 @@ const { mountGlyphField } = await import(`data:text/javascript;base64,${Buffer.f
 test('renderer flows without a pointer on desktop/portrait and preserves buffers, targets and lifecycle', () => {
   const canvases = [];
   let drawCalls = 0;
+  let largeDotDraws = 0;
   let expectedSamples = new Map();
   let expectedById = new Map();
   let resizeFrames = 100;
@@ -51,13 +52,18 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
           }
         }
       },
-      arc: (x, y) => {
+      arc: (x, y, radius) => {
         const record = expectedSamples.get(positionKey(x, y));
         assert.ok(record, 'a draw belongs to one stable seeded ID at its independently moving position');
         const { point, expected } = record;
         this.pointKey = String(point.id);
         assert.ok(Math.abs(x - expected.x) < 1e-8 && Math.abs(y - expected.y) < 1e-8,
           'production draw follows the known paused clock through independent-speed wraps');
+        if (radius !== undefined && verifyIdleAlpha && resizeFrames > 20) {
+          assert.ok(Math.abs(radius - expected.radius) < 1e-10, 'production dot radius uses the gradient size sample');
+          assert.ok(radius <= 8.75, 'largest dot stays within the existing bounds/padding');
+          if (expected.sizeMultiplier >= 1.3) largeDotDraws++;
+        }
         this.expectedLuminance = expected.luminance;
         this.position = [x, y];
       },
@@ -202,6 +208,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       assert.equal(canvas.dataset.renderMode, 'animated');
       assert.equal(callbacks.size, 1);
     }
+    assert.ok(largeDotDraws > 0, 'real production circle commands include the larger-dot tail');
     assert.equal(hitTests, 0, 'idle motion does not require text hit tests');
     assert.equal(canvas.dataset.pointMotion, 'seeded-diagonal-flow');
     const beforeScrollBounds = boundsReads;
