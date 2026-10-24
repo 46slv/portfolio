@@ -27,9 +27,28 @@ evolution and screen-anchored pointer light.
 
 The star pool extends 32px beyond each viewport edge. Nine bounded offset pairs
 recycle their IDs only in this invisible padding, with an 18px smooth screen-edge
-fade. Total pool size is capped at 2600; the area-based target is 851 at 390x844.
-The geometric population stays statistically stable while local star density is
-intentionally irregular. Density increases with the gradient: target occupancy
+fade. Total pool size is capped at 2600; the area-based capacity is 851 at 390x844.
+The global gradient mean selects 55-100% of this capacity. A fixed 16x12 grid at
+screen-cell centers samples the analytic gradient without pointer glow, local
+star density, edge fades or presence. Added stars therefore cannot affect their
+own population target. The scalar is sampled at most about eight times a second
+on the existing paused clock, smoothed with a 1.8s time constant, then mapped to
+`capacity * (0.55 + 0.45 * mean)`. A count deadband of 0.2% of capacity (minimum
+one) and a 6%-of-capacity/s slew limit suppress small oscillations and sudden
+changes. Pointer glow continues to affect each star locally, without pumping
+the global count.
+
+Rounded target counts add/remove actual prefix IDs, with the existing 0.5s
+smooth presence fade. Retiring IDs are released from the production draw loop
+at zero presence; re-entering IDs recover the same seed, position, rank and speed.
+`activePointCount` counts live IDs with presence above zero, including stars that
+are outside the screen or locally black. `pointCount` includes any zero-presence
+newborn/retiring slots; `targetPointCount` is the requested prefix size and
+`pointCapacity` is the viewport budget. They do not count visible raster dots.
+Two atlases are reserved to viewport capacity on resize (or the bounded retiring
+tail), so per-count updates need no atlas allocation or layout measurement.
+
+Local star density remains intentionally irregular. Density increases with the gradient: target occupancy
 is `0.12 + 0.78 * luminance`, selected by each point's fixed rank with a 0.32-wide
 smoothstep band. Existing luminance still controls size/brightness; the density
 fade separately modulates visibility. Black remains black.
@@ -400,3 +419,34 @@ Frontend-only type check and the permitted static build are recorded with this
 revision. The ordinary Cloudflare initialization path is not retried. Browser,
 GUI, local server and physical-input acceptance are NOT_RUN. No publication is
 performed by this implementation lane; independent review/integration is separate.
+
+
+## Global active-population revision - 2026-10-24
+
+This revision starts from merged PR #8. All 78 tests pass; adapter-free Astro
+check reports zero diagnostics across 39 files and its build emits four routes.
+Home text source coverage remains 50/50 across seven regions.
+
+Focused checks exercise the real draw
+loop with a controllable global input, proving fixed-geometry live IDs grow and
+are removed rather than changing only alpha or diagnostics. A separate fixture
+uses the unmodified gradient at desktop and portrait geometry and verifies
+positive count/mean correlation: over a simulated minute the actual active IDs
+span 585-641 at 390x844 and 1861-1893 at 1440x900, with count/smoothed-mean
+correlations 0.9817 and 0.9687 respectively. Japanese hover during additions,
+removal and re-addition retains the latest target. An hour of pure field evolution with repeated
+capacity changes checks finite state, the slew limit and the 2600-point cap.
+Legacy exact-alpha fixtures pin only the global envelope at full capacity;
+their local field, glyph, readability and lifecycle paths remain production code.
+
+The controller freezes through hidden/pagehide and reduced-motion pauses, with
+no elapsed-time catch-up. Same-size reduced redraws retain pending fades; an
+actual reduced-motion resize settles the new membership even while hidden.
+Growth reuses the existing atlases, and count changes do not remeasure layout.
+Templates, content, styles, pointer handlers and deployment configuration are
+unchanged. Frontend validation uses the existing adapter-free configuration;
+the previously blocked Cloudflare initialization path is not retried.
+
+Browser/raster acceptance is NOT_RUN. These source, numeric and DOM/Canvas-double
+checks do not establish actual star appearance, font/blur compositing, device
+frame cost or physical-input acceptance. Independent review precedes publication.

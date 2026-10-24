@@ -1,7 +1,8 @@
 import {
-  advanceFieldMotion, advancePointPresence, createFieldMotion, createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
+  advanceFieldMotion, advanceGlobalPopulation, advancePointPresence, createFieldMotion, createGlobalPopulation,
+  createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
   GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
-  glyphAtlasLayout, makePoints, pointCount, MAX_DPR, POINT_VELOCITY, samplePoint, type FieldPoint,
+  glyphAtlasLayout, makePoints, pointCount, MAX_DPR, POINT_VELOCITY, sampleGlobalLuminance, samplePoint, type FieldPoint,
   retargetGlyphTransition, segmentGraphemes, transitionDotWeight, transitionProgress,
 } from '../lib/glyph-field';
 import { clearCursorPointer, cursorPointer, subscribeCursorPointer } from '../lib/cursor-pointer';
@@ -50,6 +51,11 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     transition: ReturnType<typeof createGlyphTransition>;
   }> = [];
   let targetPointCount = 0;
+  let seedPool: FieldPoint[] = [];
+  let atlasColumns = 1;
+  let population = createGlobalPopulation(1, 0);
+  let globalLight = 0;
+  let lastGlobalSample = -1;
   const readability = Array.from(document.querySelectorAll<HTMLElement>('[data-home-background] .home-readability'))
     .map((element) => ({
       element, previous: element.style.getPropertyValue('--home-background-luminance'),
@@ -78,6 +84,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.transitionRevision = String(revision);
   canvas.dataset.pointMotion = 'seeded-diagonal-flow';
   canvas.dataset.densityPolicy = 'stable-rank-luminance';
+  canvas.dataset.populationPolicy = 'global-field-mean';
   canvas.dataset.pointVelocity = `${POINT_VELOCITY.x},${POINT_VELOCITY.y}`;
   canvas.dataset.gradientVelocity = `${GRADIENT_VELOCITY.x},${GRADIENT_VELOCITY.y}`;
   canvas.dataset.fieldPaddingPx = String(FIELD_PADDING);
@@ -234,17 +241,31 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     if (lastDiagnostics < 0 || seconds - lastDiagnostics >= 0.12 || motion.matches) {
       if (canvas.dataset.transitionPending !== String(pending)) canvas.dataset.transitionPending = String(pending);
       if (canvas.dataset.transitionActive !== String(active)) canvas.dataset.transitionActive = String(active);
+      canvas.dataset.populationLuminance = population.light.toFixed(4);
       lastDiagnostics = seconds;
     }
   };
 
+  const newPoint = (point: FieldPoint, presence: number) => ({
+    ...point, presence, targetPresent: point.id < targetPointCount,
+    cellX: point.id % atlasColumns * tileSize,
+    cellY: Math.floor(point.id / atlasColumns) * tileSize,
+    fromHasGlyph: false, transition: createGlyphTransition(target, seconds),
+  });
+
   const updatePopulation = (elapsed: number, immediate = false) => {
+    while (points.length < targetPointCount) points.push(newPoint(seedPool[points.length], immediate ? 1 : 0));
+    let activeCount = 0;
     for (const point of points) {
+      point.targetPresent = point.id < targetPointCount;
       if (immediate) point.presence = point.targetPresent ? 1 : 0;
       else advancePointPresence(point, point.targetPresent, elapsed);
+      if (point.presence > 0) activeCount++;
     }
     while (points.length > targetPointCount && points[points.length - 1].presence === 0) points.pop();
     if (canvas.dataset.pointCount !== String(points.length)) canvas.dataset.pointCount = String(points.length);
+    if (canvas.dataset.activePointCount !== String(activeCount)) canvas.dataset.activePointCount = String(activeCount);
+    if (canvas.dataset.targetPointCount !== String(targetPointCount)) canvas.dataset.targetPointCount = String(targetPointCount);
   };
 
   const staticDraw = () => {
@@ -263,6 +284,12 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.1) : 0;
       seconds += delta;
       advanceFieldMotion(fieldMotion, delta, width, height);
+      if (lastGlobalSample < 0 || seconds - lastGlobalSample >= 0.12) {
+        globalLight = sampleGlobalLuminance(width, height, fieldMotion);
+        lastGlobalSample = seconds;
+        canvas.dataset.globalFieldLuminance = globalLight.toFixed(4);
+      }
+      targetPointCount = advanceGlobalPopulation(population, globalLight, delta);
       updatePopulation(delta);
       previousTime = time;
       lastDraw = time;
@@ -297,32 +324,31 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
     const previousPoints = points;
     const initial = previousPoints.length === 0;
-    targetPointCount = pointCount(width, height);
-    const grid = makePoints(width, height, Math.max(previousPoints.length, targetPointCount));
-    canvas.dataset.targetPointCount = String(targetPointCount);
-    const { width: atlasWidth, height: atlasHeight, columns, bytes } = glyphAtlasLayout(grid.length);
+    const capacity = pointCount(width, height);
+    globalLight = sampleGlobalLuminance(width, height, fieldMotion);
+    lastGlobalSample = seconds;
+    canvas.dataset.globalFieldLuminance = globalLight.toFixed(4);
+    canvas.dataset.pointCapacity = String(capacity);
+    if (initial || (motion.matches && geometryChanged)) population = createGlobalPopulation(capacity, globalLight);
+    targetPointCount = advanceGlobalPopulation(population, globalLight, 0, capacity);
+    seedPool = makePoints(width, height, Math.max(previousPoints.length, capacity));
+    const { width: atlasWidth, height: atlasHeight, columns, bytes } = glyphAtlasLayout(seedPool.length);
+    atlasColumns = columns;
     for (const atlas of [sourceAtlas, captureAtlas]) {
       atlas.image.width = atlasWidth;
       atlas.image.height = atlasHeight;
     }
     // Resized/new points start at the latest target, with no stale cell pixels or
     // old deadlines. A fresh hit test then handles text moving under the pointer.
-    points = grid.map((point, index) => ({
-      ...point,
-      presence: previousPoints[index]?.presence ?? (initial || motion.matches ? 1 : 0),
-      targetPresent: index < targetPointCount,
-      cellX: index % columns * tileSize,
-      cellY: Math.floor(index / columns) * tileSize,
-      fromHasGlyph: false,
-      transition: createGlyphTransition(target, seconds),
-    }));
+    points = seedPool.slice(0, Math.max(previousPoints.length, targetPointCount))
+      .map((point, index) => newPoint(point, previousPoints[index]?.presence ?? (initial || motion.matches ? 1 : 0)));
     canvas.dataset.pointCount = String(points.length);
     canvas.dataset.transitionAtlasBytes = String(bytes);
     lastDiagnostics = -1;
     hitTestNeeded = true;
     // Reduced-motion geometry changes settle membership even while hidden;
     // visibility resumption must not retain a frozen, obsolete retiring tail.
-    if (motion.matches && geometryChanged) updatePopulation(0, true);
+    updatePopulation(0, motion.matches && geometryChanged);
     if (!document.hidden && !pageHidden) {
       if (motion.matches) staticDraw();
       else draw();
@@ -368,6 +394,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     for (const sprite of sprites.values()) sprite.width = sprite.height = 0;
     sprites.clear();
     points = [];
+    seedPool = [];
     for (const { element, previous } of readability) {
       if (previous) element.style.setProperty('--home-background-luminance', previous);
       else element.style.removeProperty('--home-background-luminance');

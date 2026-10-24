@@ -7,10 +7,13 @@ import { clearCursorPointer, updateCursorPointer } from '../src/lib/cursor-point
 
 // Run the real renderer against small DOM/Canvas doubles. This checks scheduling,
 // lifecycle and resource ownership, not actual raster pixels or browser layout.
+// Hold the new global envelope at full capacity in these legacy exact-alpha
+// fixtures. global-population.test.mjs exercises real means and live ID changes.
 const source = await readFile(new URL('../src/scripts/glyph-field.ts', import.meta.url), 'utf8');
 const javascript = ts.transpileModule(source, {
   compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
-}).outputText.replace(/from '(\.\.\/lib\/[^']+)'/g,
+}).outputText.replace(/sampleGlobalLuminance\(width, height, fieldMotion\)/g, '1')
+  .replace(/from '(\.\.\/lib\/[^']+)'/g,
   (_, path) => `from '${new URL(`${path}.ts`, new URL('../src/scripts/', import.meta.url)).href}'`);
 const { mountGlyphField } = await import(`data:text/javascript;base64,${Buffer.from(javascript).toString('base64')}`);
 
