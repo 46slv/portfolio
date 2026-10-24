@@ -117,6 +117,64 @@ export function sampleLuminance(x: number, y: number, time: number | FieldMotion
   return smoothstep(0.26, 0.87, field + pointerLight);
 }
 
+/** Fixed screen samples exclude pointer glow, density, presence and the point
+ * pool itself, so adding stars cannot feed back into the global brightness. */
+export const GLOBAL_SAMPLE_COLUMNS = 16;
+export const GLOBAL_SAMPLE_ROWS = 12;
+export const GLOBAL_POPULATION_FLOOR = 0.55;
+export const GLOBAL_POPULATION_RESPONSE_SECONDS = 1.8;
+export const GLOBAL_POPULATION_RATE = 0.06;
+const populationPointer: FieldPointer = { x: 0, y: 0, active: false };
+
+export function sampleGlobalLuminance(width: number, height: number, motion: FieldMotion): number {
+  let light = 0;
+  for (let row = 0; row < GLOBAL_SAMPLE_ROWS; row++) {
+    for (let column = 0; column < GLOBAL_SAMPLE_COLUMNS; column++) {
+      light += sampleLuminance((column + 0.5) * width / GLOBAL_SAMPLE_COLUMNS,
+        (row + 0.5) * height / GLOBAL_SAMPLE_ROWS, motion, populationPointer);
+    }
+  }
+  return light / (GLOBAL_SAMPLE_COLUMNS * GLOBAL_SAMPLE_ROWS);
+}
+
+export interface GlobalPopulation {
+  capacity: number;
+  light: number;
+  count: number;
+}
+const populationCapacity = (capacity: number) => Math.max(1,
+  Math.min(POINT_BUDGET, Math.floor(Number.isFinite(capacity) ? capacity : 1)));
+const populationLight = (light: number) => clamp(Number.isFinite(light) ? light : 0);
+const populationTarget = (capacity: number, light: number) =>
+  capacity * (GLOBAL_POPULATION_FLOOR + (1 - GLOBAL_POPULATION_FLOOR) * light);
+
+export function createGlobalPopulation(capacity: number, light: number): GlobalPopulation {
+  const limit = populationCapacity(capacity);
+  const value = populationLight(light);
+  return { capacity: limit, light: value, count: Math.max(1, populationTarget(limit, value)) };
+}
+
+/** A paused-clock envelope with a 0.2% deadband and a 6%-of-capacity/s slew.
+ * Count is continuous internally; prefix membership uses its rounded value. */
+export function advanceGlobalPopulation(state: GlobalPopulation, light: number,
+  elapsed: number, capacity = state.capacity): number {
+  const limit = populationCapacity(capacity);
+  if (limit !== state.capacity) state.count *= limit / state.capacity;
+  state.capacity = limit;
+  const delta = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+  if (delta > 0) {
+    state.light += (populationLight(light) - state.light)
+      * (1 - Math.exp(-delta / GLOBAL_POPULATION_RESPONSE_SECONDS));
+    const difference = populationTarget(limit, state.light) - state.count;
+    if (Math.abs(difference) > Math.max(1, limit * 0.002)) {
+      const step = limit * GLOBAL_POPULATION_RATE * delta;
+      state.count += Math.max(-step, Math.min(step, difference));
+    }
+  }
+  state.count = Math.max(1, Math.min(limit, state.count));
+  return Math.round(state.count);
+}
+
 /** Stable independent hash streams: randomness is assigned once per ID, never
  * generated during drawing. The same ID keeps its seed, speed and density rank. */
 const seededUnit = (id: number, salt: number) => {

@@ -1,6 +1,6 @@
 # SS_Portfolio Project Notes
 
-Last updated: 2026-10-23 JST
+Last updated: 2026-10-24 JST
 
 This file is the working specification and implementation log for this repository. Keep it current when changing architecture, data ownership, UI behavior, or operational assumptions.
 
@@ -14,7 +14,30 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
-## Home Seeded Stars, Directional Flow And Text Response - 2026-10-23
+## Home Global Brightness And Active Population - 2026-10-24
+
+- The area-based count is now a capacity, capped at 2600. A fixed 16x12 grid
+  samples the analytic gradient without pointer glow, star density or fades;
+  its mean selects 55-100% of capacity. This avoids feedback from added stars.
+- The mean has a 1.8s response, 0.2%-of-capacity count deadband (minimum one),
+  and 6%-of-capacity/s count slew. Stable prefix IDs enter/leave over the existing
+  0.5s presence fade. Zero-presence retiring IDs leave the actual draw loop.
+  Active count means live IDs with presence above zero, including offscreen or
+  locally dark stars; it is not a count of visible pixels.
+- Global sampling runs at the existing capped cadence with no timer or extra
+  RAF. Atlases are reserved once per resize, rather than rebuilt per count change.
+  Hidden/reduced-motion clocks freeze the envelope and fades. Reduced geometry
+  changes settle membership immediately; other resizes preserve normalized IDs.
+- Local brightness-driven visibility, diagonal speed variation, glyph hover,
+  text content/layout and the 64%/3px readability backplates are unchanged.
+- Local validation: 78 tests pass, including real-ID growth/removal, Japanese
+  hover during count changes and a simulated hour. Adapter-free Astro check has
+  zero diagnostics across 39 files; its static build emits four routes. Home
+  text source coverage remains 50/50 across seven regions.
+- This revision is awaiting independent review. Browser/raster acceptance is
+  NOT_RUN; automated population checks do not establish visual acceptance.
+
+## Home Seeded Stars, Directional Flow And Text Response - 2026-10-23 (historical)
 
 - Home reuses its existing Canvas 2D field, stable seeded point IDs and paused 30fps
   clock. The clarified motion is permanent down-right translation at (1.8, 1.2)

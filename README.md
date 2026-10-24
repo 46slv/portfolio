@@ -44,9 +44,10 @@ Feel free to check [our documentation](https://docs.astro.build) or jump into ou
 
 ## Home glyph background
 
-The Home page has seeded stars with brightness-driven density, continuous slow
-diagonal movement and modest per-point speed variation. The grayscale field
-translates/evolves separately. All rendered Home text supplies glyphs through explicit `data-glyph-source`
+The Home page has seeded stars with brightness-driven local density and total
+active count, continuous slow diagonal movement and modest per-point speed
+variation. A pointer-free mean of the grayscale field smoothly adds/removes stable
+point IDs within the 2600-point budget. The field translates/evolves separately. All rendered Home text supplies glyphs through explicit `data-glyph-source`
 markers and receives the Home-only background-aware palette. Other routes retain
 their existing appearance.
 Run `npm test` for field, renderer, Home text coverage and existing visualizer regressions.
