@@ -49,9 +49,28 @@ Two atlases are reserved to viewport capacity on resize (or the bounded retiring
 tail), so per-count updates need no atlas allocation or layout measurement.
 
 Local star density remains intentionally irregular. Density increases with the gradient: target occupancy
-is `0.12 + 0.78 * luminance`, selected by each point's fixed rank with a 0.32-wide
+is `0.16 + 0.82 * luminance` (previously `0.12 + 0.78 * luminance`), selected by each point's fixed rank with a 0.32-wide
 smoothstep band. Existing luminance still controls size/brightness; the density
 fade separately modulates visibility. Black remains black.
+
+Rare larger dots use the same gradient before pointer glow. Their local
+occupancy gate is `smoothstep(0.64, 0.90, occupancy)`. A stable `largeRank`
+selects with `gate * smoothstep(largeRank - 0.12, largeRank + 0.12, 0.16 * gate)`.
+Fully selected radius and diameter use `1.3 + 5.7 * sizeRank^6`, with an independent
+seeded size rank. Multipliers interpolate from 1x through the gate and selection
+fade, then through existing edge and population presence fades. Large diameters
+are rare: in the 2600-ID white-gradient pool, 12.27% reach 1.3x, 2.35% reach 3x,
+0.62% reach 5x and 0.19% reach 6.5x; the theoretical ceiling is 7x. These are
+linear dimensions, so area scales with the square. Mean circle area in that
+brightest seeded pool is 1.70x the same pool with normal dot radii.
+
+The analytic waves are evaluated once per moving point and shared by local
+brightness, density and size; pointer glow still brightens normal stars but
+cannot create a large-dot cluster alone. Only idle-dot circle radius changes.
+Glyph dimensions, transition deadlines and existing hover behavior are retained.
+The largest radius is 8.75px, below the 32px field padding; cached readability
+bounds extend 18px to cover the radius plus three 3px blur sigmas. Blur/style
+values and foreground content are unchanged.
 
 Resizes retain prefix IDs, seeds, ranks and speeds. Normalized locations and each
 speed lane's offsets scale together, without reseeding or restarting wave phases.
@@ -450,3 +469,32 @@ the previously blocked Cloudflare initialization path is not retried.
 Browser/raster acceptance is NOT_RUN. These source, numeric and DOM/Canvas-double
 checks do not establish actual star appearance, font/blur compositing, device
 frame cost or physical-input acceptance. Independent review precedes publication.
+
+
+## Denser field and rare larger-dot verification - 2026-10-24
+
+This revision starts from merged PR #9. All 85 offline tests pass, including
+the seven new density/size checks and production Canvas command assertions for
+actual enlarged circle radii. Tests verify modest occupancy growth, independent
+stable ranks, mostly small dots with a bounded rare tail, continuous thresholds,
+pointer exclusion, population/edge radius fades and preserved hidden/reduced
+motion, Japanese hover, global active-count changes and resource cleanup.
+Adapter-free Astro check reports no diagnostics across 40 files; its static
+build emits four routes. Built Home retains 50 text runs across seven regions,
+and the other three routes remain opted out of the Home field/palette.
+The final 0.12 rank-selection half-width eases rare size changes without adding
+temporal state or another loop. Across 120s of 30fps pure-gradient samples, the
+largest adjacent-frame radius changes in desktop/portrait candidates are about
+1.13/1.04px, reduced from 2.03/2.04px with the initial narrow selection band.
+Known fast-threshold cases have a focused regression. This is a sampled numeric
+bound, not measured device cadence or visual acceptance.
+Existing numeric text contrast checks remain passing; these do not establish
+actual font, blur or circle-overlap compositing.
+
+The 2600-point count, two-atlas budget, paused animation clock and existing
+global population controller are retained. Analytic before/after SVGs use the
+same positions, seeds and frozen global target; they are pure field previews,
+not browser screenshots or live-animation acceptance. No available browser was
+present in this execution lane, so browser/raster/device profiling is NOT_RUN.
+Frontend check/build use the existing adapter-free configuration. The previously
+blocked local Cloudflare/server initialization path is not retried.

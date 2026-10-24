@@ -14,7 +14,29 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
-## Home Global Brightness And Active Population - 2026-10-24
+## Home Denser Field And Rare Larger Dots - 2026-10-24
+
+- Local occupancy rises from `0.12 + 0.78 * light` to `0.16 + 0.82 * light`.
+  Stable ranks and the existing soft visibility band remain; global population
+  still follows its pointer-free mean and the same maximum 2600-point budget.
+- Above 64% gradient-derived local occupancy, a smooth gate reaching full at
+  90% admits a rare larger-dot tail. Independent seeded selection/size ranks
+  stay attached to each ID. Pointer glow cannot enable this gate by itself.
+- Fully selected dot radius/diameter is multiplied by `1.3 + 5.7 * sizeRank^6`.
+  Gate, selection, edge and population fades interpolate smoothly from 1x.
+  With the real 2600-ID seed at white, 12.27% reach 1.3x, 0.62% reach 5x and
+  0.19% reach 6.5x. The theoretical limit is 7x; glyph size stays unchanged.
+- Maximum dot radius is 8.75px. Cached readability sampling expands from 16px
+  to 18px to cover that radius plus three 3px blur sigmas. Content, styles,
+  hover handlers, route opt-in and canvas/atlas budgets remain unchanged.
+- 85 offline tests pass; adapter-free Astro check reports zero diagnostics
+  across 40 files, and its static build emits all four routes. Home text
+  coverage remains 50/50 across seven local regions.
+- Browser/raster acceptance remains NOT_RUN because
+  this lane has no available browser. Analytic SVG comparisons are math
+  previews and do not establish appearance, font compositing or device cost.
+
+## Home Global Brightness And Active Population - 2026-10-24 (PR #9)
 
 - The area-based count is now a capacity, capped at 2600. A fixed 16x12 grid
   samples the analytic gradient without pointer glow, star density or fades;
@@ -34,8 +56,9 @@ This file is the working specification and implementation log for this repositor
   hover during count changes and a simulated hour. Adapter-free Astro check has
   zero diagnostics across 39 files; its static build emits four routes. Home
   text source coverage remains 50/50 across seven regions.
-- This revision is awaiting independent review. Browser/raster acceptance is
-  NOT_RUN; automated population checks do not establish visual acceptance.
+- PR #9 was independently reviewed, merged and published through the existing
+  Cloudflare workflow. Browser/raster acceptance remains NOT_RUN; HTTP module
+  delivery and automated population checks do not establish visual acceptance.
 
 ## Home Seeded Stars, Directional Flow And Text Response - 2026-10-23 (historical)
 
