@@ -83,6 +83,13 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       setTransform() {}, beginPath() {}, fillText() {}, fillRect() {},
       measureText() { return { width: 28 }; },
       drawImage: (image, ...args) => {
+        if (image.dataset.fieldLayer === 'particle-halo') {
+          const [left, top, size] = args;
+          const sample = expectedSamples.get(positionKey(left + size / 2, top + size / 2))?.expected;
+          assert.ok(sample);
+          if (verifyIdleAlpha && resizeFrames > 20) assert.ok(Math.abs(size - 2 * sample.glowRadius) < 1e-9);
+          return;
+        }
         if (image.dataset.fieldLayer === 'wash') {
           assert.deepEqual(args, [0, 0, window.innerWidth, window.innerHeight]);
           assert.ok(image.width * image.height <= 4096); drawCalls++; return;
@@ -185,7 +192,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     cleanup = mountGlyphField(canvas);
     const atlases = canvases.slice(1, 3);
     assert.equal(atlases.length, 2);
-    assert.equal(canvases.length, 4);
+    assert.equal(canvases.length, 5);
     assert.equal(canvases[3].dataset.fieldLayer, 'wash');
     assert.equal(callbacks.size, 1);
     assert.equal(canvas.width, window.innerWidth * MAX_DPR);
@@ -232,9 +239,11 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     window.dispatchEvent(new Event('scroll'));
     frame();
     assert.equal(boundsReads, beforeScrollBounds + regions.length, 'scroll invalidates cached bounds once');
-    const localSamples = [...canvas.positions].filter(([, [x, y]]) => x >= 84 && x <= 140 && y >= 84 && y <= 140)
-      .map(([key]) => canvas.dots.get(key));
-    const localLight = Math.min(1, Math.max(0, ...localSamples) + 0.2);
+    const localSamples = [...expectedSamples.values()].map(record => record.expected)
+      .filter(sample => sample.x >= 22 && sample.x <= 202 && sample.y >= 22 && sample.y <= 202);
+    const halo = 1 - localSamples.reduce((remaining, sample) => remaining * (1 - sample.glowOpacity), 1);
+    const core = Math.max(0, ...localSamples.map(sample => sample.luminance));
+    const localLight = Math.min(1, core + (1 - core) * halo + 0.2);
     assert.ok(Math.abs(Number(regions[2].style.getPropertyValue('--home-background-luminance')) - localLight) < 0.003,
       'local text response uses actual visible dot alphas at the current locations, including edge fades');
     const oldCount = Number(canvas.dataset.pointCount);
@@ -278,7 +287,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       assert.ok(Number(canvas.dataset.transitionAtlasBytes) <= GLYPH_ATLAS_MAX_BYTES);
       assert.ok(atlases.reduce((bytes, image) => bytes + image.width * image.height * 4, 0) <= GLYPH_ATLAS_MAX_BYTES);
       const live = canvases.filter((image) => image !== canvas && image.width && image.height);
-      assert.ok(live.length <= 35, 'two atlases, one bounded wash, and at most 32 glyph sprites');
+      assert.ok(live.length <= 36, 'two atlases, one wash, one cached halo, and at most 32 glyph sprites');
       assert.deepEqual(canvases.slice(1, 3), atlases, 'resize never creates replacement atlases');
     }
     assert.equal(Number(canvas.dataset.transitionRevision), 120);

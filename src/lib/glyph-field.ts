@@ -292,6 +292,36 @@ export function densityVisibility(luminance: number, rank: number): number {
 
 export const LARGE_DOT_MIN_MULTIPLIER = 1.3;
 export const LARGE_DOT_MAX_MULTIPLIER = 7;
+export const PARTICLE_HALO_TILE_SIZE = 96;
+export const PARTICLE_HALO_MAX_RADIUS = (6 + 3 * 1.25) * LARGE_DOT_MAX_MULTIPLIER;
+// Cover the widest halo or glyph plus three existing 3px backplate blur sigmas.
+export const PARTICLE_READABILITY_MARGIN = Math.ceil(Math.max(
+  PARTICLE_HALO_MAX_RADIUS, 14 * LARGE_DOT_MAX_MULTIPLIER / 2) + 9);
+
+export const particleGlyphSize = (brightness: number, multiplier: number) => (5 + 9 * brightness) * multiplier;
+export const particleGlowRadius = (brightness: number, multiplier: number) => (6 + 3 * (0.24 + 1.01 * brightness)) * multiplier;
+export const particleGlowOpacity = (multiplier: number, luminance: number) => 0.12 * smoothstep(1, 3, multiplier) * luminance;
+
+/** A monotone Gaussian core/shoulder with a broad C2 tail for a reusable sprite.
+ * This emitted light is rendering only; it never enters field/population math. */
+export function particleHaloFalloff(radius: number): number {
+  const r = Math.abs(radius);
+  if (r >= 1) return 0;
+  const t = clamp((r - 0.55) / 0.45);
+  const tail = 1 - t ** 3 * (10 + t * (-15 + 6 * t));
+  return (0.78 * Math.exp(-r * r / (2 * 0.20 ** 2))
+    + 0.22 * Math.exp(-r * r / (2 * 0.42 ** 2))) * tail;
+}
+
+/** Allocate/upload once per mount, never per particle/frame. */
+export function paintParticleHalo(pixels: Uint8ClampedArray, size = PARTICLE_HALO_TILE_SIZE): void {
+  for (let row = 0; row < size; row++) for (let column = 0; column < size; column++) {
+    const r = Math.hypot((column + 0.5) * 2 / size - 1, (row + 0.5) * 2 / size - 1);
+    const index = (row * size + column) * 4;
+    pixels[index] = pixels[index + 1] = pixels[index + 2] = 255;
+    pixels[index + 3] = Math.round(255 * particleHaloFalloff(r));
+  }
+}
 
 /** The shared gradient/halo field selects larger stars. A soft 64-90% local
  * occupancy gate admits a small fixed-rank tail; the sixth power makes the
@@ -334,7 +364,11 @@ export function samplePoint(point: FieldPoint, motion: FieldMotion, width: numbe
   const density = densityVisibility(fieldLight, point.densityRank);
   const sizeMultiplier = 1 + (dotSizeMultiplier(fieldLight, point.largeRank, point.sizeRank) - 1) * edge * presence;
   const radius = (0.24 + brightness * 1.01) * sizeMultiplier;
-  return { x, y, brightness, density, gradientLuminance, fieldLuminance: fieldLight, sizeMultiplier, radius, luminance: brightness * density * presence };
+  const luminance = brightness * density * presence;
+  return { x, y, brightness, density, gradientLuminance, fieldLuminance: fieldLight, sizeMultiplier, radius, luminance,
+    glyphSize: particleGlyphSize(brightness, sizeMultiplier),
+    glowRadius: particleGlowRadius(brightness, sizeMultiplier),
+    glowOpacity: particleGlowOpacity(sizeMultiplier, luminance) };
 }
 
 export const GLYPH_MAX_DELAY_SECONDS = 0.42;

@@ -128,12 +128,12 @@ test('production active IDs grow and are actually removed at fixed geometry, wit
     assert.ok(Math.abs(f.visited.length-lowCount)<=6);
     assert.ok(!f.visited.some(p=>p.id>=lowCount+6),'retired IDs leave the actual production sample loop');
     assert.equal(f.boundsReads,bounds,'population changes never remeasure layout');
-    assert.equal(f.canvases.length,4,'growth reuses two pre-sized atlases and one bounded wash');
+    assert.equal(f.canvases.length,5,'growth reuses two pre-sized atlases, one wash and one cached halo');
     assert.ok(f.globalSamples<500,'global sampling piggybacks at the capped cadence');
     f.resize(390,844);f.run(20);
     assert.ok(f.visited.length<=pointCount(390,844),'normal resize releases the retiring tail after its fade');
     assert.ok(Math.abs(f.visited.length-Math.round(pointCount(390,844)*(.55+.45*.1)))<=6);
-    assert.equal(f.canvases.length,4);
+    assert.equal(f.canvases.length,5);
   }finally{f.close();}
 });
 

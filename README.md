@@ -52,7 +52,9 @@ markers and receives the Home-only background-aware palette. Other routes retain
 their existing appearance.
 Run `npm test` for field, renderer, Home text coverage and existing visualizer regressions.
 Home combines its pointer halo with the animated field and a restrained near-black
-wash; other routes keep their existing cursor glow. See the
+wash; other routes keep their existing cursor glow. Large particles retain their
+linear size multiplier when they become canvas glyphs, with a soft cached halo
+on enlarged particles only. See [large particle rendering](docs/large-particle-glyph-glow.md), the
 [shared-light design](docs/shared-home-light-field.md) and
 [implementation and acceptance checks](docs/luminance-glyph-background.md)
 for rendering details, accessibility behavior and verification limitations.

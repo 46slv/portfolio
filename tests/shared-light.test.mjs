@@ -127,8 +127,8 @@ function fixture(width=1440,height=900){
     width=300;height=150;dataset={};
     pen={clearRect:()=>{if(this===main){draws++;pointPointers=[];samples=[];order=[];}},setTransform(){},beginPath(){},arc(){order.push('dot');},fill(){},fillRect(){},fillText(){},measureText(){return{width:28};},
       createImageData:(w,h)=>({width:w,height:h,data:new Uint8ClampedArray(w*h*4)}),
-      putImageData:(image,x,y)=>{assert.equal(this.dataset.fieldLayer,'wash');assert.equal(x,0);assert.equal(y,0);assert.equal(image.data.length,this.width*this.height*4);uploads++;},
-      drawImage:(image,...args)=>{if(image.dataset.fieldLayer==='wash'){assert.equal(this,main);assert.deepEqual(args,[0,0,window.innerWidth,window.innerHeight]);order.push('wash');}}};
+      putImageData:(image,x,y)=>{assert.ok(['wash','particle-halo'].includes(this.dataset.fieldLayer));assert.equal(x,0);assert.equal(y,0);assert.equal(image.data.length,this.width*this.height*4);uploads++;},
+      drawImage:(image,...args)=>{if(image.dataset.fieldLayer==='particle-halo')return;if(image.dataset.fieldLayer==='wash'){assert.equal(this,main);assert.deepEqual(args,[0,0,window.innerWidth,window.innerHeight]);order.push('wash');}}};
     constructor(){canvases.push(this);}getContext(){return this.pen;}
   }
   const motion=Object.assign(new EventTarget(),{matches:false});
@@ -159,7 +159,7 @@ test('production wash and dots share the smoothed pointer and reuse their small 
     const before=f.light;updateCursorPointer(1100,600);f.frame();
     assert.ok(f.light.x>before.x&&f.light.x<1100,'light follows frame time rather than snapping to raw input');
     for(const pointer of f.pointers)assert.deepEqual(pointer,f.light);
-    f.run(40);assert.equal(f.buffers.size,1);assert.equal(f.canvases.length,4);
+    f.run(40);assert.equal(f.buffers.size,1);assert.equal(f.canvases.length,5);
     assert.ok(f.uploads>40);
   }finally{f.close();}
 });

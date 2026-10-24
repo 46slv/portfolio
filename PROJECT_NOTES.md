@@ -1,5 +1,22 @@
 # SS_Portfolio Project Notes
 
+## Large canvas glyphs and particle-only glow (2026-10-24)
+
+- Preserve the same live stable-rank multiplier across dot/glyph/source-snapshot
+  rendering. Normal glyph destinations stay 5-14px; the largest tier can reach
+  98px without resizing actual page text or changing hit testing.
+- Enlarged particles reuse one 96px Gaussian core/shoulder sprite with a broad C2
+  tail. Alpha follows live luminance and size; normal 1x points emit no halo.
+  No emitted light re-enters density, ranks or the global population controller.
+- Readability sampling covers the new maximum footprint with a 78px cached
+  margin and conservatively observes overlapping emitted halo alpha. Existing
+  64%/3px backplates, palette equations and page content are unchanged.
+- Seven focused tests inspect actual dot/glyph/halo destinations and exact
+  transition alphas, reversibility, cache reuse, fade/edge behavior and retained
+  R2 hidden/reduced-motion synchronization. Real browser/raster and sustained
+  device load acceptance remain NOT_RUN. See `docs/large-particle-glyph-glow.md`.
+
+
 Last updated: 2026-10-24 JST
 
 This file is the working specification and implementation log for this repository. Keep it current when changing architecture, data ownership, UI behavior, or operational assumptions.
