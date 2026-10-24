@@ -1,7 +1,7 @@
 import {
-  advanceFieldMotion, createFieldMotion, createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
+  advanceFieldMotion, advancePointPresence, createFieldMotion, createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
   GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
-  glyphAtlasLayout, makeGrid, MAX_DPR, POINT_VELOCITY, samplePoint, type FieldPoint,
+  glyphAtlasLayout, makePoints, pointCount, MAX_DPR, POINT_VELOCITY, samplePoint, type FieldPoint,
   retargetGlyphTransition, segmentGraphemes, transitionDotWeight, transitionProgress,
 } from '../lib/glyph-field';
 import { clearCursorPointer, cursorPointer, subscribeCursorPointer } from '../lib/cursor-pointer';
@@ -46,13 +46,14 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   let sourceAtlas = makeAtlas();
   let captureAtlas = makeAtlas();
   let points: Array<FieldPoint & {
-    cellX: number; cellY: number; fromHasGlyph: boolean;
+    cellX: number; cellY: number; fromHasGlyph: boolean; targetPresent: boolean;
     transition: ReturnType<typeof createGlyphTransition>;
   }> = [];
+  let targetPointCount = 0;
   const readability = Array.from(document.querySelectorAll<HTMLElement>('[data-home-background] .home-readability'))
     .map((element) => ({
       element, previous: element.style.getPropertyValue('--home-background-luminance'),
-      bounds: { left: 0, right: 0, top: 0, bottom: 0 }, light: 0,
+      bounds: { left: 0, right: 0, top: 0, bottom: 0 }, light: 0, appliedLight: -1,
     }));
   let readabilityBoundsDirty = true;
   let readabilityNeeded = true;
@@ -75,7 +76,8 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.transitionFadeMs = String(GLYPH_FADE_SECONDS * 1000);
   canvas.dataset.glyph = target;
   canvas.dataset.transitionRevision = String(revision);
-  canvas.dataset.pointMotion = 'diagonal-flow';
+  canvas.dataset.pointMotion = 'seeded-diagonal-flow';
+  canvas.dataset.densityPolicy = 'stable-rank-luminance';
   canvas.dataset.pointVelocity = `${POINT_VELOCITY.x},${POINT_VELOCITY.y}`;
   canvas.dataset.gradientVelocity = `${GRADIENT_VELOCITY.x},${GRADIENT_VELOCITY.y}`;
   canvas.dataset.fieldPaddingPx = String(FIELD_PADDING);
@@ -153,28 +155,26 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
 
   const draw = () => {
     context.clearRect(0, 0, width, height);
-    const sampleReadability = readabilityNeeded || lastReadability < 0
+    const refreshReadability = readabilityNeeded || lastReadability < 0
       || seconds - lastReadability >= 0.12 || motion.matches;
-    if (sampleReadability) {
-      for (const region of readability) {
-        if (readabilityBoundsDirty) {
-          const rect = region.element.getBoundingClientRect();
-          // Include nearby glyph pixels and the existing local backdrop blur.
-          region.bounds = {
-            left: Math.max(0, rect.left - 16), right: Math.min(width, rect.right + 16),
-            top: Math.max(0, rect.top - 16), bottom: Math.min(height, rect.bottom + 16),
-          };
-        }
-        region.light = 0;
+    for (const region of readability) {
+      if (readabilityBoundsDirty) {
+        const rect = region.element.getBoundingClientRect();
+        // Include nearby glyph pixels and the existing local backdrop blur.
+        region.bounds = {
+          left: Math.max(0, rect.left - 16), right: Math.min(width, rect.right + 16),
+          top: Math.max(0, rect.top - 16), bottom: Math.min(height, rect.bottom + 16),
+        };
       }
-      readabilityBoundsDirty = false;
+      region.light = 0;
     }
+    readabilityBoundsDirty = false;
     const sprite = target ? spriteFor(target) : null;
     let pending = 0;
     let active = 0;
     context.fillStyle = '#fff';
     for (const point of points) {
-      const { x, y, luminance } = samplePoint(point, fieldMotion, width, height, cursorPointer);
+      const { x, y, luminance, brightness } = samplePoint(point, fieldMotion, width, height, cursorPointer);
       const progress = transitionProgress(point.transition, seconds);
       if (progress < 1) {
         if (seconds < point.transition.startsAt) pending++;
@@ -182,22 +182,20 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       }
       const dotWeight = transitionDotWeight(point.transition, progress);
       // Brightness and size stay live. Only the transition deadline is frozen.
-      if (sampleReadability) {
-        for (const region of readability) {
-          const bounds = region.bounds;
-          if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
-            region.light = Math.max(region.light, luminance);
-          }
+      for (const region of readability) {
+        const bounds = region.bounds;
+        if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
+          region.light = Math.max(region.light, luminance);
         }
       }
       if (luminance <= 0.002) continue;
       if (dotWeight > 0) {
         context.globalAlpha = luminance * dotWeight;
         context.beginPath();
-        context.arc(x, y, 0.24 + luminance * 1.01, 0, Math.PI * 2);
+        context.arc(x, y, 0.24 + brightness * 1.01, 0, Math.PI * 2);
         context.fill();
       }
-      const size = 5 + luminance * 9;
+      const size = 5 + brightness * 9;
       const drawSource = point.fromHasGlyph && progress < 1;
       const drawTarget = sprite !== null && progress > 0;
       // Overlapping white-alpha layers add, so a crossfade cannot dim shared
@@ -216,19 +214,21 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       if (additive) context.globalCompositeOperation = 'source-over';
     }
     context.globalAlpha = 1;
-    if (sampleReadability) {
-      for (const region of readability) {
-        if (region.bounds.right <= region.bounds.left || region.bounds.bottom <= region.bounds.top) continue;
-        // Headroom for field movement between capped updates. Pointer and scroll
-        // changes request a fresh sample on the very next draw.
+    for (const region of readability) {
+      if (region.bounds.right <= region.bounds.left || region.bounds.bottom <= region.bounds.top) continue;
+      // Density fades can rise faster than the original waves. Observe the
+      // actual draw every frame; refresh immediately if it exceeds the last
+      // headroom. Falling values retain the capped release cadence.
+      if (refreshReadability || region.light > region.appliedLight) {
         const light = Math.min(1, region.light + 0.2).toFixed(3);
         if (region.element.style.getPropertyValue('--home-background-luminance') !== light) {
           region.element.style.setProperty('--home-background-luminance', light);
         }
+        region.appliedLight = Number(light);
       }
-      lastReadability = seconds;
-      readabilityNeeded = false;
     }
+    if (refreshReadability) lastReadability = seconds;
+    readabilityNeeded = false;
     // Lightweight DOM-backed diagnostics for read-only browser verification.
     // At most ~8 updates/second while a transition is changing, none when stable.
     if (lastDiagnostics < 0 || seconds - lastDiagnostics >= 0.12 || motion.matches) {
@@ -236,6 +236,15 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       if (canvas.dataset.transitionActive !== String(active)) canvas.dataset.transitionActive = String(active);
       lastDiagnostics = seconds;
     }
+  };
+
+  const updatePopulation = (elapsed: number, immediate = false) => {
+    for (const point of points) {
+      if (immediate) point.presence = point.targetPresent ? 1 : 0;
+      else advancePointPresence(point, point.targetPresent, elapsed);
+    }
+    while (points.length > targetPointCount && points[points.length - 1].presence === 0) points.pop();
+    if (canvas.dataset.pointCount !== String(points.length)) canvas.dataset.pointCount = String(points.length);
   };
 
   const staticDraw = () => {
@@ -254,6 +263,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.1) : 0;
       seconds += delta;
       advanceFieldMotion(fieldMotion, delta, width, height);
+      updatePopulation(delta);
       previousTime = time;
       lastDraw = time;
       if (hitTestNeeded || target) updateTarget();
@@ -276,6 +286,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   };
 
   const resize = () => {
+    const geometryChanged = width !== window.innerWidth || height !== window.innerHeight;
     width = window.innerWidth;
     height = window.innerHeight;
     advanceFieldMotion(fieldMotion, 0, width, height);
@@ -284,7 +295,11 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     canvas.width = Math.round(width * dpr);
     canvas.height = Math.round(height * dpr);
     context.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const grid = makeGrid(width, height);
+    const previousPoints = points;
+    const initial = previousPoints.length === 0;
+    targetPointCount = pointCount(width, height);
+    const grid = makePoints(width, height, Math.max(previousPoints.length, targetPointCount));
+    canvas.dataset.targetPointCount = String(targetPointCount);
     const { width: atlasWidth, height: atlasHeight, columns, bytes } = glyphAtlasLayout(grid.length);
     for (const atlas of [sourceAtlas, captureAtlas]) {
       atlas.image.width = atlasWidth;
@@ -294,6 +309,8 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     // old deadlines. A fresh hit test then handles text moving under the pointer.
     points = grid.map((point, index) => ({
       ...point,
+      presence: previousPoints[index]?.presence ?? (initial || motion.matches ? 1 : 0),
+      targetPresent: index < targetPointCount,
       cellX: index % columns * tileSize,
       cellY: Math.floor(index / columns) * tileSize,
       fromHasGlyph: false,
@@ -303,6 +320,9 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     canvas.dataset.transitionAtlasBytes = String(bytes);
     lastDiagnostics = -1;
     hitTestNeeded = true;
+    // Reduced-motion geometry changes settle membership even while hidden;
+    // visibility resumption must not retain a frozen, obsolete retiring tail.
+    if (motion.matches && geometryChanged) updatePopulation(0, true);
     if (!document.hidden && !pageHidden) {
       if (motion.matches) staticDraw();
       else draw();

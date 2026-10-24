@@ -17,29 +17,35 @@
 
 ## Rendering and interaction
 
-Grid anchors remain stable between viewport resizes. Positions translate
-permanently down-right at (1.8, 1.2) CSS px/s (about 2.16px/s diagonally), without
-reversing. This supersedes PR #6's bounded 4.5px orbits; no subordinate jitter is
-currently added. The grayscale field separately advects down-right at (2.4, 1.6)
-CSS px/s while retaining the existing color evolution and screen-anchored pointer
-light. These are separate motions, not only changing sine amplitudes.
+Star IDs keep deterministic independent seed streams for x/y placement, density
+rank and speed. Positions are irregular, with stable local sparse/dense patches;
+no drawing frame calls a random-number generator. The nine seeded speed factors
+range from 0.84 to 1.16 around the nominal down-right velocity (1.8, 1.2) CSS px/s.
+Every star keeps translating in that direction rather than oscillating. The
+separate gradient advection remains (2.4, 1.6) CSS px/s, with the original color
+evolution and screen-anchored pointer light.
 
-The uniform grid extends 32px beyond each viewport edge. Shared position offsets
-wrap within this padded torus, so a recycled point is fully off-screen even at
-maximum glyph size. An 18px smooth fade inside the screen makes entry/exit gradual.
-Point count and toroidal spacing do not change during recycling; the visible
-population varies naturally by at most a row/column. At 390x844 the padded grid has
-820 points (including off-screen padding), still below the unchanged 2600 cap.
-Tiny viewports shorten the edge fade. Resizes rebuild anchors and normalize the
-existing bounded offsets without restarting the wave phases.
+The star pool extends 32px beyond each viewport edge. Nine bounded offset pairs
+recycle their IDs only in this invisible padding, with an 18px smooth screen-edge
+fade. Total pool size is capped at 2600; the area-based target is 851 at 390x844.
+The geometric population stays statistically stable while local star density is
+intentionally irregular. Density increases with the gradient: target occupancy
+is `0.12 + 0.78 * luminance`, selected by each point's fixed rank with a 0.32-wide
+smoothstep band. Existing luminance still controls size/brightness; the density
+fade separately modulates visibility. Black remains black.
 
-Offsets and each of the three wave evolution/advection phases are bounded and
-advanced by the existing paused clock. No growing absolute position, randomized
-respawn, wrapping time reset or additional animation loop is used. Phase wrapping
-is periodic for each wave, so it cannot reset the combined gradient at a seam.
-Dots and glyphs share one moving position. Drawing, local text readability and
-transition delays sample that actual position and the same final edge-faded
-luminance; grid anchors never substitute for the visible background.
+Resizes retain prefix IDs, seeds, ranks and speeds. Normalized locations and each
+speed lane's offsets scale together, without reseeding or restarting wave phases.
+New/retiring slots smoothly fade over 0.5s; a retiring tail is released at zero.
+The prefix union cannot exceed the same 2600-point cap. Hidden/reduced-motion
+pauses retain incomplete population fades. A real geometric resize while already
+in reduced motion applies the new population immediately without a standing RAF.
+
+Offsets and individual evolution/advection phases remain bounded and share the
+existing paused clock. There is no growing world coordinate, randomized respawn,
+wrapping time reset or additional animation loop. Dots and glyphs use the same
+position and brightness. Drawing, local text readability and transition delays
+share the final density/population/edge-faded luminance at that moving position.
 
 Each rendered position samples one analytic grayscale field made from smoothly flowing waves and a localized
 contribution from the existing mouse position. The edge-faded luminance controls both point size
@@ -86,22 +92,24 @@ the rotary mask. They preserve dimensions, spacing, font classes and link/hover
 classes. The Bio wash still follows its existing `max-w-3xl` width.
 
 Each region has the existing sharp-foreground/blurred-backdrop separation: only a
-negative-z, noninteractive pseudo-element receives the 5px prefixed/unprefixed
-backdrop blur and 12px feather. Its dark tint is now 65%, including the CSS-only
-fallback. The canvas outside these local regions is unchanged.
+negative-z, noninteractive pseudo-element receives the 3px prefixed/unprefixed
+backdrop blur and 12px feather. Its dark tint is now 64%, including the CSS-only
+fallback. These smaller local attenuation/blur values restore some visible star
+detail behind text; the canvas outside these regions is not brightened.
 
-During the existing draw pass, regions sample the maximum live luminance of the
-nearby rendered points. Their bounds are cached and refreshed only after scroll,
-resize or pageshow; no per-frame DOM layout measurement is added. Idle palette
-updates are capped at about eight per second, with 0.2 luminance headroom. Pointer
-and scroll changes request a fresh sample on the next existing render frame.
-There are no extra animation loops or timers.
+During every existing draw pass, regions sample the maximum final visible
+luminance of nearby stars, including density and population fades. Bounds are
+cached and refreshed only after scroll, resize or pageshow. No per-frame layout
+measurement is added. The 0.2 headroom is refreshed immediately if a rising star
+exceeds the previously applied value; falling values release on the existing
+approximately eight-per-second cadence. This prevents the faster density fades
+from overtaking an old palette sample. There is no extra loop or timer.
 
 Home-scoped palette variables adapt existing white/zinc/green text tokens to the
 measured field. Inherited status/arrow text receives the region's default tone.
 Existing utility hover/focus colors, link transforms, pulse timing and Bio hover
 dimming keep their ownership. Branding opacity and the status pulse minimum
-increase in bright regions. The status pulse retains its two-second easing.
+increase in bright regions, with small compensation for the brighter backplate. The status pulse retains its two-second easing.
 The palette uses `color-mix` behind `@supports`; unsupported browsers retain the
 original text utilities over the local dark tint.
 
@@ -135,7 +143,8 @@ rendering and hover readability remain real-browser acceptance items.
 
 `npm test` uses Node's built-in runner and TypeScript stripping (Node >=22.12,
 already required by the project). Pure tests cover the point budget, stable
-anchors, sustained diagonal displacement, padded seams/density, bounded motion phases,
+seeded positions/IDs/ranks, sustained varied-speed diagonal displacement, padded
+seams/statistical density, smooth brightness-driven occupancy, bounded motion phases,
 gradient translation/evolution correspondence, edge-faded sampling, grayscale endpoints, meaningful 1–2 second pointer-free change, bounded
 frame-to-frame change, finer spatial variation in desktop/portrait, pointer contribution,
 bright-before-dark timing, snapshot deadlines, interrupted transitions, stale
@@ -149,9 +158,10 @@ DPR capping, unchanged deadlines on repeated hits, settling back to dots, hidden
 document pause/resume, reduced-motion immediate updates without RAF, pagehide /
 pageshow, and idempotent Astro cleanup. These doubles do not verify real raster
 pixels, browser memory/GC, font rendering, or layout. The directional revision
-also runs both wraps through the actual RAF handler, records dot/glyph positions
-and alphas, checks local text samples, and verifies reduced-motion/hidden-page
-resumption and resize without restarting phases.
+also runs spatial wraps through the actual RAF handler, records dot/glyph
+positions and alphas, checks local text coverage every frame, observes a newly
+enabled star fading in, and verifies hidden/reduced-motion population pauses and
+resize without restarting phases.
 
 The renderer test also records the real canvas draw commands at desktop and
 390×844 portrait sizes with no active pointer. It verifies substantial dot-alpha
@@ -344,7 +354,7 @@ Verification results do not by themselves authorize publication.
   appearance and device rendering cost remain acceptance checks.
 
 
-## Directional correction verification - 2026-10-23
+## PR #7 directional correction verification - 2026-10-23 (historical)
 
 The clarified contract requires permanent diagonal translation rather than only
 bounded oscillation. The previous orbit reverses direction after 27 seconds in
@@ -368,3 +378,25 @@ the recorded negative control. This correction starts from the merged PR #6 tree
   listener/build retry, configuration change or publication was performed for
   this correction. Full adapter build, actual compositing/edge appearance,
   sustained device frame cost and physical-input behavior remain unverified.
+
+
+## Seeded-star and local readability verification - 2026-10-23
+
+This local revision starts from merged PR #7. All 71 tests pass, including
+irregular seeded placement, ID/rank/speed persistence, brighter-is-denser occupancy,
+smooth density and resize-population fades, independent-speed padded wrapping,
+normalized resize continuity, and the retained directional/gradient/glyph tests.
+The production renderer fixture verifies actual draw alpha/position, immediate
+local palette coverage, population fade-in, hidden pause and reduced-motion
+freeze/resume; it does not implement a separate production renderer.
+
+The local backplate changes from 65%/5px to 64%/3px are Home-only. Numeric tests
+read the declared colors, opacity and tint and retain a modeled contrast floor
+of 4.5 across the sampled light/dark states, including status pulse and branding.
+Feather geometry remains continuous and outside foreground entrance/rotary masks.
+These are numeric/source checks, not actual font or CSS blur/compositing evidence.
+
+Frontend-only type check and the permitted static build are recorded with this
+revision. The ordinary Cloudflare initialization path is not retried. Browser,
+GUI, local server and physical-input acceptance are NOT_RUN. No publication is
+performed by this implementation lane; independent review/integration is separate.

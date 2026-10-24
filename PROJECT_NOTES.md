@@ -14,29 +14,40 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
-## Home Directional Flow And Text Response - 2026-10-23
+## Home Seeded Stars, Directional Flow And Text Response - 2026-10-23
 
-- Home reuses its existing Canvas 2D field, stable grid anchors and paused 30fps
+- Home reuses its existing Canvas 2D field, stable seeded point IDs and paused 30fps
   clock. The clarified motion is permanent down-right translation at (1.8, 1.2)
-  CSS px/s, replacing the previous bounded orbits. A padded torus recycles only
+  CSS px/s nominally, with nine seeded speed factors from 0.84 to 1.16. A padded torus recycles only
   off-screen; an 18px screen-edge fade keeps entries/exits continuous.
 - The grayscale field has a separate down-right translation at (2.4, 1.6) CSS
   px/s while retaining its existing color evolution. Bounded per-wave phases
   avoid moving an unbounded world coordinate; pointer light stays screen-anchored.
+- Irregular seeded positions retain star-like sparse/dense patches. A fixed
+  per-point density rank adds more stars in brighter gradient regions, fading
+  smoothly instead of generating random values per frame. Existing brightness
+  still controls size and alpha.
 - Drawing, transition delays and local text response share the same final sample
-  at each moving point, including the screen-edge fade.
+  at each moving point, including density, population and screen-edge fades.
+- Resize preserves normalized positions, ID/seed/rank/speed and wave phases.
+  New/retiring prefix slots fade over 0.5s; the pool never exceeds 2600 points.
+  Reduced motion freezes pending fades; a geometric resize while already reduced
+  applies its target population without starting an animation.
 - Every rendered Home text block supplies glyphs, including header clock/status,
   log dates, section labels, Direct Link details and the shared footer. Other
   routes do not enable the Home flag, field or palette.
-- Seven local backplates retain the existing blur/stacking geometry. A sampled
-  luminance value adapts the existing text color tokens and metadata opacity.
-  Cached region bounds avoid repeated layout measurement; no new loop is added.
+- Seven local backplates retain stacking and feather geometry. Their local tint
+  is 64% (previously 65%) and blur is 3px (previously 5px), transmitting more star
+  detail behind text. Branding/status opacity compensates for readability.
+- Actual visible luminance is checked every existing draw, with immediate upward
+  text response when headroom is exceeded and capped downward release. Cached
+  region bounds avoid repeated layout measurement; no new loop is added.
 - Foreground strings, profile/log data, link targets, hover/rotary handlers and
   layout classes remain unchanged. The new palette is an intentional Home-only
   readability change. Bio hover dimming and entrance motion are retained.
 - Reduced motion freezes dot positions and the field without a standing field
   RAF; hidden/pagehide pauses resume without a spatial jump.
-- Local verification: 65 tests pass; frontend-only Astro check has no diagnostics
+- Local verification: 71 tests pass; frontend-only Astro check has no diagnostics
   and its static build emits all four routes. Built Home covers all 50 visible
   text runs. Cloudflare adapter initialization is blocked in the restricted
   environment, so full adapter build and real-browser acceptance remain open.
