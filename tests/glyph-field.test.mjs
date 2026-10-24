@@ -151,7 +151,7 @@ test('gradient phase wraps stay continuous and pointer light stays in screen spa
     const on = { ...point, active: true };
     assert.ok(sampleLuminance(point.x, point.y, state, on) > sampleLuminance(point.x, point.y, state, off) + 0.5);
     assert.ok(Math.abs(sampleLuminance(point.x + 1000, point.y, state, on)
-      - sampleLuminance(point.x + 1000, point.y, state, off)) < 1e-10);
+      - sampleLuminance(point.x + 1000, point.y, state, off)) < 0.0003);
   }
 });
 
@@ -336,7 +336,8 @@ test('pointer light contributes to the same field and falls off with distance', 
   const off = { x: 1000, y: 300, active: false };
   const on = { ...off, active: true };
   assert.ok(sampleLuminance(1000, 300, 0, on) > sampleLuminance(1000, 300, 0, off));
-  assert.ok(Math.abs(sampleLuminance(0, 0, 0, on) - sampleLuminance(0, 0, 0, off)) < 0.00001);
+  const tail = sampleLuminance(0, 0, 0, on) - sampleLuminance(0, 0, 0, off);
+  assert.ok(tail > 0 && tail < 0.0003, 'the broad shoulder decays without a finite cutoff');
 });
 
 test('bright points change before dark points, with a bounded smooth fade', () => {

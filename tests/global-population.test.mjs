@@ -80,7 +80,7 @@ function fixture(width,height,override=.1){
   const callbacks=new Map(),canvases=[];
   class Canvas{
     width=300;height=150;dataset={};
-    pen={clearRect:()=>{if(this===main){visited=[];draws++;}},setTransform(){},beginPath(){},arc(){},fill(){},fillRect(){},fillText(){},measureText(){return{width:28};},drawImage(image){assert.ok(image.width>0&&image.height>0);}};
+    pen={clearRect:()=>{if(this===main){visited=[];draws++;}},setTransform(){},beginPath(){},arc(){},fill(){},fillRect(){},fillText(){},measureText(){return{width:28};},createImageData(width,height){return{width,height,data:new Uint8ClampedArray(width*height*4)};},putImageData(){},drawImage(image){assert.ok(image.width>0&&image.height>0);}};
     constructor(){canvases.push(this);}getContext(){return this.pen;}
   }
   const motion=Object.assign(new EventTarget(),{matches:false});
@@ -128,12 +128,12 @@ test('production active IDs grow and are actually removed at fixed geometry, wit
     assert.ok(Math.abs(f.visited.length-lowCount)<=6);
     assert.ok(!f.visited.some(p=>p.id>=lowCount+6),'retired IDs leave the actual production sample loop');
     assert.equal(f.boundsReads,bounds,'population changes never remeasure layout');
-    assert.equal(f.canvases.length,3,'growth reuses two pre-sized atlases');
+    assert.equal(f.canvases.length,4,'growth reuses two pre-sized atlases and one bounded wash');
     assert.ok(f.globalSamples<500,'global sampling piggybacks at the capped cadence');
     f.resize(390,844);f.run(20);
     assert.ok(f.visited.length<=pointCount(390,844),'normal resize releases the retiring tail after its fade');
     assert.ok(Math.abs(f.visited.length-Math.round(pointCount(390,844)*(.55+.45*.1)))<=6);
-    assert.equal(f.canvases.length,3);
+    assert.equal(f.canvases.length,4);
   }finally{f.close();}
 });
 

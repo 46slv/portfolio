@@ -95,7 +95,7 @@ const {
     </style>
   </head>
   <body class={bodyClass} data-home-background={homeBackground || undefined}>
-    <div id="cursor-light"></div>
+    {!homeBackground && <div id="cursor-light"></div>}
     <slot name="background" />
 
     {showShell ? (
@@ -125,6 +125,7 @@ const {
       window.addEventListener(
         'mousemove',
         (event) => {
+          updateCursorPointer(event.clientX, event.clientY);
           if (!light) {
             return;
           }
@@ -135,7 +136,6 @@ const {
           light.style.top =
             `${event.clientY}px`;
 
-          updateCursorPointer(event.clientX, event.clientY);
         }
       );
     </script>

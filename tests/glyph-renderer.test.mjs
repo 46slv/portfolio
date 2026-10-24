@@ -2,8 +2,8 @@ import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { test } from 'node:test';
 import ts from 'typescript';
-import { advanceFieldMotion, createFieldMotion, GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makePoints, samplePoint } from '../src/lib/glyph-field.ts';
-import { clearCursorPointer, updateCursorPointer } from '../src/lib/cursor-pointer.ts';
+import { advanceFieldMotion, advanceLightPointer, createFieldMotion, createLightPointer, GLYPH_ATLAS_MAX_BYTES, MAX_DPR, makePoints, samplePoint } from '../src/lib/glyph-field.ts';
+import { clearCursorPointer, cursorPointer, subscribeCursorPointer, updateCursorPointer } from '../src/lib/cursor-pointer.ts';
 
 // Run the real renderer against small DOM/Canvas doubles. This checks scheduling,
 // lifecycle and resource ownership, not actual raster pixels or browser layout.
@@ -25,6 +25,8 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
   let expectedById = new Map();
   let resizeFrames = 100;
   const expectedMotion = createFieldMotion();
+  const expectedLight = createLightPointer();
+  let expectedWidth = 0, expectedHeight = 0;
   let expectedLastTime = 0;
   let verifyIdleAlpha = true;
   const positionKey = (x, y) => `${Math.round(x * 1e6)},${Math.round(y * 1e6)}`;
@@ -41,12 +43,15 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
         this.dots.clear();
         this.positions.clear();
         if (this === canvas) {
+          const geometryChanged = expectedWidth !== window.innerWidth || expectedHeight !== window.innerHeight;
+          advanceLightPointer(expectedLight, cursorPointer, 0, window.innerWidth, window.innerHeight, motion.matches && geometryChanged);
+          expectedWidth = window.innerWidth; expectedHeight = window.innerHeight;
           const points = makePoints(window.innerWidth, window.innerHeight, Number(canvas.dataset.pointCount));
           expectedSamples = new Map();
           expectedById = new Map();
           for (const point of points) {
             const expected = samplePoint(point, expectedMotion, window.innerWidth, window.innerHeight,
-              { x: 0, y: 0, active: false });
+              expectedLight);
             expectedSamples.set(positionKey(expected.x, expected.y), { point, expected });
             expectedById.set(String(point.id), expected);
           }
@@ -73,9 +78,15 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
         this.dots.set(this.pointKey, this.pen.globalAlpha);
         this.positions.set(this.pointKey, this.position);
       },
+      createImageData: (width, height) => ({ width, height, data: new Uint8ClampedArray(width * height * 4) }),
+      putImageData() {},
       setTransform() {}, beginPath() {}, fillText() {}, fillRect() {},
       measureText() { return { width: 28 }; },
       drawImage: (image, ...args) => {
+        if (image.dataset.fieldLayer === 'wash') {
+          assert.deepEqual(args, [0, 0, window.innerWidth, window.innerHeight]);
+          assert.ok(image.width * image.height <= 4096); drawCalls++; return;
+        }
         if (this === canvas) {
           const [x, y, width, height] = args.slice(-4);
           this.pen.arc(x + width / 2, y + height / 2);
@@ -141,6 +152,9 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
   clearCursorPointer();
   const canvas = new Canvas();
   let cleanup;
+  const unsubscribeExpected = subscribeCursorPointer(() => {
+    if (motion.matches && !document.hidden) advanceLightPointer(expectedLight, cursorPointer, 0, window.innerWidth, window.innerHeight, true);
+  });
   let time = 0;
   let hitTests = 0;
   window.addEventListener('resize', () => {
@@ -156,6 +170,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     time += 34;
     const elapsed = expectedLastTime ? Math.min((time - expectedLastTime) / 1000, 0.1) : 0;
     advanceFieldMotion(expectedMotion, elapsed, window.innerWidth, window.innerHeight);
+    advanceLightPointer(expectedLight, cursorPointer, elapsed, window.innerWidth, window.innerHeight);
     expectedLastTime = time;
     resizeFrames++;
     callback(time);
@@ -168,8 +183,10 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
   };
   try {
     cleanup = mountGlyphField(canvas);
-    const atlases = canvases.slice(1);
+    const atlases = canvases.slice(1, 3);
     assert.equal(atlases.length, 2);
+    assert.equal(canvases.length, 4);
+    assert.equal(canvases[3].dataset.fieldLayer, 'wash');
     assert.equal(callbacks.size, 1);
     assert.equal(canvas.width, window.innerWidth * MAX_DPR);
     assert.equal(canvas.height, window.innerHeight * MAX_DPR);
@@ -261,7 +278,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
       assert.ok(Number(canvas.dataset.transitionAtlasBytes) <= GLYPH_ATLAS_MAX_BYTES);
       assert.ok(atlases.reduce((bytes, image) => bytes + image.width * image.height * 4, 0) <= GLYPH_ATLAS_MAX_BYTES);
       const live = canvases.filter((image) => image !== canvas && image.width && image.height);
-      assert.ok(live.length <= 34, 'only two atlases plus at most 32 glyph sprites');
+      assert.ok(live.length <= 35, 'two atlases, one bounded wash, and at most 32 glyph sprites');
       assert.deepEqual(canvases.slice(1, 3), atlases, 'resize never creates replacement atlases');
     }
     assert.equal(Number(canvas.dataset.transitionRevision), 120);
@@ -368,6 +385,7 @@ test('renderer flows without a pointer on desktop/portrait and preserves buffers
     assert.equal(canvases.length, countBefore);
     cleanup(); // Idempotent after Astro cleanup.
   } finally {
+    unsubscribeExpected();
     cleanup?.();
     clearCursorPointer();
     for (const [key, descriptor] of originals) {

@@ -3,6 +3,8 @@ export interface FieldPointer {
   x: number;
   y: number;
   active: boolean;
+  strength?: number;
+  scale?: number;
 }
 
 export const POINT_BUDGET = 2600;
@@ -117,11 +119,82 @@ function sampleFieldValue(x: number, y: number, time: number | FieldMotion): num
   return field;
 }
 
-const pointerLight = (x: number, y: number, pointer: FieldPointer) => pointer.active
-  ? 0.82 * Math.exp(-((x - pointer.x) ** 2 + (y - pointer.y) ** 2) / (2 * 105 ** 2)) : 0;
+/** One unbounded analytic halo, composed in linear-light coordinates rather
+ * than a cropped DOM disk. The broad shoulder has no finite radial cutoff. */
+export function haloScale(width: number, height: number): number {
+  return Math.max(0.7, Math.min(1, Math.min(width, height) / 700));
+}
+
+export function haloLuminance(x: number, y: number, pointer: FieldPointer): number {
+  if (!pointer.active) return 0;
+  const strength = clamp(pointer.strength ?? 1);
+  const scale = pointer.scale ?? 1;
+  const distanceSquared = (x - pointer.x) ** 2 + (y - pointer.y) ** 2;
+  return strength * (0.70 * Math.exp(-distanceSquared / (2 * (95 * scale) ** 2))
+    + 0.12 * Math.exp(-distanceSquared / (2 * (280 * scale) ** 2)));
+}
+
+/** Linear-light screen: no additive clamp/flat spotlight in a dark gradient. */
+export const composeFieldLight = (gradient: number, halo: number) => gradient + halo * (1 - gradient);
 
 export function sampleLuminance(x: number, y: number, time: number | FieldMotion, pointer: FieldPointer): number {
-  return smoothstep(0.26, 0.87, sampleFieldValue(x, y, time) + pointerLight(x, y, pointer));
+  return composeFieldLight(smoothstep(0.26, 0.87, sampleFieldValue(x, y, time)), haloLuminance(x, y, pointer));
+}
+
+export interface LightPointer extends FieldPointer { strength: number; scale: number }
+export const createLightPointer = (): LightPointer => ({ x: 0, y: 0, active: false, strength: 0, scale: 1 });
+
+/** Raw hit testing stays immediate; only light coordinates/intensity are eased.
+ * Hidden time is never passed here. Reduced motion uses event-driven snapshots. */
+export function advanceLightPointer(state: LightPointer, target: FieldPointer, elapsed: number,
+  width: number, height: number, immediate = false): void {
+  state.scale = haloScale(width, height);
+  const active = target.active && Number.isFinite(target.x) && Number.isFinite(target.y);
+  const edge = Math.min(target.x, target.y, width - target.x, height - target.y);
+  const fade = Math.max(1, Math.min(48, width / 5, height / 5));
+  const strength = active ? smoothstep(0, fade, edge) : 0;
+  const delta = Number.isFinite(elapsed) ? Math.max(0, elapsed) : 0;
+  if (active && (immediate || state.strength === 0)) { state.x = target.x; state.y = target.y; }
+  if (immediate) state.strength = strength;
+  else if (delta > 0) {
+    const follow = 1 - Math.exp(-delta / 0.09);
+    if (active) { state.x += (target.x - state.x) * follow; state.y += (target.y - state.y) * follow; }
+    state.strength += (strength - state.strength) * (1 - Math.exp(-delta / 0.14));
+  }
+  // Release tail work once the maximum contribution is below 0.000001.
+  if (state.strength < 1e-6) state.strength = 0;
+  state.active = state.strength > 0;
+}
+
+export const WASH_PIXEL_BUDGET = 4096;
+export function washLayout(width: number, height: number): { width: number; height: number } {
+  let columns = Math.max(2, Math.min(128, Math.ceil(width / 32)));
+  let rows = Math.max(2, Math.min(128, Math.ceil(height / 32)));
+  if (columns * rows > WASH_PIXEL_BUDGET) {
+    const scale = Math.sqrt(WASH_PIXEL_BUDGET / (columns * rows));
+    columns = Math.max(2, Math.floor(columns * scale)); rows = Math.max(2, Math.floor(rows * scale));
+  }
+  return { width: columns, height: rows };
+}
+
+// Decode Home's #0a0a0a, add at most 0.0045 linear light, then encode once.
+// The shared wash remains 10..21 sRGB bytes, below existing text headroom.
+const washChannels = Uint8Array.from({ length: 1025 }, (_, index) => {
+  const linear = (10 / 255) / 12.92 + 0.0045 * index / 1024;
+  return Math.round(255 * (linear <= 0.0031308 ? 12.92 * linear : 1.055 * linear ** (1 / 2.4) - 0.055));
+});
+export const washChannel = (light: number): number => washChannels[Math.round(clamp(Number.isFinite(light) ? light : 0) * 1024)];
+
+/** Reuse one small RGBA buffer. Cover the full viewport, never a radial crop. */
+export function paintFieldWash(pixels: Uint8ClampedArray, columns: number, rows: number,
+  width: number, height: number, motion: FieldMotion, pointer: FieldPointer): void {
+  for (let row = 0; row < rows; row++) for (let column = 0; column < columns; column++) {
+    const channel = washChannel(sampleLuminance((column + 0.5) * width / columns,
+      (row + 0.5) * height / rows, motion, pointer));
+    const index = (row * columns + column) * 4;
+    pixels[index] = pixels[index + 1] = pixels[index + 2] = channel;
+    pixels[index + 3] = 255;
+  }
 }
 
 /** Fixed screen samples exclude pointer glow, density, presence and the point
@@ -220,7 +293,7 @@ export function densityVisibility(luminance: number, rank: number): number {
 export const LARGE_DOT_MIN_MULTIPLIER = 1.3;
 export const LARGE_DOT_MAX_MULTIPLIER = 7;
 
-/** Only the pointer-free gradient selects larger stars. A soft 64-90% local
+/** The shared gradient/halo field selects larger stars. A soft 64-90% local
  * occupancy gate admits a small fixed-rank tail; the sixth power makes the
  * largest diameters rare. Multipliers apply to radius and diameter, not area. */
 export function dotSizeMultiplier(gradientLuminance: number, largeRank: number, sizeRank: number): number {
@@ -250,18 +323,18 @@ export function pointVisibility(x: number, y: number, width: number, height: num
 /** One visible sample owns drawing, text readability and transition delays. */
 export function samplePoint(point: FieldPoint, motion: FieldMotion, width: number, height: number, pointer: FieldPointer) {
   const { x, y } = pointPosition(point, motion, width, height);
-  // Evaluate the waves once. Pointer light retains its local brightness/density
-  // effect, but cannot create the larger-dot population by itself.
+  // Evaluate the waves once. Dots, density, eligibility and the wash all use
+  // one composed field; global population still samples with pointer inactive.
   const field = sampleFieldValue(x, y, motion);
   const gradientLuminance = smoothstep(0.26, 0.87, field);
-  const fieldLight = pointer.active ? smoothstep(0.26, 0.87, field + pointerLight(x, y, pointer)) : gradientLuminance;
+  const fieldLight = composeFieldLight(gradientLuminance, haloLuminance(x, y, pointer));
   const edge = pointVisibility(x, y, width, height);
   const presence = smoothstep(0, 1, point.presence);
   const brightness = fieldLight * edge;
   const density = densityVisibility(fieldLight, point.densityRank);
-  const sizeMultiplier = 1 + (dotSizeMultiplier(gradientLuminance, point.largeRank, point.sizeRank) - 1) * edge * presence;
+  const sizeMultiplier = 1 + (dotSizeMultiplier(fieldLight, point.largeRank, point.sizeRank) - 1) * edge * presence;
   const radius = (0.24 + brightness * 1.01) * sizeMultiplier;
-  return { x, y, brightness, density, gradientLuminance, sizeMultiplier, radius, luminance: brightness * density * presence };
+  return { x, y, brightness, density, gradientLuminance, fieldLuminance: fieldLight, sizeMultiplier, radius, luminance: brightness * density * presence };
 }
 
 export const GLYPH_MAX_DELAY_SECONDS = 0.42;

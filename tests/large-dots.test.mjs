@@ -75,7 +75,7 @@ test('large-dot thresholds are continuous, monotonic and driven by gradient occu
   }
 });
 
-test('isolated pointer glow brightens normal dots without enabling the large-dot population',()=>{
+test('shared halo contributes to local density and rare-dot eligibility through the same composed field',()=>{
   const motion=createFieldMotion();advanceFieldMotion(motion,12,1440,900);
   const point=makePoints(1440,900).find(p=>{
     const sample=samplePoint(p,motion,1440,900,off);
@@ -86,8 +86,10 @@ test('isolated pointer glow brightens normal dots without enabling the large-dot
   const before=samplePoint(point,motion,1440,900,off);
   const on=samplePoint(point,motion,1440,900,{x:before.x,y:before.y,active:true});
   assert.equal(on.gradientLuminance,before.gradientLuminance);
-  assert.equal(before.sizeMultiplier,1);assert.equal(on.sizeMultiplier,1);
-  assert.ok(on.luminance>before.luminance+.5,'existing local pointer response remains');
+  assert.equal(before.sizeMultiplier,1);assert.ok(on.sizeMultiplier>1);
+  assert.equal(on.sizeMultiplier,dotSizeMultiplier(on.fieldLuminance,point.largeRank,point.sizeRank));
+  assert.equal(on.density,densityVisibility(on.fieldLuminance,point.densityRank));
+  assert.ok(on.luminance>before.luminance+.5,'shared light retains the local pointer response');
 });
 
 test('maximum circles fade in radius and alpha at screen boundaries and through population changes',()=>{
