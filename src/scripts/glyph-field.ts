@@ -1,8 +1,8 @@
 import {
-  advanceFieldMotion, advanceGlobalPopulation, advancePointPresence, createFieldMotion, createGlobalPopulation,
+  advanceFieldMotion, advanceGlobalPopulation, advanceLightPointer, advancePointPresence, createFieldMotion, createGlobalPopulation, createLightPointer,
   createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
   GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
-  glyphAtlasLayout, makePoints, pointCount, MAX_DPR, POINT_VELOCITY, sampleGlobalLuminance, samplePoint, type FieldPoint,
+  glyphAtlasLayout, makePoints, paintFieldWash, pointCount, MAX_DPR, POINT_VELOCITY, sampleGlobalLuminance, samplePoint, washLayout, WASH_PIXEL_BUDGET, type FieldPoint,
   retargetGlyphTransition, segmentGraphemes, transitionDotWeight, transitionProgress,
 } from '../lib/glyph-field';
 import { clearCursorPointer, cursorPointer, subscribeCursorPointer } from '../lib/cursor-pointer';
@@ -46,6 +46,11 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   };
   let sourceAtlas = makeAtlas();
   let captureAtlas = makeAtlas();
+  const washImage = document.createElement('canvas');
+  washImage.dataset.fieldLayer = 'wash';
+  const washContext = washImage.getContext('2d')!;
+  let washPixels: ImageData | null = null;
+  const lightPointer = createLightPointer();
   let points: Array<FieldPoint & {
     cellX: number; cellY: number; fromHasGlyph: boolean; targetPresent: boolean;
     transition: ReturnType<typeof createGlyphTransition>;
@@ -85,6 +90,8 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.pointMotion = 'seeded-diagonal-flow';
   canvas.dataset.densityPolicy = 'stable-rank-luminance';
   canvas.dataset.dotSizePolicy = 'gradient-rare-large';
+  canvas.dataset.lightPolicy = 'shared-linear-halo';
+  canvas.dataset.washPixelBudget = String(WASH_PIXEL_BUDGET);
   canvas.dataset.populationPolicy = 'global-field-mean';
   canvas.dataset.pointVelocity = `${POINT_VELOCITY.x},${POINT_VELOCITY.y}`;
   canvas.dataset.gradientVelocity = `${GRADIENT_VELOCITY.x},${GRADIENT_VELOCITY.y}`;
@@ -140,7 +147,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
         captureAtlas.pen.drawImage(previousSprite!, point.cellX, point.cellY, tileSize, tileSize);
       }
       point.fromHasGlyph = fromHasGlyph || targetHasGlyph;
-      const { luminance } = samplePoint(point, fieldMotion, width, height, cursorPointer);
+      const { luminance } = samplePoint(point, fieldMotion, width, height, lightPointer);
       retargetGlyphTransition(point.transition, next, luminance, seconds);
       const delay = point.transition.startsAt - seconds;
       minDelay = Math.min(minDelay, delay);
@@ -163,6 +170,14 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
 
   const draw = () => {
     context.clearRect(0, 0, width, height);
+    if (washPixels) {
+      paintFieldWash(washPixels.data, washImage.width, washImage.height, width, height, fieldMotion, lightPointer);
+      washContext.putImageData(washPixels, 0, 0);
+      context.globalAlpha = 1;
+      context.globalCompositeOperation = 'source-over';
+      context.imageSmoothingEnabled = true;
+      context.drawImage(washImage, 0, 0, width, height);
+    }
     const refreshReadability = readabilityNeeded || lastReadability < 0
       || seconds - lastReadability >= 0.12 || motion.matches;
     for (const region of readability) {
@@ -182,7 +197,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     let active = 0;
     context.fillStyle = '#fff';
     for (const point of points) {
-      const { x, y, luminance, brightness, radius } = samplePoint(point, fieldMotion, width, height, cursorPointer);
+      const { x, y, luminance, brightness, radius } = samplePoint(point, fieldMotion, width, height, lightPointer);
       const progress = transitionProgress(point.transition, seconds);
       if (progress < 1) {
         if (seconds < point.transition.startsAt) pending++;
@@ -243,6 +258,9 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       if (canvas.dataset.transitionPending !== String(pending)) canvas.dataset.transitionPending = String(pending);
       if (canvas.dataset.transitionActive !== String(active)) canvas.dataset.transitionActive = String(active);
       canvas.dataset.populationLuminance = population.light.toFixed(4);
+      canvas.dataset.haloStrength = lightPointer.strength.toFixed(4);
+      canvas.dataset.haloX = lightPointer.x.toFixed(2);
+      canvas.dataset.haloY = lightPointer.y.toFixed(2);
       lastDiagnostics = seconds;
     }
   };
@@ -270,6 +288,9 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   };
 
   const staticDraw = () => {
+    // Static lifecycle draws have no future tick to reconcile input cleared
+    // while hidden or during an exit fade. Snapshot before sampling or retarget.
+    advanceLightPointer(lightPointer, cursorPointer, 0, width, height, true);
     updateTarget();
     for (const point of points) {
       point.transition = createGlyphTransition(target, seconds);
@@ -285,6 +306,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       const delta = previousTime ? Math.min((time - previousTime) / 1000, 0.1) : 0;
       seconds += delta;
       advanceFieldMotion(fieldMotion, delta, width, height);
+      advanceLightPointer(lightPointer, cursorPointer, delta, width, height);
       if (lastGlobalSample < 0 || seconds - lastGlobalSample >= 0.12) {
         globalLight = sampleGlobalLuminance(width, height, fieldMotion);
         lastGlobalSample = seconds;
@@ -318,6 +340,11 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     width = window.innerWidth;
     height = window.innerHeight;
     advanceFieldMotion(fieldMotion, 0, width, height);
+    advanceLightPointer(lightPointer, cursorPointer, 0, width, height, motion.matches && geometryChanged);
+    const washSize = washLayout(width, height);
+    washImage.width = washSize.width; washImage.height = washSize.height;
+    washPixels = washContext.createImageData(washImage.width, washImage.height);
+    canvas.dataset.washPixels = String(washImage.width * washImage.height);
     readabilityBoundsDirty = readabilityNeeded = true;
     const dpr = Math.min(window.devicePixelRatio || 1, MAX_DPR);
     canvas.width = Math.round(width * dpr);
@@ -401,6 +428,8 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
       else element.style.removeProperty('--home-background-luminance');
     }
     for (const atlas of [sourceAtlas, captureAtlas]) atlas.image.width = atlas.image.height = 0;
+    washPixels = null;
+    washImage.width = washImage.height = 0;
     window.removeEventListener('resize', resize);
     window.removeEventListener('scroll', scroll, true);
     window.removeEventListener('blur', leave);

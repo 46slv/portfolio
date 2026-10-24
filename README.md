@@ -51,5 +51,8 @@ point IDs within the 2600-point budget. The field translates/evolves separately.
 markers and receives the Home-only background-aware palette. Other routes retain
 their existing appearance.
 Run `npm test` for field, renderer, Home text coverage and existing visualizer regressions.
-See [implementation and acceptance checks](docs/luminance-glyph-background.md)
+Home combines its pointer halo with the animated field and a restrained near-black
+wash; other routes keep their existing cursor glow. See the
+[shared-light design](docs/shared-home-light-field.md) and
+[implementation and acceptance checks](docs/luminance-glyph-background.md)
 for rendering details, accessibility behavior and verification limitations.

@@ -11,9 +11,10 @@
   labels/arrows/descriptions, and both footer labels. Shared footer opt-in and the
   adaptive palette are conditional on Home. Responsive layouts reuse that same
   covered text tree; accessible-only canvas labels are not visible text sources.
-- The existing `#cursor-light` styles, dimensions, stacking, blend mode and
-  mousemove positioning remain unchanged. Its existing event handler also shares
-  numeric coordinates with the background. No second UI glow is created.
+- Home omits the independent `#cursor-light` disk. The layout still produces raw
+  coordinates for immediate text hit testing; the background eases its own shared
+  light state. Other routes retain the disk and its existing styles/positioning.
+  See [shared-light design](shared-home-light-field.md).
 
 ## Rendering and interaction
 
@@ -23,7 +24,7 @@ no drawing frame calls a random-number generator. The nine seeded speed factors
 range from 0.84 to 1.16 around the nominal down-right velocity (1.8, 1.2) CSS px/s.
 Every star keeps translating in that direction rather than oscillating. The
 separate gradient advection remains (2.4, 1.6) CSS px/s, with the original color
-evolution and screen-anchored pointer light.
+evolution and one screen-anchored analytic halo, shared by points and a near-black wash.
 
 The star pool extends 32px beyond each viewport edge. Nine bounded offset pairs
 recycle their IDs only in this invisible padding, with an 18px smooth screen-edge
@@ -53,7 +54,7 @@ is `0.16 + 0.82 * luminance` (previously `0.12 + 0.78 * luminance`), selected by
 smoothstep band. Existing luminance still controls size/brightness; the density
 fade separately modulates visibility. Black remains black.
 
-Rare larger dots use the same gradient before pointer glow. Their local
+Rare larger dots use the same composed gradient/halo field as brightness and density. Their local
 occupancy gate is `smoothstep(0.64, 0.90, occupancy)`. A stable `largeRank`
 selects with `gate * smoothstep(largeRank - 0.12, largeRank + 0.12, 0.16 * gate)`.
 Fully selected radius and diameter use `1.3 + 5.7 * sizeRank^6`, with an independent
@@ -64,9 +65,9 @@ are rare: in the 2600-ID white-gradient pool, 12.27% reach 1.3x, 2.35% reach 3x,
 linear dimensions, so area scales with the square. Mean circle area in that
 brightest seeded pool is 1.70x the same pool with normal dot radii.
 
-The analytic waves are evaluated once per moving point and shared by local
-brightness, density and size; pointer glow still brightens normal stars but
-cannot create a large-dot cluster alone. Only idle-dot circle radius changes.
+The analytic waves are evaluated once per moving point. Linear-light screen
+combines the two-Gaussian halo before brightness, density and size eligibility.
+The rare seeded size tail remains bounded; only idle-dot circle radius changes.
 Glyph dimensions, transition deadlines and existing hover behavior are retained.
 The largest radius is 8.75px, below the 32px field padding; cached readability
 bounds extend 18px to cover the radius plus three 3px blur sigmas. Blur/style
@@ -85,8 +86,8 @@ wrapping time reset or additional animation loop. Dots and glyphs use the same
 position and brightness. Drawing, local text readability and transition delays
 share the final density/population/edge-faded luminance at that moving position.
 
-Each rendered position samples one analytic grayscale field made from smoothly flowing waves and a localized
-contribution from the existing mouse position. The edge-faded luminance controls both point size
+Each rendered position samples one analytic grayscale field made from smoothly flowing waves and
+a core/shoulder halo around frame-time-eased light coordinates. The edge-faded luminance controls both point size
 and alpha, with true zero and one endpoints, not a global dimming overlay. Idle
 points are dots. While an opted-in grapheme is hit, each visible point independently
 renders a small instance of that same grapheme. This is not a large letter mask
@@ -97,7 +98,8 @@ light/dark lobes fit in narrow portrait viewports without changing point spacing
 Their intrinsic evolution phase advances 6× faster: individual wave periods are about 8, 12 and 15
 seconds rather than 48, 70 and 90 seconds. The field visibly evolves within 1–2
 seconds, continuously and without random per-frame noise. The mouse contribution
-keeps its original 105px falloff and is combined before the same luminance mapping;
+uses `0.70*exp(-r^2/(2*95^2)) + 0.12*exp(-r^2/(2*280^2))`, with responsive
+scale 0.7-1, and linear screen composition after the base gradient mapping;
 pointer activation is not required for idle animation on desktop or mobile.
 
 Hit testing uses `elementFromPoint`, a text TreeWalker, `Intl.Segmenter`, and each
@@ -165,8 +167,13 @@ rendering and hover readability remain real-browser acceptance items.
   (294,912 bytes). Eviction and cleanup explicitly release retired canvas stores.
   These are pixel-store budgets, not total browser/GPU memory. The existing
   visible canvas additionally uses roughly `4 × width × height × min(DPR, 2)²`
-  bytes: 126.56 MiB at 3840×2160 and DPR 2 (about 147.16 MiB including both maximum
-  atlases and the full sprite cache).
+  bytes: 126.56 MiB at 3840×2160 and DPR 2 (about 147.18 MiB including the maximum
+  atlases, full sprite cache and wash).
+- One extra wash canvas uses at most 4096 RGBA pixels (16KiB) plus a 1025-byte
+  cached conversion LUT. It covers the full viewport through upsampling, with no
+  per-dot blur, radial crop or full-resolution analytic pixel loop. Its near-black
+  10-21 channel range fits the existing local text headroom; palette/backplates
+  are unchanged. The buffer is reused per frame and released on cleanup.
 - Resizes reuse the same two atlas objects, clear their cells, and initialize new
   points to only the latest target. There are no per-point canvases or timers.
 - Point translation, gradient advection/evolution and target transitions share the same 30fps cap.

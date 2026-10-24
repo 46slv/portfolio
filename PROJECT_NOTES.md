@@ -14,7 +14,34 @@ This file is the working specification and implementation log for this repositor
 - Gear page: `src/pages/gear/index.astro`.
 - Global CSS file: `src/styles/global.css`. Keep this minimal; Tailwind import remains the primary content.
 
-## Home Denser Field And Rare Larger Dots - 2026-10-24
+## Home Shared Halo And Near-Black Wash - 2026-10-24 (local candidate)
+
+- Home removes the independent topmost cursor disk. Its points and one small
+  continuous wash use the same linear-light gradient/halo composition. Other
+  routes retain their existing cursor disk and styles.
+- A 0.70 core (sigma95) plus 0.12 shoulder (sigma280) has no radial crop;
+  viewport scale is 0.7-1. Linear screen retains highlight headroom instead of
+  clipping an additive spotlight. Brightness, density and rare-dot eligibility
+  all consume this shared field; global population still excludes pointer light.
+- Light follows raw coordinates with 90ms/140ms position/strength time constants.
+  Hit testing stays immediate. Exit/edges fade in normal motion; reduced motion
+  uses static input snapshots and no standing field RAF. Every static redraw
+  reconciles current input, including hidden return and interrupted exit fades.
+  Hide/page clocks freeze.
+- The wash uses at most 4096 RGBA pixels (16KiB), one reused buffer and a 1025-byte
+  conversion LUT. Its encoded channels stay 10-21. The point/atlas/DPR budgets,
+  text palette, 64%/3px backplates, hover/content and other routes are retained.
+- 97 aggregate tests pass, including twelve new shared-light checks. Four
+  lifecycle regressions fail before the review correction and pass after it;
+  the reviewer's unchanged two-case reproduction also passes. The final
+  adapter-free check has zero diagnostics across 41 files; its static build
+  emits four routes and retains all 50 Home text runs in seven regions. Browser,
+  font/blur compositing and device profiling are NOT_RUN. Analytic previews are
+  code-derived approximations, not screenshots. This glow increment is local
+  and awaits separate review; it has not been committed or published.
+- See `docs/shared-home-light-field.md` for calibration, sources and evidence.
+
+## Home Denser Field And Rare Larger Dots - 2026-10-24 (PR #10)
 
 - Local occupancy rises from `0.12 + 0.78 * light` to `0.16 + 0.82 * light`.
   Stable ranks and the existing soft visibility band remain; global population
