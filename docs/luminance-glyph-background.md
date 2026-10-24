@@ -67,11 +67,17 @@ brightest seeded pool is 1.70x the same pool with normal dot radii.
 
 The analytic waves are evaluated once per moving point. Linear-light screen
 combines the two-Gaussian halo before brightness, density and size eligibility.
-The rare seeded size tail remains bounded; only idle-dot circle radius changes.
-Glyph dimensions, transition deadlines and existing hover behavior are retained.
-The largest radius is 8.75px, below the 32px field padding; cached readability
-bounds extend 18px to cover the radius plus three 3px blur sigmas. Blur/style
-values and foreground content are unchanged.
+The rare seeded size tail remains bounded. Its live linear multiplier now also
+scales canvas glyph destinations, including interrupted source/target blends;
+normal 1x glyphs keep their 5-14px size. Large particles alone emit a soft cached
+halo independent of whether their core is a dot or a glyph. Transition deadlines,
+weights and actual page text/hover behavior are retained.
+The largest dot radius remains 8.75px; the maximum glyph destination is 98px and
+particle halo radius is 68.25px. Cached readability bounds extend 78px to include
+these footprints plus three 3px blur sigmas. Overlapping emitted halos contribute
+a conservative opacity union to text contrast observation, without feeding back
+into the field or population. Blur/style values and foreground content are
+unchanged. See [large particle rendering](large-particle-glyph-glow.md).
 
 Resizes retain prefix IDs, seeds, ranks and speeds. Normalized locations and each
 speed lane's offsets scale together, without reseeding or restarting wave phases.
@@ -120,7 +126,7 @@ partially completed blends. Thus a rapid dot → A → B → Japanese → dot in
 holds the current appearance during the new delay, without replaying an obsolete
 pending glyph or resetting to a fully formed previous character. Two shared
 off-DOM atlases flatten those snapshots, so historical glyph layers cannot grow.
-Each visible point draws at most two glyph images plus its dot. Sprite alpha is
+Each visible point draws at most two glyph images plus its dot and, only while enlarged, one cached halo image. Sprite alpha is
 white, including for otherwise colored emoji.
 
 ## Local text readability
@@ -167,13 +173,17 @@ rendering and hover readability remain real-browser acceptance items.
   (294,912 bytes). Eviction and cleanup explicitly release retired canvas stores.
   These are pixel-store budgets, not total browser/GPU memory. The existing
   visible canvas additionally uses roughly `4 × width × height × min(DPR, 2)²`
-  bytes: 126.56 MiB at 3840×2160 and DPR 2 (about 147.18 MiB including the maximum
-  atlases, full sprite cache and wash).
+  bytes: 126.56 MiB at 3840×2160 and DPR 2 (about 147.21 MiB including the maximum
+  atlases, full sprite cache, wash and particle halo).
 - One extra wash canvas uses at most 4096 RGBA pixels (16KiB) plus a 1025-byte
   cached conversion LUT. It covers the full viewport through upsampling, with no
   per-dot blur, radial crop or full-resolution analytic pixel loop. Its near-black
   10-21 channel range fits the existing local text headroom; palette/backplates
   are unchanged. The buffer is reused per frame and released on cleanup.
+- One 96x96 RGBA particle-halo sprite (36KiB) and one initial 36KiB upload
+  buffer add bounded storage. The sprite is reused across particles, frames and
+  resizes; no per-particle blur/filter or new animation clock is used. It is
+  released with the existing canvases on cleanup.
 - Resizes reuse the same two atlas objects, clear their cells, and initialize new
   points to only the latest target. There are no per-point canvases or timers.
 - Point translation, gradient advection/evolution and target transitions share the same 30fps cap.

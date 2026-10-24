@@ -2,7 +2,7 @@ import {
   advanceFieldMotion, advanceGlobalPopulation, advanceLightPointer, advancePointPresence, createFieldMotion, createGlobalPopulation, createLightPointer,
   createGlyphTransition, FIELD_PADDING, GRADIENT_VELOCITY,
   GLYPH_ATLAS_TILE_SIZE, GLYPH_FADE_SECONDS, GLYPH_MAX_DELAY_SECONDS,
-  glyphAtlasLayout, makePoints, paintFieldWash, pointCount, MAX_DPR, POINT_VELOCITY, sampleGlobalLuminance, samplePoint, washLayout, WASH_PIXEL_BUDGET, type FieldPoint,
+  glyphAtlasLayout, makePoints, paintFieldWash, paintParticleHalo, PARTICLE_HALO_TILE_SIZE, PARTICLE_READABILITY_MARGIN, pointCount, MAX_DPR, POINT_VELOCITY, sampleGlobalLuminance, samplePoint, washLayout, WASH_PIXEL_BUDGET, type FieldPoint,
   retargetGlyphTransition, segmentGraphemes, transitionDotWeight, transitionProgress,
 } from '../lib/glyph-field';
 import { clearCursorPointer, cursorPointer, subscribeCursorPointer } from '../lib/cursor-pointer';
@@ -51,6 +51,13 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   const washContext = washImage.getContext('2d')!;
   let washPixels: ImageData | null = null;
   const lightPointer = createLightPointer();
+  const particleHalo = document.createElement('canvas');
+  particleHalo.dataset.fieldLayer = 'particle-halo';
+  particleHalo.width = particleHalo.height = PARTICLE_HALO_TILE_SIZE;
+  const haloPen = particleHalo.getContext('2d')!;
+  const haloPixels = haloPen.createImageData(PARTICLE_HALO_TILE_SIZE, PARTICLE_HALO_TILE_SIZE);
+  paintParticleHalo(haloPixels.data);
+  haloPen.putImageData(haloPixels, 0, 0);
   let points: Array<FieldPoint & {
     cellX: number; cellY: number; fromHasGlyph: boolean; targetPresent: boolean;
     transition: ReturnType<typeof createGlyphTransition>;
@@ -64,7 +71,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   const readability = Array.from(document.querySelectorAll<HTMLElement>('[data-home-background] .home-readability'))
     .map((element) => ({
       element, previous: element.style.getPropertyValue('--home-background-luminance'),
-      bounds: { left: 0, right: 0, top: 0, bottom: 0 }, light: 0, appliedLight: -1,
+      bounds: { left: 0, right: 0, top: 0, bottom: 0 }, light: 0, halo: 0, appliedLight: -1,
     }));
   let readabilityBoundsDirty = true;
   let readabilityNeeded = true;
@@ -91,6 +98,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
   canvas.dataset.densityPolicy = 'stable-rank-luminance';
   canvas.dataset.dotSizePolicy = 'gradient-rare-large';
   canvas.dataset.lightPolicy = 'shared-linear-halo';
+  canvas.dataset.particleGlowPolicy = 'cached-large-particle-halo';
   canvas.dataset.washPixelBudget = String(WASH_PIXEL_BUDGET);
   canvas.dataset.populationPolicy = 'global-field-mean';
   canvas.dataset.pointVelocity = `${POINT_VELOCITY.x},${POINT_VELOCITY.y}`;
@@ -183,13 +191,14 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     for (const region of readability) {
       if (readabilityBoundsDirty) {
         const rect = region.element.getBoundingClientRect();
-        // Cover the maximum 8.75px dot radius plus three 3px blur sigmas.
+        // Include large canvas glyphs and their emitted halo, not only dot cores.
+        const margin = PARTICLE_READABILITY_MARGIN;
         region.bounds = {
-          left: Math.max(0, rect.left - 18), right: Math.min(width, rect.right + 18),
-          top: Math.max(0, rect.top - 18), bottom: Math.min(height, rect.bottom + 18),
+          left: Math.max(0, rect.left - margin), right: Math.min(width, rect.right + margin),
+          top: Math.max(0, rect.top - margin), bottom: Math.min(height, rect.bottom + margin),
         };
       }
-      region.light = 0;
+      region.light = region.halo = 0;
     }
     readabilityBoundsDirty = false;
     const sprite = target ? spriteFor(target) : null;
@@ -197,7 +206,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     let active = 0;
     context.fillStyle = '#fff';
     for (const point of points) {
-      const { x, y, luminance, brightness, radius } = samplePoint(point, fieldMotion, width, height, lightPointer);
+      const { x, y, luminance, radius, glyphSize, glowRadius, glowOpacity } = samplePoint(point, fieldMotion, width, height, lightPointer);
       const progress = transitionProgress(point.transition, seconds);
       if (progress < 1) {
         if (seconds < point.transition.startsAt) pending++;
@@ -209,16 +218,23 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
         const bounds = region.bounds;
         if (x >= bounds.left && x <= bounds.right && y >= bounds.top && y <= bounds.bottom) {
           region.light = Math.max(region.light, luminance);
+          // Peak opacity bounds overlapping emitted halos conservatively. This
+          // observation affects text contrast only, never light/size/population.
+          region.halo += (1 - region.halo) * glowOpacity;
         }
       }
       if (luminance <= 0.002) continue;
+      if (glowOpacity > 0) {
+        context.globalAlpha = glowOpacity;
+        context.drawImage(particleHalo, x - glowRadius, y - glowRadius, 2 * glowRadius, 2 * glowRadius);
+      }
       if (dotWeight > 0) {
         context.globalAlpha = luminance * dotWeight;
         context.beginPath();
         context.arc(x, y, radius, 0, Math.PI * 2);
         context.fill();
       }
-      const size = 5 + brightness * 9;
+      const size = glyphSize;
       const drawSource = point.fromHasGlyph && progress < 1;
       const drawTarget = sprite !== null && progress > 0;
       // Overlapping white-alpha layers add, so a crossfade cannot dim shared
@@ -239,6 +255,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     context.globalAlpha = 1;
     for (const region of readability) {
       if (region.bounds.right <= region.bounds.left || region.bounds.bottom <= region.bounds.top) continue;
+      region.light += (1 - region.light) * region.halo;
       // Density fades can rise faster than the original waves. Observe the
       // actual draw every frame; refresh immediately if it exceeds the last
       // headroom. Falling values retain the capped release cadence.
@@ -430,6 +447,7 @@ export function mountGlyphField(canvas: HTMLCanvasElement): () => void {
     for (const atlas of [sourceAtlas, captureAtlas]) atlas.image.width = atlas.image.height = 0;
     washPixels = null;
     washImage.width = washImage.height = 0;
+    particleHalo.width = particleHalo.height = 0;
     window.removeEventListener('resize', resize);
     window.removeEventListener('scroll', scroll, true);
     window.removeEventListener('blur', leave);
