@@ -1,0 +1,27 @@
+/* Home experiment: deliberately discontinuous typography by Unicode script.
+   Latin/numbers inherit IBM Plex Mono. Japanese runs are wrapped at runtime so
+   each script can use a different family even when the fonts share glyph coverage. */
+
+[data-mixed-script-typography] {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-mixed-script-typography] .font-mono {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+[data-mixed-script-typography] [data-script-font="hiragana"] {
+  font-family: "Zen Old Mincho", "BIZ UDMincho", serif;
+  font-synthesis: none;
+}
+
+[data-mixed-script-typography] [data-script-font="han"],
+[data-mixed-script-typography] [data-script-font="punctuation"] {
+  font-family: "BIZ UDMincho", "Zen Old Mincho", serif;
+  font-synthesis: none;
+}
+
+[data-mixed-script-typography] [data-script-font="katakana"] {
+  font-family: "IBM Plex Sans JP", sans-serif;
+  font-synthesis: none;
+}
