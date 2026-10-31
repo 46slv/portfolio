@@ -1,0 +1,12 @@
+/* Home typography: IBM Plex only.
+   Latin and numbers resolve to IBM Plex Mono; Japanese falls through to
+   IBM Plex Sans JP without rewriting text nodes or splitting scripts. */
+
+body[data-ibm-typography] {
+  font-family: "IBM Plex Mono", "IBM Plex Sans JP", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+body[data-ibm-typography] .font-sans,
+body[data-ibm-typography] .font-mono {
+  font-family: "IBM Plex Mono", "IBM Plex Sans JP", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+}
